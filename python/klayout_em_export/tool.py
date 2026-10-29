@@ -12,6 +12,11 @@ from .locate import edge_at, gap_at, next_port_layer
 from .ports import PortSettings
 from .stackup import Stackup
 
+def _status(text, seconds):
+    """Status bar message (KLayout 0.29: MainWindow.message, time in ms; LayoutView has none)."""
+    pya.Application.instance().main_window().message(text, seconds * 1000)
+
+
 HINT = "EM Port: click a metal edge for a via port, Shift+click into a gap between metals for an in-plane port"
 
 
@@ -32,7 +37,7 @@ class PortTool(pya.Plugin):
         return self._stackup[1]
 
     def activated(self):
-        self.layout_view.message(HINT, 10)
+        _status(HINT, 10)
 
     def deactivated(self):
         self._clear()
@@ -69,7 +74,7 @@ class PortTool(pya.Plugin):
             self.marker.set(found[2].to_dtype(dbu))
             self.marker.color = 0xff00ff
             self.marker.line_width = 3
-            self.layout_view.message(f"{'via port on' if found[0] == 'via' else 'in-plane port across a gap in'} {found[1]}", 2)
+            _status(f"{'via port on' if found[0] == 'via' else 'in-plane port across a gap in'} {found[1]}", 2)
         return False
 
     def mouse_click_event(self, p, buttons, prio):
@@ -83,7 +88,7 @@ class PortTool(pya.Plugin):
         found = self._candidate(p, buttons)
         self._clear()
         if found is None:
-            self.layout_view.message("No metal edge here" if not buttons & pya.ButtonState.ShiftKey
+            _status("No metal edge here" if not buttons & pya.ButtonState.ShiftKey
                               else "No gap between two shapes of one metal here", 5)
             return True
         cv = self.layout_view.active_cellview()
@@ -107,7 +112,7 @@ class PortTool(pya.Plugin):
             finally:
                 self.layout_view.commit()
         else:
-            self.layout_view.message(f"port {layer - 200} on layer {layer}", 5)
+            _status(f"port {layer - 200} on layer {layer}", 5)
         return True
 
 
