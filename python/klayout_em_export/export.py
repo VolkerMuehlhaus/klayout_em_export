@@ -30,14 +30,17 @@ def marker_box(layout, cell, marker):
     return None if region.is_empty() else region.bbox().to_dtype(layout.dbu)
 
 
-def _copy_port_shapes(layout, cell, li, box, target):
-    """Copy port shapes one by one, unchanged: a via port is a zero-width line, which a Region would drop."""
+def _copy_port_shapes(layout, cell, li, box, target, target_layout):
+    """Copy port shapes one by one, unchanged: a via port is a zero-width line, which a Region would drop.
+    User properties (the port settings) are copied too; inserting into another layout does not carry them."""
     it = cell.begin_shapes_rec(li) if box is None else cell.begin_shapes_rec_overlapping(li, box)
     count = 0
     while not it.at_end():
         shape = it.shape()
         if not shape.is_text():
-            target.insert(shape, it.trans())
+            new = target.insert(shape, it.trans())
+            if shape.prop_id:
+                new.prop_id = target_layout.properties_id(layout.properties(shape.prop_id))
             count += 1
         it.next()
     return count
@@ -69,7 +72,7 @@ def export_flat(layout, cell, stackup, gds_path, box=None, purposes=(0,), cellna
             continue
         target = em.layer(info.layer, info.datatype)
         if is_port:
-            count = _copy_port_shapes(layout, cell, li, clip, top.shapes(target))
+            count = _copy_port_shapes(layout, cell, li, clip, top.shapes(target), em)
         else:
             region = pya.Region(cell.begin_shapes_rec(li) if clip is None else cell.begin_shapes_rec_overlapping(li, clip))
             if clip is not None:

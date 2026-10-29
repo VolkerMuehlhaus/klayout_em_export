@@ -22,6 +22,15 @@ KLayout adds `python/` to its module path and runs `pymacros/em_export_menu.lym`
   - Writes the flat GDS and a `.simcfg` next to it, shows what was kept and dropped, and offers to open setupEM.
 - **Mark EM Region from Selection**: draws the bounding box of the selected shapes on layer 800/0, replacing an
   earlier box. Saved with the layout, it gives the same region on the next export.
+- **Port Settings...**: for the selected port shapes (layers 201..299, datatype 0, drawn with KLayout's own tools):
+  direction, from/to layer (via port, Z/-Z) or target layer (in-plane port), Z0 and excitation. Layer choices come
+  from the last used stackup.
+  - A via port is a line (path of width 0) or a thin box; an in-plane port is a box that bridges the gap.
+  - The settings are stored on the shape as GDS property 200, e.g. `port:dir=-Z;from=Metal3;to=TopMetal2;z0=50;v=1`,
+    so they are saved with the layout. Port number = layer - 200.
+  - The export writes them into the `.simcfg`. Ports without settings, or with layer names that are not in the
+    stackup, are still listed there and reported, to be completed in setupEM.
+- **Port Overview**: all ports of the current cell with their settings and problems.
 - The last stackup and the setupEM program are remembered in `~/.klayout_em_export.json`. If `setupEM` is not on
   the `PATH` that KLayout sees, the plug-in asks once for the program (e.g. `<venv>\Scripts\setupEM.exe`).
 

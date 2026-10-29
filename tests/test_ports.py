@@ -1,0 +1,34 @@
+# Batch test (KLayout -z -nc -rx -r, package installed in salt): port properties, collection, simcfg list, flat export, dialog.
+# Writes to the OUT folder below; adjust it.
+import sys, os, json
+import pya
+from klayout_em_export.ports import PortSettings, collect_ports, check_ports, simcfg_ports, PROP_KEY
+from klayout_em_export.stackup import Stackup
+from klayout_em_export.export import export_flat
+EX = r"D:\github-claude\gds2palace_ihp_sg13g2\more_examples\core_transistor_3port_bce"
+OUT = r"C:/Users/volker/AppData/Local/Temp/claude/d--github-claude/87a3a291-8748-4bcb-85dc-b9bbb004dff7/scratchpad/kee"
+st = Stackup(os.path.join(EX, "SG13G2_100um_bce_ports.xml"))
+ly = pya.Layout(); ly.read(os.path.join(EX, "50_ghz_mpa_core_bce_ports.gds")); cell = ly.top_cell()
+# settings as in the example's .simcfg; port 5 left without settings, port 4 with a wrong layer name
+spec = {201: PortSettings("Z", "Metal3", "TopMetal2"), 202: PortSettings("Z", "Metal3", "TopMetal2"),
+        203: PortSettings("Z", "Metal2", "REF_FOR_TRANSISTOR"), 204: PortSettings("-Z", "Metal2", "REF_TRANSISTOR")}
+for layer, s in spec.items():
+    for sh in cell.shapes(ly.find_layer(layer, 0)).each():
+        sh.set_property(PROP_KEY, s.encode())
+print(spec[204].encode(), "->", PortSettings.decode(spec[204].encode()))
+ports = collect_ports(ly, cell)
+print("\n".join(check_ports(ports, st.metal_names())))
+print(json.dumps(simcfg_ports(ports)[3:5]))
+# properties survive the flat export?
+export_flat(ly, cell, st, os.path.join(OUT, "ports_export.gds"))
+l2 = pya.Layout(); l2.read(os.path.join(OUT, "ports_export.gds"))
+print("after export:", {k: str(v.settings) for k, v in collect_ports(l2, l2.top_cell()).items()})
+# dialog construction (headless, if Qt widgets are available)
+try:
+    from klayout_em_export.gui import PortDialog
+    d = PortDialog(st.metal_names(), spec[203], 1)
+    print("dialog:", d.result_settings().encode())
+    d.direction.setCurrentText("X"); d.target.setCurrentText("Metal3"); d._update()
+    print("dialog X:", d.result_settings().encode(), "from enabled:", d.from_layer.isEnabled())
+except Exception as e:
+    print("dialog test skipped/failed:", repr(e))

@@ -6,7 +6,8 @@ import subprocess
 
 import pya
 
-from .export import export_flat, marker_box
+from .export import PORT_LAYERS, export_flat, marker_box
+from .ports import DIRECTIONS, PROP_KEY, PortSettings, check_ports, collect_ports, settings_of, simcfg_ports
 from .simcfg import write_simcfg
 from .stackup import Stackup
 
@@ -136,14 +137,145 @@ def export_region():
     _save_settings(settings)
 
     result = export_flat(layout, cell, stackup, gds_path, box=box)
+    ports = collect_ports(layout, cell, None if box is None else box.to_itype(layout.dbu))
     simcfg_path = os.path.splitext(gds_path)[0] + ".simcfg"
-    write_simcfg(simcfg_path, gds_path, stackup_path, result.cellname)
+    write_simcfg(simcfg_path, gds_path, stackup_path, result.cellname, ports=simcfg_ports(ports))
+    problems = check_ports(ports, stackup.metal_names())
+    port_text = f"{len(ports)} port(s)" + (":\n" + "\n".join(problems) + "\n(complete them in setupEM)"
+                                           if problems else ", all complete")
     answer = pya.MessageBox.question(
-        "EM Export", f"Region: {source}\n\n{result.report()}\nwrote {simcfg_path}\n\nOpen in setupEM?",
+        "EM Export", f"Region: {source}\n\n{result.report()}\nwrote {simcfg_path}\n{port_text}\n\nOpen in setupEM?",
         pya.MessageBox.Yes | pya.MessageBox.No)
     if answer == pya.MessageBox.Yes:
         open_in_setupem(simcfg_path, settings)
         _save_settings(settings)
+
+
+def _saved_stackup(settings):
+    """The last stackup, or ask for one. None if the user cancels or it cannot be read."""
+    path = settings.get("stackup", "")
+    if not os.path.isfile(path):
+        path = _ask_stackup(settings)
+        if not path:
+            return None
+        _save_settings(settings)
+    try:
+        return Stackup(path)
+    except Exception as e:      # StackupError, XML syntax error
+        pya.MessageBox.critical("EM Export", f"Cannot read the stackup:\n{e}", pya.MessageBox.Ok)
+        return None
+
+
+class PortDialog(pya.QDialog):
+    def __init__(self, metals, current, count):
+        super().__init__(pya.Application.instance().main_window())
+        self.setWindowTitle("Port Settings")
+        form = pya.QFormLayout(self)
+        form.addRow(pya.QLabel(f"{count} port shape(s) selected"))
+        self.direction = pya.QComboBox()
+        self.direction.addItems(list(DIRECTIONS))
+        self.from_layer, self.to_layer, self.target = pya.QComboBox(), pya.QComboBox(), pya.QComboBox()
+        for box in (self.from_layer, self.to_layer, self.target):
+            box.addItems(metals)
+        self.z0 = pya.QLineEdit(f"{current.z0:g}")
+        self.excited = pya.QCheckBox("excited (voltage 1)")
+        self.excited.setChecked(current.voltage != 0)
+        form.addRow("Direction", self.direction)
+        form.addRow("From layer (via port)", self.from_layer)
+        form.addRow("To layer (via port)", self.to_layer)
+        form.addRow("Target layer (in-plane port)", self.target)
+        form.addRow("Z0 (Ohm)", self.z0)
+        form.addRow("", self.excited)
+        buttons = pya.QDialogButtonBox(self)
+        buttons.addButton(pya.QDialogButtonBox.Ok)
+        buttons.addButton(pya.QDialogButtonBox.Cancel)
+        buttons.accepted += self.accept
+        buttons.rejected += self.reject
+        form.addRow(buttons)
+        for box, value in ((self.direction, current.direction), (self.from_layer, current.from_layer),
+                           (self.to_layer, current.to_layer), (self.target, current.target)):
+            if value:
+                box.setCurrentText(value)
+        self.direction.currentIndexChanged += lambda index: self._update()
+        self._update()
+
+    def _update(self):
+        via = "Z" in self.direction.currentText
+        self.from_layer.setEnabled(via)
+        self.to_layer.setEnabled(via)
+        self.target.setEnabled(not via)
+
+    def result_settings(self):
+        try:
+            z0 = float(self.z0.text)
+        except ValueError:
+            z0 = 50.0
+        return PortSettings(self.direction.currentText, self.from_layer.currentText, self.to_layer.currentText,
+                            self.target.currentText, z0, 1.0 if self.excited.isChecked() else 0.0)
+
+
+def _selected_port_shapes(view, cv):
+    layout = cv.layout()
+    shapes = []
+    for obj in view.each_object_selected():
+        if obj.cv_index != view.active_cellview_index or obj.is_cell_inst():
+            continue
+        info = layout.get_info(obj.layer)
+        if info.layer in PORT_LAYERS and info.datatype == 0:
+            shapes.append(obj.shape)
+    return shapes
+
+
+def port_settings():
+    view, cv = _current()
+    if view is None:
+        return
+    shapes = _selected_port_shapes(view, cv)
+    if not shapes:
+        pya.MessageBox.warning("EM Export", "Select one or more port shapes first (layers 201..299, datatype 0). "
+                               "A via port is a line (path of width 0) or a thin box; an in-plane port is a box "
+                               "that bridges the gap.", pya.MessageBox.Ok)
+        return
+    settings = _load_settings()
+    stackup = _saved_stackup(settings)
+    if stackup is None:
+        return
+    current = settings_of(shapes[0]) or PortSettings.decode(settings.get("last_port")) or PortSettings()
+    dialog = PortDialog(stackup.metal_names(), current, len(shapes))
+    if not dialog.exec_():
+        return
+    new = dialog.result_settings()
+    view.transaction("Port settings")
+    try:
+        for shape in shapes:
+            shape.set_property(PROP_KEY, new.encode())
+    finally:
+        view.commit()
+    settings["last_port"] = new.encode()
+    _save_settings(settings)
+    problems = new.problems(stackup.metal_names())
+    if problems:
+        pya.MessageBox.warning("EM Export", "\n".join(problems), pya.MessageBox.Ok)
+
+
+def port_overview():
+    view, cv = _current()
+    if view is None:
+        return
+    ports = collect_ports(cv.layout(), cv.cell)
+    if not ports:
+        pya.MessageBox.info("EM Export", f"Cell {cv.cell.name} has no port shapes on layers 201..299.", pya.MessageBox.Ok)
+        return
+    settings = _load_settings()
+    lines = [f"Ports in cell {cv.cell.name}:"]
+    for layer in sorted(ports):
+        port = ports[layer]
+        lines.append(f"  port {port.number:2d} (layer {layer}, {port.shapes} shape(s)): "
+                     + (str(port.settings) if port.settings else "no settings"))
+    if os.path.isfile(settings.get("stackup", "")):
+        problems = check_ports(ports, Stackup(settings["stackup"]).metal_names())
+        lines += ["", f"Checked against {os.path.basename(settings['stackup'])}:"] + (problems or ["all complete"])
+    pya.MessageBox.info("EM Export", "\n".join(lines), pya.MessageBox.Ok)
 
 
 _actions = []    # keep references, or the menu entries lose their handlers
@@ -154,7 +286,9 @@ def install_menu():
     if not menu.is_valid("tools_menu.em_export"):
         menu.insert_menu("tools_menu.end", "em_export", "EM Export")
     for name, title, handler in (("export_region", "Export Region for EM...", export_region),
-                                 ("mark_region", "Mark EM Region from Selection", mark_region)):
+                                 ("mark_region", "Mark EM Region from Selection", mark_region),
+                                 ("port_settings", "Port Settings...", port_settings),
+                                 ("port_overview", "Port Overview", port_overview)):
         action = pya.Action()
         action.title = title
         action.on_triggered = handler
