@@ -172,19 +172,19 @@ class ExportDialog(pya.QDialog):
         self.selection = selection if selection is not None and not selection.is_empty() else None
         self.completed = None       # the selection with vias and ports added, for the current stackup
         self.stackup = None
-        self.setWindowTitle("Export Region for EM")
+        self.setWindowTitle("Export for EM")
         self.resize(640, 0)
         form = pya.QFormLayout(self)
         self.mode_box = self.mode_shapes = None
         if self.selection is not None:
-            self.mode_box = pya.QRadioButton("bounding box of the selection, everything inside, cut at the box")
-            self.mode_shapes = pya.QRadioButton("selected shapes only, uncut, plus the vias between selected "
-                                                "metals and the port shapes touching them")
-            (self.mode_shapes if _load_settings().get("export_mode") == "shapes" else self.mode_box).setChecked(True)
+            # a selection means "these shapes": that is the default, the bounding box is the deliberate choice
+            self.mode_shapes = pya.QRadioButton("Selected shapes only (+ connecting vias and ports)")
+            self.mode_box = pya.QRadioButton("Everything inside the selection's bounding box (cut at the box)")
+            self.mode_shapes.setChecked(True)
             self.mode_box.toggled += lambda checked: self._refresh()
             column = pya.QVBoxLayout()
-            column.addWidget(self.mode_box)
             column.addWidget(self.mode_shapes)
+            column.addWidget(self.mode_box)
             form.addRow("Export", column)
         self.region = pya.QLabel()
         form.addRow("Region", self.region)
@@ -322,8 +322,7 @@ def export_region():
     layout.add_meta_info(pya.LayoutMetaInfo(META_OUTPUT, gds_path, "EM export output file", True))
     settings = _load_settings()
     settings["open_setupem"] = dialog.setupem.isChecked()
-    if dialog.mode_box is not None:
-        settings["export_mode"] = "shapes" if dialog.shapes_only() else "box"
+    settings.pop("export_mode", None)      # no longer remembered: a selection always starts as "selected shapes"
     _save_settings(settings)
     _status(f"Exported {gds_path} and {os.path.basename(simcfg_path)} ({len(port_list)} of {len(ports)} port(s) "
             "in the .simcfg)", 10)
@@ -533,7 +532,7 @@ def install_menu():
                ("port_overview", "Port Overview", port_overview),
                None,
                ("mark_region", "Mark EM Region from Selection", mark_region),
-               ("export_region", "Export Region for EM...", export_region))
+               ("export_region", "Export for EM...", export_region))
     for n, entry in enumerate(entries):
         if entry is None:
             menu.insert_separator("tools_menu.em_export.end", f"separator{n}")

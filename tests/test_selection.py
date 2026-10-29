@@ -56,7 +56,7 @@ class CellView:   # the parts of pya.CellView the dialog uses
     def layout(self): return self._layout
     def filename(self): return os.path.join(OUT, "dialog_test.gds")
 d = ExportDialog(CellView(ly, cell), sel.bbox().to_dtype(ly.dbu), "bounding box of the selected shapes", sel)
-for mode in (d.mode_box, d.mode_shapes):
+for mode in (d.mode_shapes, d.mode_box):
     mode.setChecked(True)
     print(f"mode shapes_only={d.shapes_only()}: region", d.region.text.replace(chr(10), " "))
     print("   ", d.layers.text.replace(chr(10), " | "))
