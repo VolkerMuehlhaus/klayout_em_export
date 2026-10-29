@@ -135,11 +135,20 @@ def check_ports(ports, stackup):
     return lines
 
 
+def is_complete(port):
+    """Settings with a valid direction and its layers set. setupEM (via gds2palace's simulation_port) exits
+    when it loads a port without them, so only complete ports go into the .simcfg."""
+    s = port.settings
+    return s is not None and s.direction in DIRECTIONS and all(s.layer_names())
+
+
 def simcfg_ports(ports):
-    """setupEM port list. A port without settings is still listed, so setupEM shows it for completion."""
+    """setupEM port list of the complete ports (see is_complete)."""
     out = []
     for layer in sorted(ports):
-        s = ports[layer].settings or PortSettings(direction="", z0=50.0, voltage=1.0)
+        if not is_complete(ports[layer]):
+            continue
+        s = ports[layer].settings
         out.append(port_entry(ports[layer].number, layer, s.direction, target_layername=s.target or None,
                               from_layername=s.from_layer or None, to_layername=s.to_layer or None,
                               port_Z0=s.z0, voltage=s.voltage))

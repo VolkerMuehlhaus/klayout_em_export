@@ -12,7 +12,7 @@ import pya
 
 from .export import PORT_LAYERS, export_flat, layer_summary, marker_box
 from .locate import drawn_metals, metals_at
-from .ports import (DIRECTIONS, PROP_KEY, PortSettings, check_ports, collect_ports, ports_of, settings_of,
+from .ports import (DIRECTIONS, PROP_KEY, PortSettings, check_ports, collect_ports, is_complete, ports_of, settings_of,
                     simcfg_ports)
 from .selection import Selection
 from .simcfg import write_simcfg
@@ -263,13 +263,17 @@ class ExportDialog(pya.QDialog):
         self.layers.setText(f"kept: {_layers_text(kept)}\ndropped (not in the stackup, or other purpose): "
                             f"{_layers_text(dropped)}{added_text}")
         problems = check_ports(ports, self.stackup)
+        left_out = [ports[layer].number for layer in sorted(ports) if not is_complete(ports[layer])]
         if not ports:
-            text = "no ports in the region (add them with the EM Port tool, or in setupEM)"
-        elif problems:
-            text = f"{len(ports)} port(s), incomplete ones are exported and can be completed in setupEM:\n" + \
-                   "\n".join(problems)
+            text = "no ports in the region (add them with the EM Port tool)"
         else:
-            text = f"{len(ports)} port(s), all complete"
+            text = f"{len(ports)} port(s)" + ("" if problems else ", all complete")
+            if left_out:
+                text += (f"\nport(s) {', '.join(map(str, left_out))} without complete settings are left out of the "
+                         ".simcfg (setupEM cannot load them); their shapes are exported. Set them with Port "
+                         "Settings first.")
+            if problems:
+                text += "\n" + "\n".join(problems)
         self.ports.setText(text)
 
 
@@ -313,14 +317,16 @@ def export_region():
         result = export_flat(layout, cell, stackup, gds_path, box=box)
         ports = collect_ports(layout, cell, None if box is None else box.to_itype(layout.dbu), stackup=stackup)
     simcfg_path = os.path.splitext(gds_path)[0] + ".simcfg"
-    write_simcfg(simcfg_path, gds_path, stackup.path, result.cellname, ports=simcfg_ports(ports))
+    port_list = simcfg_ports(ports)
+    write_simcfg(simcfg_path, gds_path, stackup.path, result.cellname, ports=port_list)
     layout.add_meta_info(pya.LayoutMetaInfo(META_OUTPUT, gds_path, "EM export output file", True))
     settings = _load_settings()
     settings["open_setupem"] = dialog.setupem.isChecked()
     if dialog.mode_box is not None:
         settings["export_mode"] = "shapes" if dialog.shapes_only() else "box"
     _save_settings(settings)
-    _status(f"Exported {gds_path} and {os.path.basename(simcfg_path)} ({len(ports)} port(s))", 10)
+    _status(f"Exported {gds_path} and {os.path.basename(simcfg_path)} ({len(port_list)} of {len(ports)} port(s) "
+            "in the .simcfg)", 10)
     if dialog.setupem.isChecked():
         open_in_setupem(simcfg_path)
 
