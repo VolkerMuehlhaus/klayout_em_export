@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<salt-grain>
+ <name>klayout_em_export</name>
+ <version>0.1.0</version>
+ <api-version>0.28</api-version>
+ <title>EM export for gds2palace</title>
+ <doc>Exports part of a layout as a flat GDS with only the layers of a gds2palace stackup, plus a setupEM settings file (.simcfg). Menu: Tools &gt; EM Export.</doc>
+ <doc-url/>
+ <url/>
+ <license/>
+ <author>Volker Muehlhaus</author>
+ <author-contact/>
+ <authored-time/>
+ <installed-time/>
+ <icon/>
+ <screenshot/>
+ <dependencies/>
+</salt-grain>
