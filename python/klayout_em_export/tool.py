@@ -122,7 +122,7 @@ class PortToolFactory(pya.PluginFactory):
     def __init__(self):
         super().__init__()
         self.has_tool_entry = True
-        self.register(-1000, "em_port_tool", "EM Port")
+        self.register(-1000, "em_port_tool", "EM Port", gui.PORT_ICON)
 
     def create_plugin(self, manager, root, view):
         return PortTool(view)

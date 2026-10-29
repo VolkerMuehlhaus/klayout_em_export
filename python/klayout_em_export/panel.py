@@ -49,8 +49,10 @@ class EMPanel(pya.QWidget):
 
         column.addWidget(_heading("Ports"))
         row = pya.QHBoxLayout()
-        row.addWidget(_button("EM Port tool", lambda: self._run(gui.port_tool),
-                              "click a metal edge: via port; Shift+click into a gap: in-plane port"))
+        port_tool = _button("EM Port tool", lambda: self._run(gui.port_tool),
+                            "click a metal edge: via port; Shift+click into a gap: in-plane port")
+        port_tool.setIcon(pya.QIcon(gui.PORT_ICON))
+        row.addWidget(port_tool)
         row.addWidget(_button("Settings...", self._edit, "settings of the selected ports (or double-click a row)"))
         row.addWidget(_button("Delete", self._delete, "delete the selected ports' shapes"))
         row.addWidget(_button("Refresh", self.refresh, "rebuild the table, e.g. after drawing ports by hand"))

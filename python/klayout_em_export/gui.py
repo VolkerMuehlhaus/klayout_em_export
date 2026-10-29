@@ -22,6 +22,7 @@ EM_REGION = (800, 0)      # marker layer: a box on it keeps the export region in
 SETTINGS_FILE = os.path.join(os.path.expanduser("~"), ".klayout_em_export.json")
 META_STACKUP = "klayout_em_export.stackup"
 META_OUTPUT = "klayout_em_export.output"
+PORT_ICON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icons", "em_port.png")
 
 
 def _load_settings():
@@ -561,6 +562,8 @@ def install_menu():
         name, title, handler = entry
         action = pya.Action()
         action.title = title
+        if name == "port_tool":
+            action.icon = PORT_ICON
         action.on_triggered = _with_refresh(handler)
         _actions.append(action)
         menu.insert_item("em_menu.end", name, action)
