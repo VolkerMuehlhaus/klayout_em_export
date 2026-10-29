@@ -35,7 +35,11 @@ The menu follows the workflow, top to bottom.
 5. **Mark EM Region from Selection**: draws the bounding box of the selected shapes on layer **800/0**, replacing an
    earlier box. Saved with the layout, it gives the same region on the next export.
 6. **Export Region for EM...**: one dialog with everything about the export, then one click.
-   - Region: the bounding box of the selected shapes; else the box on layer 800/0; else the whole cell.
+   - Region: the bounding box of the selected shapes; else the box on layer 800/0; else the whole cell. Selected
+     instances count with all their shapes.
+   - With a selection, choose between "bounding box of the selection" (everything inside, cut at the box) and
+     "selected shapes only" (uncut). The second adds what is easy to miss when selecting: the vias that land on two
+     selected metals, and the port shapes that touch selected metal. The dialog lists what was added.
    - Stackup (Change...), output GDS (Browse...; default `<layout>_em.gds`, then the last output of this layout).
    - Preview: which layers are kept and which are dropped, and the ports in the region with their problems
      (incomplete ports are still exported, to be completed in setupEM).

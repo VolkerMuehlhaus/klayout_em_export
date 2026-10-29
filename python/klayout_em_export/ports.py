@@ -85,26 +85,34 @@ class Port:
 def collect_ports(layout, cell, box=None, datatype=0, stackup=None):
     """Ports drawn in cell (recursively), optionally only those touching box (Box in dbu): {layer: Port}.
     With a stackup, port.available is set to the metals drawn at the port."""
-    ports = {}
+    items = []
     for li in layout.layer_indexes():
         info = layout.get_info(li)
         if info.layer not in PORT_LAYERS or info.datatype != datatype:
             continue
         it = cell.begin_shapes_rec(li) if box is None else cell.begin_shapes_rec_touching(li, box)
         while not it.at_end():
-            shape = it.shape()
-            if not shape.is_text():
-                port = ports.setdefault(info.layer, Port(info.layer))
-                port.shapes += 1
-                settings = settings_of(shape)
-                if settings is not None:
-                    if port.settings is not None and port.settings.encode() != settings.encode():
-                        port.conflict = True
-                    port.settings = port.settings or settings
-                if stackup is not None:
-                    here = set(metals_at(layout, cell, stackup, shape.bbox().transformed(it.trans())))
-                    port.available = here if port.available is None else port.available & here
+            items.append(((info.layer, info.datatype), it.shape(), it.trans()))
             it.next()
+    return ports_of(layout, cell, items, datatype, stackup)
+
+
+def ports_of(layout, cell, items, datatype=0, stackup=None):
+    """{layer: Port} from [((layer, datatype), shape, trans into cell)], e.g. a Selection's ports."""
+    ports = {}
+    for (layer, dt), shape, trans in items:
+        if shape.is_text() or dt != datatype:
+            continue
+        port = ports.setdefault(layer, Port(layer))
+        port.shapes += 1
+        settings = settings_of(shape)
+        if settings is not None:
+            if port.settings is not None and port.settings.encode() != settings.encode():
+                port.conflict = True
+            port.settings = port.settings or settings
+        if stackup is not None:
+            here = set(metals_at(layout, cell, stackup, shape.bbox().transformed(trans)))
+            port.available = here if port.available is None else port.available & here
     return ports
 
 

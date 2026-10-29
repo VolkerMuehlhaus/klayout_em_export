@@ -30,30 +30,38 @@ def marker_box(layout, cell, marker):
     return None if region.is_empty() else region.bbox().to_dtype(layout.dbu)
 
 
+def _copy_port_shape(layout, shape, trans, target, target_layout):
+    """Copy a port shape unchanged: a via port is a zero-width line, which a Region would drop. User properties
+    (the port settings) are copied too; inserting into another layout does not carry them."""
+    new = target.insert(shape, trans)
+    if shape.prop_id:
+        new.prop_id = target_layout.properties_id(layout.properties(shape.prop_id))
+
+
 def _copy_port_shapes(layout, cell, li, box, target, target_layout):
-    """Copy port shapes one by one, unchanged: a via port is a zero-width line, which a Region would drop.
-    User properties (the port settings) are copied too; inserting into another layout does not carry them."""
     it = cell.begin_shapes_rec(li) if box is None else cell.begin_shapes_rec_touching(li, box)
     count = 0
     while not it.at_end():
-        shape = it.shape()
-        if not shape.is_text():
-            new = target.insert(shape, it.trans())
-            if shape.prop_id:
-                new.prop_id = target_layout.properties_id(layout.properties(shape.prop_id))
+        if not it.shape().is_text():
+            _copy_port_shape(layout, it.shape(), it.trans(), target, target_layout)
             count += 1
         it.next()
     return count
 
 
-def _is_kept(info, keep, purposes):
-    return (info.layer in keep or info.layer in PORT_LAYERS) and info.datatype in purposes
+def _is_kept(key, keep, purposes):
+    layer, datatype = key
+    return (layer in keep or layer in PORT_LAYERS) and datatype in purposes
 
 
-def layer_summary(layout, cell, stackup, box=None, purposes=(0,)):
-    """(kept, dropped): sorted (layer, datatype) lists of the layers with shapes in the region, as export_flat
-    would treat them. For a preview before exporting; no geometry is computed."""
+def layer_summary(layout, cell, stackup, box=None, purposes=(0,), selection=None):
+    """(kept, dropped): sorted (layer, datatype) lists of the layers with shapes in the region (or the selection),
+    as export_flat would treat them. For a preview before exporting; no geometry is computed."""
     keep = set(stackup.gds_layers())
+    if selection is not None:
+        keys = set(selection.regions) | {key for key, _, _ in selection.ports}
+        return (sorted(k for k in keys if _is_kept(k, keep, purposes)),
+                sorted(k for k in keys if not _is_kept(k, keep, purposes)))
     clip = None if box is None else box.to_itype(layout.dbu)
     kept, dropped = [], []
     for li in layout.layer_indexes():
@@ -61,29 +69,47 @@ def layer_summary(layout, cell, stackup, box=None, purposes=(0,)):
         if it.at_end():
             continue
         info = layout.get_info(li)
-        (kept if _is_kept(info, keep, purposes) else dropped).append((info.layer, info.datatype))
+        key = (info.layer, info.datatype)
+        (kept if _is_kept(key, keep, purposes) else dropped).append(key)
     return sorted(kept), sorted(dropped)
 
 
-def export_flat(layout, cell, stackup, gds_path, box=None, purposes=(0,), cellname=None):
-    """Write cell, flattened and clipped to box (DBox in um, None = whole cell), to gds_path.
+def export_flat(layout, cell, stackup, gds_path, box=None, purposes=(0,), cellname=None, selection=None):
+    """Write cell, flattened and clipped to box (DBox in um, None = whole cell), to gds_path. With a selection
+    (selection.Selection), only its shapes are written, uncut, and box is ignored.
 
     Kept: the stackup's GDS layers (derived layers by their sources) and the port layers 201..299, only for the
     given purposes (datatypes). Everything else is reported in result.dropped. Metal is merged per layer and cut
     at the box edge; port shapes are copied unchanged if they touch the box.
     """
     keep = set(stackup.gds_layers())
-    clip = None if box is None else box.to_itype(layout.dbu)
-    result = ExportResult(gds_path, cellname or cell.name, box)
+    clip = None if box is None or selection is not None else box.to_itype(layout.dbu)
+    result = ExportResult(gds_path, cellname or cell.name, None if selection is not None else box)
 
     em = pya.Layout()
     em.dbu = layout.dbu
     top = em.create_cell(result.cellname)
+    if selection is not None:
+        for key, region in selection.regions.items():
+            if not _is_kept(key, keep, purposes):
+                result.dropped[key] = region.count()
+                continue
+            merged = region.merged()
+            top.shapes(em.layer(*key)).insert(merged)
+            result.kept[key] = merged.count()
+        for key, shape, trans in selection.ports:
+            if not _is_kept(key, keep, purposes):
+                result.dropped[key] = result.dropped.get(key, 0) + 1
+                continue
+            _copy_port_shape(layout, shape, trans, top.shapes(em.layer(*key)), em)
+            result.kept[key] = result.kept.get(key, 0) + 1
+        em.write(gds_path)
+        return result
     for li in layout.layer_indexes():
         info = layout.get_info(li)
         key = (info.layer, info.datatype)
         is_port = info.layer in PORT_LAYERS
-        if not _is_kept(info, keep, purposes):
+        if not _is_kept(key, keep, purposes):
             it = cell.begin_shapes_rec(li) if clip is None else cell.begin_shapes_rec_touching(li, clip)
             count = sum(1 for _ in it.each())
             if count:

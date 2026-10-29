@@ -12,7 +12,9 @@ import pya
 
 from .export import PORT_LAYERS, export_flat, layer_summary, marker_box
 from .locate import drawn_metals, metals_at
-from .ports import DIRECTIONS, PROP_KEY, PortSettings, check_ports, collect_ports, settings_of, simcfg_ports
+from .ports import (DIRECTIONS, PROP_KEY, PortSettings, check_ports, collect_ports, ports_of, settings_of,
+                    simcfg_ports)
+from .selection import Selection
 from .simcfg import write_simcfg
 from .stackup import Stackup
 
@@ -93,22 +95,13 @@ def choose_stackup():
 
 # ---------- region ----------
 
-def _selection_box(view, cellview):
-    """Bounding box (DBox, um) of the selected shapes, in the current cell, or None."""
-    box = pya.DBox()
-    for obj in view.each_object_selected():
-        if obj.cv_index != view.active_cellview_index or obj.is_cell_inst():
-            continue
-        box += obj.shape.bbox().transformed(obj.trans()).to_dtype(cellview.layout().dbu)
-    return box if not box.empty() else None
-
-
 def mark_region():
     """Draw the bounding box of the selected shapes on the EM_REGION layer, to keep the region for re-export."""
     view, cv = _current()
     if view is None:
         return
-    box = _selection_box(view, cv)
+    selection = Selection.from_view(view, cv)
+    box = None if selection.is_empty() else selection.bbox()
     if box is None:
         pya.MessageBox.warning("EM Export", "Select one or more shapes first: their bounding box becomes the EM "
                                f"region (layer {EM_REGION[0]}/{EM_REGION[1]}).", pya.MessageBox.Ok)
@@ -118,7 +111,7 @@ def mark_region():
     try:
         li = layout.layer(*EM_REGION)
         cv.cell.shapes(li).clear()
-        cv.cell.shapes(li).insert(box.to_itype(layout.dbu))
+        cv.cell.shapes(li).insert(box)
     finally:
         view.commit()
     view.add_missing_layers()
@@ -170,17 +163,31 @@ def _stackup_row(dialog, form, on_change):
 
 
 class ExportDialog(pya.QDialog):
-    """Everything about one export in one window: region, stackup, output file, layers, ports, setupEM."""
+    """Everything about one export in one window: region, stackup, output file, layers, ports, setupEM.
+    With a selection, the region is either its bounding box (cut at the box) or the selected shapes only."""
 
-    def __init__(self, cv, box, source):
+    def __init__(self, cv, box, source, selection=None):
         super().__init__(pya.Application.instance().main_window())
-        self.em_layout, self.cell, self.box = cv.layout(), cv.cell, box
+        self.em_layout, self.cell, self.box, self.source = cv.layout(), cv.cell, box, source
+        self.selection = selection if selection is not None and not selection.is_empty() else None
+        self.completed = None       # the selection with vias and ports added, for the current stackup
         self.stackup = None
         self.setWindowTitle("Export Region for EM")
         self.resize(640, 0)
         form = pya.QFormLayout(self)
-        region = pya.QLabel(f"{source}\n{box}" if box is not None else source)
-        form.addRow("Region", region)
+        self.mode_box = self.mode_shapes = None
+        if self.selection is not None:
+            self.mode_box = pya.QRadioButton("bounding box of the selection, everything inside, cut at the box")
+            self.mode_shapes = pya.QRadioButton("selected shapes only, uncut, plus the vias between selected "
+                                                "metals and the port shapes touching them")
+            (self.mode_shapes if _load_settings().get("export_mode") == "shapes" else self.mode_box).setChecked(True)
+            self.mode_box.toggled += lambda checked: self._refresh()
+            column = pya.QVBoxLayout()
+            column.addWidget(self.mode_box)
+            column.addWidget(self.mode_shapes)
+            form.addRow("Export", column)
+        self.region = pya.QLabel()
+        form.addRow("Region", self.region)
         self.stackup_label = _stackup_row(self, form, self._change_stackup)
         self.output = pya.QLineEdit(self._default_output(cv))
         browse = pya.QPushButton("Browse...")
@@ -207,6 +214,9 @@ class ExportDialog(pya.QDialog):
         form.addRow(buttons)
         self._refresh()
 
+    def shapes_only(self):
+        return self.mode_shapes is not None and self.mode_shapes.isChecked()
+
     def _default_output(self, cv):
         remembered = self.em_layout.meta_info_value(META_OUTPUT)
         if remembered:
@@ -224,6 +234,9 @@ class ExportDialog(pya.QDialog):
             self._refresh()
 
     def _refresh(self):
+        shapes_only = self.shapes_only()
+        self.region.setText("the selected shapes" if shapes_only else
+                            f"{self.source}\n{self.box}" if self.box is not None else self.source)
         path = stackup_path(self.em_layout)
         self.stackup, error = read_stackup(path) if path else (None, "no stackup chosen yet")
         self.export_button.setEnabled(self.stackup is not None)
@@ -234,11 +247,21 @@ class ExportDialog(pya.QDialog):
             return
         self.stackup_label.setText(os.path.basename(path))
         self.stackup_label.setToolTip(path)
-        kept, dropped = layer_summary(self.em_layout, self.cell, self.stackup, self.box)
+        if shapes_only:
+            self.completed = self.selection.completed(self.stackup)
+            kept, dropped = layer_summary(self.em_layout, self.cell, self.stackup, selection=self.completed)
+            ports = ports_of(self.em_layout, self.cell, self.completed.ports, stackup=self.stackup)
+            added = [f"{n} via(s) on layer {layer}" for layer, n in sorted(self.completed.added_vias.items())]
+            if self.completed.added_ports:
+                added.append(f"{self.completed.added_ports} port shape(s)")
+            added_text = "\nadded to the selection: " + (", ".join(added) or "nothing")
+        else:
+            kept, dropped = layer_summary(self.em_layout, self.cell, self.stackup, self.box)
+            clip = None if self.box is None else self.box.to_itype(self.em_layout.dbu)
+            ports = collect_ports(self.em_layout, self.cell, clip, stackup=self.stackup)
+            added_text = ""
         self.layers.setText(f"kept: {_layers_text(kept)}\ndropped (not in the stackup, or other purpose): "
-                            f"{_layers_text(dropped)}")
-        clip = None if self.box is None else self.box.to_itype(self.em_layout.dbu)
-        ports = collect_ports(self.em_layout, self.cell, clip, stackup=self.stackup)
+                            f"{_layers_text(dropped)}{added_text}")
         problems = check_ports(ports, self.stackup)
         if not ports:
             text = "no ports in the region (add them with the EM Port tool, or in setupEM)"
@@ -255,7 +278,8 @@ def export_region():
     if view is None:
         return
     layout, cell = cv.layout(), cv.cell
-    box = _selection_box(view, cv)
+    selection = Selection.from_view(view, cv)
+    box = None if selection.is_empty() else selection.bbox().to_dtype(layout.dbu)
     source = "bounding box of the selected shapes"
     if box is None:
         box = marker_box(layout, cell, EM_REGION)
@@ -263,7 +287,7 @@ def export_region():
     if box is None:
         source = f"whole cell {cell.name} (nothing selected, no EM region box)"
 
-    dialog = ExportDialog(cv, box, source)
+    dialog = ExportDialog(cv, box, source, selection)
     while True:
         if not dialog.exec_():
             return
@@ -282,13 +306,19 @@ def export_region():
         pya.MessageBox.warning("EM Export", problem, pya.MessageBox.Ok)
 
     stackup = dialog.stackup
-    result = export_flat(layout, cell, stackup, gds_path, box=box)
-    ports = collect_ports(layout, cell, None if box is None else box.to_itype(layout.dbu), stackup=stackup)
+    if dialog.shapes_only():
+        result = export_flat(layout, cell, stackup, gds_path, selection=dialog.completed)
+        ports = ports_of(layout, cell, dialog.completed.ports, stackup=stackup)
+    else:
+        result = export_flat(layout, cell, stackup, gds_path, box=box)
+        ports = collect_ports(layout, cell, None if box is None else box.to_itype(layout.dbu), stackup=stackup)
     simcfg_path = os.path.splitext(gds_path)[0] + ".simcfg"
     write_simcfg(simcfg_path, gds_path, stackup.path, result.cellname, ports=simcfg_ports(ports))
     layout.add_meta_info(pya.LayoutMetaInfo(META_OUTPUT, gds_path, "EM export output file", True))
     settings = _load_settings()
     settings["open_setupem"] = dialog.setupem.isChecked()
+    if dialog.mode_box is not None:
+        settings["export_mode"] = "shapes" if dialog.shapes_only() else "box"
     _save_settings(settings)
     _status(f"Exported {gds_path} and {os.path.basename(simcfg_path)} ({len(ports)} port(s))", 10)
     if dialog.setupem.isChecked():
