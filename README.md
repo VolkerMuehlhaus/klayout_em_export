@@ -53,8 +53,8 @@ The same steps are in the **EM** menu in the menu bar, top to bottom in workflow
      their shapes.
    - Without a selection: everything inside the box on layer 800/0, else the whole cell.
    - Stackup (Change...), output GDS (Browse...; default `<layout>_em.gds`, then the last output of this layout).
-   - Preview: which layers are kept and which are dropped, and the ports with their problems. Ports without
-     complete settings are exported as shapes but left out of the `.simcfg`, because setupEM cannot load them.
+   - The ports with their problems. Ports without complete settings are exported as shapes but left out of the
+     `.simcfg`, because setupEM cannot load them. Only the stackup's layers are exported; the others are dropped.
    - "Open in setupEM after the export". The `.simcfg` is written next to the GDS.
 
 Remembered in `~/.klayout_em_export.json`: the last stackup, the last port settings, the setupEM program and the

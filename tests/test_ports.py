@@ -50,5 +50,4 @@ class CellView:   # the parts of pya.CellView the dialog uses
     def filename(self): return os.path.join(OUT, "dialog_test.gds")
 d = ExportDialog(CellView(ly, cell), pya.DBox(-80, -60, -30, -30), "test region")
 print("export dialog: stackup", d.stackup_label.text, "| output", d.output.text, "| export enabled", d.export_button.isEnabled())
-print("  layers:", d.layers.text.replace(chr(10), " | "))
 print("  ports:", d.ports.text.replace(chr(10), " | "))

@@ -54,26 +54,6 @@ def _is_kept(key, keep, purposes):
     return (layer in keep or layer in PORT_LAYERS) and datatype in purposes
 
 
-def layer_summary(layout, cell, stackup, box=None, purposes=(0,), selection=None):
-    """(kept, dropped): sorted (layer, datatype) lists of the layers with shapes in the region (or the selection),
-    as export_flat would treat them. For a preview before exporting; no geometry is computed."""
-    keep = set(stackup.gds_layers())
-    if selection is not None:
-        keys = set(selection.regions) | {key for key, _, _ in selection.ports}
-        return (sorted(k for k in keys if _is_kept(k, keep, purposes)),
-                sorted(k for k in keys if not _is_kept(k, keep, purposes)))
-    clip = None if box is None else box.to_itype(layout.dbu)
-    kept, dropped = [], []
-    for li in layout.layer_indexes():
-        it = cell.begin_shapes_rec(li) if clip is None else cell.begin_shapes_rec_touching(li, clip)
-        if it.at_end():
-            continue
-        info = layout.get_info(li)
-        key = (info.layer, info.datatype)
-        (kept if _is_kept(key, keep, purposes) else dropped).append(key)
-    return sorted(kept), sorted(dropped)
-
-
 def export_flat(layout, cell, stackup, gds_path, box=None, purposes=(0,), cellname=None, selection=None):
     """Write cell, flattened and clipped to box (DBox in um, None = whole cell), to gds_path. With a selection
     (selection.Selection), only its shapes are written, uncut, and box is ignored.

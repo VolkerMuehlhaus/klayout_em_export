@@ -10,7 +10,7 @@ import subprocess
 
 import pya
 
-from .export import PORT_LAYERS, export_flat, layer_summary, marker_box
+from .export import PORT_LAYERS, export_flat, marker_box
 from .locate import drawn_metals, metals_at
 from .ports import (DIRECTIONS, PROP_KEY, PortSettings, check_ports, collect_ports, is_complete, ports_of, settings_of,
                     simcfg_ports)
@@ -146,10 +146,6 @@ def open_in_setupem(simcfg_path):
 
 # ---------- export ----------
 
-def _layers_text(keys):
-    return ", ".join(f"{l}/{d}" for l, d in keys) or "none"
-
-
 def _stackup_row(dialog, form, on_change):
     """Stackup label + Change... button as a form row; returns the label."""
     label = pya.QLabel()
@@ -197,9 +193,6 @@ class ExportDialog(pya.QDialog):
         row.addWidget(browse)
         form.addRow("Output GDS", row)
         form.addRow("", pya.QLabel("The .simcfg for setupEM is written next to it."))
-        self.layers = pya.QLabel()
-        self.layers.setWordWrap(True)
-        form.addRow("Layers", self.layers)
         self.ports = pya.QLabel()
         self.ports.setWordWrap(True)
         form.addRow("Ports", self.ports)
@@ -235,33 +228,30 @@ class ExportDialog(pya.QDialog):
 
     def _refresh(self):
         shapes_only = self.shapes_only()
-        self.region.setText("the selected shapes" if shapes_only else
-                            f"{self.source}\n{self.box}" if self.box is not None else self.source)
+        region = ("the selected shapes" if shapes_only else
+                  f"{self.source}\n{self.box}" if self.box is not None else self.source)
+        self.region.setText(region)
         path = stackup_path(self.em_layout)
         self.stackup, error = read_stackup(path) if path else (None, "no stackup chosen yet")
         self.export_button.setEnabled(self.stackup is not None)
         if self.stackup is None:
             self.stackup_label.setText(f"<b>{error}</b>")
-            self.layers.setText("choose a stackup first")
-            self.ports.setText("")
+            self.ports.setText("choose a stackup first")
             return
         self.stackup_label.setText(os.path.basename(path))
         self.stackup_label.setToolTip(path)
         if shapes_only:
             self.completed = self.selection.completed(self.stackup)
-            kept, dropped = layer_summary(self.em_layout, self.cell, self.stackup, selection=self.completed)
             ports = ports_of(self.em_layout, self.cell, self.completed.ports, stackup=self.stackup)
-            added = [f"{n} via(s) on layer {layer}" for layer, n in sorted(self.completed.added_vias.items())]
+            names = {l.layer: l.name for l in self.stackup.layers}
+            added = [f"{n} {names.get(layer, layer)}" for layer, n in sorted(self.completed.added_vias.items())]
             if self.completed.added_ports:
                 added.append(f"{self.completed.added_ports} port shape(s)")
-            added_text = "\nadded to the selection: " + (", ".join(added) or "nothing")
+            self.region.setText(region + "\nadded: " + (", ".join(added) or "nothing (no vias between selected "
+                                                                             "metals, no touching ports)"))
         else:
-            kept, dropped = layer_summary(self.em_layout, self.cell, self.stackup, self.box)
             clip = None if self.box is None else self.box.to_itype(self.em_layout.dbu)
             ports = collect_ports(self.em_layout, self.cell, clip, stackup=self.stackup)
-            added_text = ""
-        self.layers.setText(f"kept: {_layers_text(kept)}\ndropped (not in the stackup, or other purpose): "
-                            f"{_layers_text(dropped)}{added_text}")
         problems = check_ports(ports, self.stackup)
         left_out = [ports[layer].number for layer in sorted(ports) if not is_complete(ports[layer])]
         if not ports:
