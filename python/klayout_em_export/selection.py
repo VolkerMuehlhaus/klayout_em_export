@@ -10,6 +10,21 @@ from .export import PORT_LAYERS
 from .locate import drawn_metals
 
 
+def instance_trans(obj):
+    """Placement of a selected instance's cell in the current cell, for an ObjectInstPath with is_cell_inst().
+    Built from the instance path, because obj.trans() differs by origin: for an instance selected in the GUI it
+    leaves out the instance's own transformation (KLayout 0.29), for a path built with append_path() it includes
+    it. The instance's transformation is added unless the path already ends with that instance."""
+    trans = pya.ICplxTrans()
+    last = None
+    for element in obj.each_inst():
+        trans = trans * element.specific_cplx_trans()
+        last = element.inst()
+    if last is None or last != obj.inst():
+        trans = trans * obj.inst().cplx_trans
+    return trans
+
+
 class Selection:
     def __init__(self, layout, cell):
         self.layout, self.cell = layout, cell
@@ -41,14 +56,13 @@ class Selection:
 
     @classmethod
     def from_view(cls, view, cv):
-        """The view's selection in the active cellview. For a selected instance, obj.trans() already includes
-        the instance's own transformation."""
+        """The view's selection in the active cellview."""
         selection = cls(cv.layout(), cv.cell)
         for obj in view.each_object_selected():
             if obj.cv_index != view.active_cellview_index:
                 continue
             if obj.is_cell_inst():
-                selection.add_cell(obj.inst().cell, obj.trans())
+                selection.add_cell(obj.inst().cell, instance_trans(obj))
             else:
                 selection.add_shape(obj.shape, obj.layer, obj.trans())
         return selection
