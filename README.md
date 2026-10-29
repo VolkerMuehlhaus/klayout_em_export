@@ -13,9 +13,20 @@ New-Item -ItemType Junction -Path "$HOME\KLayout\salt\klayout_em_export" -Target
 
 KLayout adds `python/` to its module path and runs `pymacros/em_export_menu.lym` at startup.
 
-## Usage: Tools > EM Export
+## Usage: EM panel and EM menu
 
-The menu follows the workflow, top to bottom.
+The **EM panel** is docked at the right of the main window (opens at startup; menu **EM > EM Panel** brings it
+back). It shows the whole workflow in one place:
+
+- **Stackup** of the current layout, with Change....
+- **Ports** of the current cell: number, layer, direction, layers, Z0 and status ("ok", the problems, or "not in
+  .simcfg" for incomplete ports). Click a row to select the port in the layout (and bring it into view),
+  double-click or **Settings...** to edit it, **Delete** to remove its shapes. **EM Port tool** starts the tool.
+  Ports drawn with KLayout's own tools appear on **Refresh**.
+- **Export**: what the export will use right now (the selection, the EM region box, or the whole cell), with
+  **Mark Region** and **Export for EM...**.
+
+The same steps are in the **EM** menu in the menu bar, top to bottom in workflow order:
 
 1. **Choose Stackup...**: the gds2palace stackup XML for this layout. It is chosen once and used by every step. It
    is stored in the layout (meta info, saved with it) and as the default for other layouts. The port dialog and the

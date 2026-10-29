@@ -76,6 +76,7 @@ class Port:
         self.shapes = 0
         self.conflict = False       # shapes on this layer carry different settings
         self.available = None       # stackup metals drawn at every shape of the port (set), None if not checked
+        self.items = []             # (shape, trans into the cell, instance path or None) per shape
 
     @property
     def number(self):
@@ -92,19 +93,22 @@ def collect_ports(layout, cell, box=None, datatype=0, stackup=None):
             continue
         it = cell.begin_shapes_rec(li) if box is None else cell.begin_shapes_rec_touching(li, box)
         while not it.at_end():
-            items.append(((info.layer, info.datatype), it.shape(), it.trans()))
+            items.append(((info.layer, info.datatype), it.shape(), it.trans(), it.path()))
             it.next()
     return ports_of(layout, cell, items, datatype, stackup)
 
 
 def ports_of(layout, cell, items, datatype=0, stackup=None):
-    """{layer: Port} from [((layer, datatype), shape, trans into cell)], e.g. a Selection's ports."""
+    """{layer: Port} from [((layer, datatype), shape, trans into cell[, instance path])], e.g. a Selection's
+    ports."""
     ports = {}
-    for (layer, dt), shape, trans in items:
+    for item in items:
+        (layer, dt), shape, trans = item[:3]
         if shape.is_text() or dt != datatype:
             continue
         port = ports.setdefault(layer, Port(layer))
         port.shapes += 1
+        port.items.append((shape, trans, item[3] if len(item) > 3 else None))
         settings = settings_of(shape)
         if settings is not None:
             if port.settings is not None and port.settings.encode() != settings.encode():
@@ -116,23 +120,23 @@ def ports_of(layout, cell, items, datatype=0, stackup=None):
     return ports
 
 
+def port_problems(port, stackup):
+    """Problems of one port, as short texts (empty when it is complete)."""
+    if port.settings is None:
+        return ["no port settings"]
+    out = ["shapes with different settings, the first is used"] if port.conflict else []
+    out += port.settings.problems(stackup.metal_names())
+    if port.available is not None:
+        drawn = {name for name, _ in drawn_metals(stackup)}
+        out += [f"{name} is not drawn at the port" for name in port.settings.layer_names()
+                if name in drawn and name not in port.available]
+    return out
+
+
 def check_ports(ports, stackup):
-    """Problems per port, as text lines (empty when all ports are complete)."""
-    metal_names = stackup.metal_names()
-    drawn = {name for name, _ in drawn_metals(stackup)}
-    lines = []
-    for layer in sorted(ports):
-        port = ports[layer]
-        if port.settings is None:
-            lines.append(f"port {port.number} (layer {layer}): no port settings")
-            continue
-        if port.conflict:
-            lines.append(f"port {port.number} (layer {layer}): shapes with different settings, the first is used")
-        lines += [f"port {port.number} (layer {layer}): {p}" for p in port.settings.problems(metal_names)]
-        if port.available is not None:
-            lines += [f"port {port.number} (layer {layer}): {name} is not drawn at the port"
-                      for name in port.settings.layer_names() if name in drawn and name not in port.available]
-    return lines
+    """Problems of all ports, as text lines (empty when all ports are complete)."""
+    return [f"port {ports[layer].number} (layer {layer}): {problem}"
+            for layer in sorted(ports) for problem in port_problems(ports[layer], stackup)]
 
 
 def is_complete(port):

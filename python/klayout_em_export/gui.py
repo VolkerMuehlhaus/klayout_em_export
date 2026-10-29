@@ -517,15 +517,46 @@ def port_tool():
 # ---------- menu ----------
 
 _actions = []    # keep references, or the menu entries lose their handlers
+_panel = None    # the EM panel (panel.EMPanel) in its dock, once created
+_dock = None
+
+
+def refresh_panel():
+    if _panel is not None:
+        _panel.refresh()
+
+
+def show_panel():
+    """Show the EM panel, docked at the right of the main window (created on first use)."""
+    global _panel, _dock
+    main_window = pya.Application.instance().main_window()
+    if _dock is None:
+        from .panel import EMPanel
+        _dock = pya.QDockWidget("EM Export", main_window)
+        _dock.setObjectName("klayout_em_export_panel")
+        _panel = EMPanel(_dock)
+        _dock.setWidget(_panel)
+        main_window.addDockWidget(pya.Qt.RightDockWidgetArea, _dock)
+    _dock.show()
+    _panel.refresh()
+
+
+def _with_refresh(handler):
+    def run():
+        handler()
+        refresh_panel()
+    return run
 
 
 def install_menu():
     from .tool import PortToolFactory
     _actions.append(PortToolFactory())     # registers the EM Port tool in the toolbar
     menu = pya.Application.instance().main_window().menu()
-    if not menu.is_valid("tools_menu.em_export"):
-        menu.insert_menu("tools_menu.end", "em_export", "EM Export")
-    entries = (("choose_stackup", "Choose Stackup...", choose_stackup),
+    if not menu.is_valid("em_menu"):
+        menu.insert_menu("help_menu", "em_menu", "EM")    # own menu in the menu bar, before Help
+    entries = (("show_panel", "EM Panel", show_panel),
+               None,
+               ("choose_stackup", "Choose Stackup...", choose_stackup),
                None,
                ("port_tool", "EM Port Tool (click edge: via port, Shift+click gap: in-plane port)", port_tool),
                ("port_settings", "Port Settings...", port_settings),
@@ -535,11 +566,12 @@ def install_menu():
                ("export_region", "Export for EM...", export_region))
     for n, entry in enumerate(entries):
         if entry is None:
-            menu.insert_separator("tools_menu.em_export.end", f"separator{n}")
+            menu.insert_separator("em_menu.end", f"separator{n}")
             continue
         name, title, handler = entry
         action = pya.Action()
         action.title = title
-        action.on_triggered = handler
+        action.on_triggered = _with_refresh(handler)
         _actions.append(action)
-        menu.insert_item("tools_menu.em_export.end", name, action)
+        menu.insert_item("em_menu.end", name, action)
+    show_panel()

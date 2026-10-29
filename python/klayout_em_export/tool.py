@@ -114,6 +114,7 @@ class PortTool(pya.Plugin):
                 self.layout_view.commit()
         else:
             _status(f"port {layer - 200} on layer {layer}", 5)
+        gui.refresh_panel()
         return True
 
 
