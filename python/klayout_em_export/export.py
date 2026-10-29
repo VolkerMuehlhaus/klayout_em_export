@@ -33,7 +33,7 @@ def marker_box(layout, cell, marker):
 def _copy_port_shapes(layout, cell, li, box, target, target_layout):
     """Copy port shapes one by one, unchanged: a via port is a zero-width line, which a Region would drop.
     User properties (the port settings) are copied too; inserting into another layout does not carry them."""
-    it = cell.begin_shapes_rec(li) if box is None else cell.begin_shapes_rec_overlapping(li, box)
+    it = cell.begin_shapes_rec(li) if box is None else cell.begin_shapes_rec_touching(li, box)
     count = 0
     while not it.at_end():
         shape = it.shape()
@@ -65,7 +65,7 @@ def export_flat(layout, cell, stackup, gds_path, box=None, purposes=(0,), cellna
         key = (info.layer, info.datatype)
         is_port = info.layer in PORT_LAYERS
         if not (info.layer in keep or is_port) or info.datatype not in purposes:
-            it = cell.begin_shapes_rec(li) if clip is None else cell.begin_shapes_rec_overlapping(li, clip)
+            it = cell.begin_shapes_rec(li) if clip is None else cell.begin_shapes_rec_touching(li, clip)
             count = sum(1 for _ in it.each())
             if count:
                 result.dropped[key] = count
@@ -74,7 +74,7 @@ def export_flat(layout, cell, stackup, gds_path, box=None, purposes=(0,), cellna
         if is_port:
             count = _copy_port_shapes(layout, cell, li, clip, top.shapes(target), em)
         else:
-            region = pya.Region(cell.begin_shapes_rec(li) if clip is None else cell.begin_shapes_rec_overlapping(li, clip))
+            region = pya.Region(cell.begin_shapes_rec(li) if clip is None else cell.begin_shapes_rec_touching(li, clip))
             if clip is not None:
                 region &= pya.Region(clip)
             region.merge()

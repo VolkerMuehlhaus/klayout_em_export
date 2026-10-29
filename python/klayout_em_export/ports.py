@@ -85,7 +85,7 @@ def collect_ports(layout, cell, box=None, datatype=0):
         info = layout.get_info(li)
         if info.layer not in PORT_LAYERS or info.datatype != datatype:
             continue
-        it = cell.begin_shapes_rec(li) if box is None else cell.begin_shapes_rec_overlapping(li, box)
+        it = cell.begin_shapes_rec(li) if box is None else cell.begin_shapes_rec_touching(li, box)
         while not it.at_end():
             shape = it.shape()
             if not shape.is_text():

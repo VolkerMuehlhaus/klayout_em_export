@@ -32,3 +32,10 @@ try:
     print("dialog X:", d.result_settings().encode(), "from enabled:", d.from_layer.isEnabled())
 except Exception as e:
     print("dialog test skipped/failed:", repr(e))
+# a via port drawn as a zero-height box on the edge of a clipped region must be collected and exported
+c2 = ly.create_cell("ZERO")
+c2.shapes(ly.layer(206, 0)).insert(pya.Box(0, 0, 5000, 0)).set_property(PROP_KEY, spec[201].encode())
+c2.shapes(ly.layer(30, 0)).insert(pya.Box(0, 0, 5000, 1000))
+clip = pya.DBox(0, 0, 5, 1)
+print("zero-height port in clipped region:", list(collect_ports(ly, c2, clip.to_itype(ly.dbu))),
+      export_flat(ly, c2, st, os.path.join(OUT, "zero_port.gds"), box=clip).kept)
