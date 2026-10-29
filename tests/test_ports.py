@@ -17,7 +17,7 @@ for layer, s in spec.items():
         sh.set_property(PROP_KEY, s.encode())
 print(spec[204].encode(), "->", PortSettings.decode(spec[204].encode()))
 ports = collect_ports(ly, cell)
-print("\n".join(check_ports(ports, st.metal_names())))
+print("\n".join(check_ports(collect_ports(ly, cell, stackup=st), st)))
 print(json.dumps(simcfg_ports(ports)[3:5]))
 # properties survive the flat export?
 export_flat(ly, cell, st, os.path.join(OUT, "ports_export.gds"))
@@ -26,7 +26,7 @@ print("after export:", {k: str(v.settings) for k, v in collect_ports(l2, l2.top_
 # dialog construction (headless, if Qt widgets are available)
 try:
     from klayout_em_export.gui import PortDialog
-    d = PortDialog(st.metal_names(), spec[203], 1)
+    d = PortDialog({"stackup": st.path}, lambda s: ["Metal3", "Metal2"], spec[203], 1)
     print("dialog:", d.result_settings().encode())
     d.direction.setCurrentText("X"); d.target.setCurrentText("Metal3"); d._update()
     print("dialog X:", d.result_settings().encode(), "from enabled:", d.from_layer.isEnabled())

@@ -7,6 +7,7 @@ import subprocess
 import pya
 
 from .export import PORT_LAYERS, export_flat, marker_box
+from .locate import drawn_metals, metals_at
 from .ports import DIRECTIONS, PROP_KEY, PortSettings, check_ports, collect_ports, settings_of, simcfg_ports
 from .simcfg import write_simcfg
 from .stackup import Stackup
@@ -137,10 +138,10 @@ def export_region():
     _save_settings(settings)
 
     result = export_flat(layout, cell, stackup, gds_path, box=box)
-    ports = collect_ports(layout, cell, None if box is None else box.to_itype(layout.dbu))
+    ports = collect_ports(layout, cell, None if box is None else box.to_itype(layout.dbu), stackup=stackup)
     simcfg_path = os.path.splitext(gds_path)[0] + ".simcfg"
     write_simcfg(simcfg_path, gds_path, stackup_path, result.cellname, ports=simcfg_ports(ports))
-    problems = check_ports(ports, stackup.metal_names())
+    problems = check_ports(ports, stackup)
     port_text = f"{len(ports)} port(s)" + (":\n" + "\n".join(problems) + "\n(complete them in setupEM)"
                                            if problems else ", all complete")
     answer = pya.MessageBox.question(
@@ -151,32 +152,32 @@ def export_region():
         _save_settings(settings)
 
 
-def _saved_stackup(settings):
-    """The last stackup, or ask for one. None if the user cancels or it cannot be read."""
-    path = settings.get("stackup", "")
-    if not os.path.isfile(path):
-        path = _ask_stackup(settings)
-        if not path:
-            return None
-        _save_settings(settings)
-    try:
-        return Stackup(path)
-    except Exception as e:      # StackupError, XML syntax error
-        pya.MessageBox.critical("EM Export", f"Cannot read the stackup:\n{e}", pya.MessageBox.Ok)
-        return None
-
-
 class PortDialog(pya.QDialog):
-    def __init__(self, metals, current, count):
+    """Port settings for one or more port shapes. Layer choices: the metals drawn at the port(s), or all stackup
+    metals. available(stackup) gives the metals at the port; the stackup can be changed here."""
+
+    def __init__(self, settings, available, current, count):
         super().__init__(pya.Application.instance().main_window())
+        self.settings, self.available_for, self.current = settings, available, current
         self.setWindowTitle("Port Settings")
         form = pya.QFormLayout(self)
-        form.addRow(pya.QLabel(f"{count} port shape(s) selected"))
+        form.addRow(pya.QLabel(f"{count} port shape(s)"))
+        self.stackup_label = pya.QLabel()
+        change = pya.QPushButton("Change...")
+        change.clicked += self._change_stackup
+        row = pya.QHBoxLayout()
+        row.addWidget(self.stackup_label, 1)
+        row.addWidget(change)
+        form.addRow("Stackup", row)
+        self.at_port = pya.QLabel()
+        self.at_port.setWordWrap(True)
+        form.addRow("Drawn at the port", self.at_port)
+        self.show_all = pya.QCheckBox("offer all stackup metals")
+        self.show_all.toggled += lambda checked: self._fill()
+        form.addRow("", self.show_all)
         self.direction = pya.QComboBox()
         self.direction.addItems(list(DIRECTIONS))
         self.from_layer, self.to_layer, self.target = pya.QComboBox(), pya.QComboBox(), pya.QComboBox()
-        for box in (self.from_layer, self.to_layer, self.target):
-            box.addItems(metals)
         self.z0 = pya.QLineEdit(f"{current.z0:g}")
         self.excited = pya.QCheckBox("excited (voltage 1)")
         self.excited.setChecked(current.voltage != 0)
@@ -192,12 +193,48 @@ class PortDialog(pya.QDialog):
         buttons.accepted += self.accept
         buttons.rejected += self.reject
         form.addRow(buttons)
-        for box, value in ((self.direction, current.direction), (self.from_layer, current.from_layer),
-                           (self.to_layer, current.to_layer), (self.target, current.target)):
-            if value:
-                box.setCurrentText(value)
+        if current.direction in DIRECTIONS:
+            self.direction.setCurrentText(current.direction)
         self.direction.currentIndexChanged += lambda index: self._update()
+        self.stackup, self.available = None, []
+        self._load_stackup()
         self._update()
+
+    def _load_stackup(self):
+        path = self.settings.get("stackup", "")
+        try:
+            self.stackup = Stackup(path)
+        except Exception as e:      # missing file, StackupError, XML syntax error
+            self.stackup, self.available = None, []
+            self.stackup_label.setText(f"cannot read {os.path.basename(path) or '(none)'}: {e}")
+            self.at_port.setText("")
+        else:
+            self.stackup_label.setText(os.path.basename(path))
+            self.stackup_label.setToolTip(path)
+            self.available = self.available_for(self.stackup)
+            self.at_port.setText(", ".join(self.available) or "no stackup metal (check the port position)")
+        self._fill(initial=True)
+
+    def _change_stackup(self):
+        if _ask_stackup(self.settings):
+            _save_settings(self.settings)
+            self._load_stackup()
+
+    def _fill(self, initial=False):
+        available = self.available
+        if self.stackup is None:
+            names = []
+        else:
+            names = self.stackup.metal_names() if self.show_all.isChecked() or not available else available
+        # keep the user's choice; else the stored settings if possible; else from = lowest, to = highest metal
+        for box, stored, default in ((self.from_layer, self.current.from_layer, available[-1] if available else ""),
+                                     (self.to_layer, self.current.to_layer, available[0] if available else ""),
+                                     (self.target, self.current.target, available[0] if available else "")):
+            chosen = "" if initial else box.currentText
+            wanted = next((n for n in (chosen, stored, default) if n and n in names), names[0] if names else "")
+            box.clear()
+            box.addItems(names)
+            box.setCurrentText(wanted)
 
     def _update(self):
         via = "Z" in self.direction.currentText
@@ -215,6 +252,7 @@ class PortDialog(pya.QDialog):
 
 
 def _selected_port_shapes(view, cv):
+    """[(shape, trans into the current cell)] of the selected port shapes."""
     layout = cv.layout()
     shapes = []
     for obj in view.each_object_selected():
@@ -222,8 +260,49 @@ def _selected_port_shapes(view, cv):
             continue
         info = layout.get_info(obj.layer)
         if info.layer in PORT_LAYERS and info.datatype == 0:
-            shapes.append(obj.shape)
+            shapes.append((obj.shape, obj.trans()))
     return shapes
+
+
+def edit_ports(view, cv, shapes, current=None):
+    """Open the port dialog for [(shape, trans)] and store the result on the shapes. Returns True if applied."""
+    layout, cell = cv.layout(), cv.cell
+    settings = _load_settings()
+    if not os.path.isfile(settings.get("stackup", "")):
+        if not _ask_stackup(settings):
+            return False
+        _save_settings(settings)
+
+    def available(stackup):
+        common = None
+        for shape, trans in shapes:
+            here = metals_at(layout, cell, stackup, shape.bbox().transformed(trans))
+            common = here if common is None else [n for n in common if n in here]
+        return common or []
+
+    current = current or settings_of(shapes[0][0]) or PortSettings.decode(settings.get("last_port")) or PortSettings()
+    dialog = PortDialog(settings, available, current, len(shapes))
+    if not dialog.exec_():
+        return False
+    new = dialog.result_settings()
+    view.transaction("Port settings")
+    try:
+        for shape, _ in shapes:
+            shape.set_property(PROP_KEY, new.encode())
+    finally:
+        view.commit()
+    settings["last_port"] = new.encode()
+    _save_settings(settings)
+    if dialog.stackup is None:
+        problems = ["no readable stackup: the layers were not checked"]
+    else:
+        drawn = {name for name, _ in drawn_metals(dialog.stackup)}
+        problems = new.problems(dialog.stackup.metal_names())
+        problems += [f"{n} is not drawn at the port" for n in new.layer_names()
+                     if n in drawn and n not in dialog.available]
+    if problems:
+        pya.MessageBox.warning("EM Export", "\n".join(problems), pya.MessageBox.Ok)
+    return True
 
 
 def port_settings():
@@ -232,49 +311,30 @@ def port_settings():
         return
     shapes = _selected_port_shapes(view, cv)
     if not shapes:
-        pya.MessageBox.warning("EM Export", "Select one or more port shapes first (layers 201..299, datatype 0). "
-                               "A via port is a line (path of width 0) or a thin box; an in-plane port is a box "
-                               "that bridges the gap.", pya.MessageBox.Ok)
+        pya.MessageBox.warning("EM Export", "Select one or more port shapes first (layers 201..299, datatype 0), "
+                               "or create one with the EM Port tool in the toolbar.", pya.MessageBox.Ok)
         return
-    settings = _load_settings()
-    stackup = _saved_stackup(settings)
-    if stackup is None:
-        return
-    current = settings_of(shapes[0]) or PortSettings.decode(settings.get("last_port")) or PortSettings()
-    dialog = PortDialog(stackup.metal_names(), current, len(shapes))
-    if not dialog.exec_():
-        return
-    new = dialog.result_settings()
-    view.transaction("Port settings")
-    try:
-        for shape in shapes:
-            shape.set_property(PROP_KEY, new.encode())
-    finally:
-        view.commit()
-    settings["last_port"] = new.encode()
-    _save_settings(settings)
-    problems = new.problems(stackup.metal_names())
-    if problems:
-        pya.MessageBox.warning("EM Export", "\n".join(problems), pya.MessageBox.Ok)
+    edit_ports(view, cv, shapes)
 
 
 def port_overview():
     view, cv = _current()
     if view is None:
         return
-    ports = collect_ports(cv.layout(), cv.cell)
+    settings = _load_settings()
+    stackup = Stackup(settings["stackup"]) if os.path.isfile(settings.get("stackup", "")) else None
+    ports = collect_ports(cv.layout(), cv.cell, stackup=stackup)
     if not ports:
         pya.MessageBox.info("EM Export", f"Cell {cv.cell.name} has no port shapes on layers 201..299.", pya.MessageBox.Ok)
         return
-    settings = _load_settings()
     lines = [f"Ports in cell {cv.cell.name}:"]
     for layer in sorted(ports):
         port = ports[layer]
         lines.append(f"  port {port.number:2d} (layer {layer}, {port.shapes} shape(s)): "
                      + (str(port.settings) if port.settings else "no settings"))
-    if os.path.isfile(settings.get("stackup", "")):
-        problems = check_ports(ports, Stackup(settings["stackup"]).metal_names())
-        lines += ["", f"Checked against {os.path.basename(settings['stackup'])}:"] + (problems or ["all complete"])
+    if stackup is not None:
+        problems = check_ports(ports, stackup)
+        lines += ["", f"Checked against {os.path.basename(stackup.path)}:"] + (problems or ["all complete"])
     pya.MessageBox.info("EM Export", "\n".join(lines), pya.MessageBox.Ok)
 
 
@@ -294,3 +354,5 @@ def install_menu():
         action.on_triggered = handler
         _actions.append(action)
         menu.insert_item("tools_menu.em_export.end", name, action)
+    from .tool import PortToolFactory
+    _actions.append(PortToolFactory())     # registers the EM Port tool in the toolbar

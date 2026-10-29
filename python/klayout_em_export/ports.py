@@ -9,6 +9,7 @@ Short on purpose: some GDS tools cut property values after 126 characters.
 import pya
 
 from .export import PORT_LAYERS
+from .locate import drawn_metals, metals_at
 from .simcfg import port_entry
 
 PROP_KEY = 200
@@ -45,12 +46,14 @@ class PortSettings:
         except ValueError:
             return None
 
+    def layer_names(self):
+        return [self.from_layer, self.to_layer] if self.is_via else [self.target]
+
     def problems(self, metal_names):
         out = []
         if self.direction not in DIRECTIONS:
             out.append(f"direction '{self.direction}' is not one of {', '.join(DIRECTIONS)}")
-        names = [self.from_layer, self.to_layer] if self.is_via else [self.target]
-        for name in names:
+        for name in self.layer_names():
             if name not in metal_names:
                 out.append(f"layer '{name}' is not a metal of the stackup" if name else "a layer is not set")
         if self.is_via and self.from_layer and self.from_layer == self.to_layer:
@@ -72,14 +75,16 @@ class Port:
         self.settings = None
         self.shapes = 0
         self.conflict = False       # shapes on this layer carry different settings
+        self.available = None       # stackup metals drawn at every shape of the port (set), None if not checked
 
     @property
     def number(self):
         return self.layer - 200
 
 
-def collect_ports(layout, cell, box=None, datatype=0):
-    """Ports drawn in cell (recursively), optionally only those touching box (Box in dbu): {layer: Port}."""
+def collect_ports(layout, cell, box=None, datatype=0, stackup=None):
+    """Ports drawn in cell (recursively), optionally only those touching box (Box in dbu): {layer: Port}.
+    With a stackup, port.available is set to the metals drawn at the port."""
     ports = {}
     for li in layout.layer_indexes():
         info = layout.get_info(li)
@@ -96,12 +101,17 @@ def collect_ports(layout, cell, box=None, datatype=0):
                     if port.settings is not None and port.settings.encode() != settings.encode():
                         port.conflict = True
                     port.settings = port.settings or settings
+                if stackup is not None:
+                    here = set(metals_at(layout, cell, stackup, shape.bbox().transformed(it.trans())))
+                    port.available = here if port.available is None else port.available & here
             it.next()
     return ports
 
 
-def check_ports(ports, metal_names):
+def check_ports(ports, stackup):
     """Problems per port, as text lines (empty when all ports are complete)."""
+    metal_names = stackup.metal_names()
+    drawn = {name for name, _ in drawn_metals(stackup)}
     lines = []
     for layer in sorted(ports):
         port = ports[layer]
@@ -111,6 +121,9 @@ def check_ports(ports, metal_names):
         if port.conflict:
             lines.append(f"port {port.number} (layer {layer}): shapes with different settings, the first is used")
         lines += [f"port {port.number} (layer {layer}): {p}" for p in port.settings.problems(metal_names)]
+        if port.available is not None:
+            lines += [f"port {port.number} (layer {layer}): {name} is not drawn at the port"
+                      for name in port.settings.layer_names() if name in drawn and name not in port.available]
     return lines
 
 
