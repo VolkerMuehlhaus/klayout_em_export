@@ -46,6 +46,25 @@ def _copy_port_shapes(layout, cell, li, box, target, target_layout):
     return count
 
 
+def _is_kept(info, keep, purposes):
+    return (info.layer in keep or info.layer in PORT_LAYERS) and info.datatype in purposes
+
+
+def layer_summary(layout, cell, stackup, box=None, purposes=(0,)):
+    """(kept, dropped): sorted (layer, datatype) lists of the layers with shapes in the region, as export_flat
+    would treat them. For a preview before exporting; no geometry is computed."""
+    keep = set(stackup.gds_layers())
+    clip = None if box is None else box.to_itype(layout.dbu)
+    kept, dropped = [], []
+    for li in layout.layer_indexes():
+        it = cell.begin_shapes_rec(li) if clip is None else cell.begin_shapes_rec_touching(li, clip)
+        if it.at_end():
+            continue
+        info = layout.get_info(li)
+        (kept if _is_kept(info, keep, purposes) else dropped).append((info.layer, info.datatype))
+    return sorted(kept), sorted(dropped)
+
+
 def export_flat(layout, cell, stackup, gds_path, box=None, purposes=(0,), cellname=None):
     """Write cell, flattened and clipped to box (DBox in um, None = whole cell), to gds_path.
 
@@ -64,7 +83,7 @@ def export_flat(layout, cell, stackup, gds_path, box=None, purposes=(0,), cellna
         info = layout.get_info(li)
         key = (info.layer, info.datatype)
         is_port = info.layer in PORT_LAYERS
-        if not (info.layer in keep or is_port) or info.datatype not in purposes:
+        if not _is_kept(info, keep, purposes):
             it = cell.begin_shapes_rec(li) if clip is None else cell.begin_shapes_rec_touching(li, clip)
             count = sum(1 for _ in it.each())
             if count:

@@ -28,7 +28,9 @@ class PortTool(pya.Plugin):
         self._stackup = (None, None)     # (path, Stackup) cache
 
     def stackup(self):
-        path = gui._load_settings().get("stackup", "")
+        """The current layout's stackup (cached), or None."""
+        cv = self.layout_view.active_cellview()
+        path = gui.stackup_path(cv.layout() if cv is not None else None)
         if self._stackup[0] != path:
             try:
                 self._stackup = (path, Stackup(path))
@@ -81,10 +83,9 @@ class PortTool(pya.Plugin):
         if not prio or not buttons & pya.ButtonState.LeftButton:
             return False
         if self.stackup() is None:
-            settings = gui._load_settings()
-            if not gui._ask_stackup(settings):
+            cv = self.layout_view.active_cellview()
+            if cv is None or cv.layout() is None or not gui.ask_stackup(cv.layout()):
                 return True
-            gui._save_settings(settings)
         found = self._candidate(p, buttons)
         self._clear()
         if found is None:

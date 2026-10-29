@@ -26,7 +26,9 @@ print("after export:", {k: str(v.settings) for k, v in collect_ports(l2, l2.top_
 # dialog construction (headless, if Qt widgets are available)
 try:
     from klayout_em_export.gui import PortDialog
-    d = PortDialog({"stackup": st.path}, lambda s: ["Metal3", "Metal2"], spec[203], 1)
+    from klayout_em_export.gui import META_STACKUP
+    ly.add_meta_info(pya.LayoutMetaInfo(META_STACKUP, st.path, "", True))   # not set_stackup: keeps ~/.klayout_em_export.json
+    d = PortDialog(ly, lambda s: ["Metal3", "Metal2"], spec[203], 1)
     print("dialog:", d.result_settings().encode())
     d.direction.setCurrentText("X"); d.target.setCurrentText("Metal3"); d._update()
     print("dialog X:", d.result_settings().encode(), "from enabled:", d.from_layer.isEnabled())
@@ -39,3 +41,14 @@ c2.shapes(ly.layer(30, 0)).insert(pya.Box(0, 0, 5000, 1000))
 clip = pya.DBox(0, 0, 5, 1)
 print("zero-height port in clipped region:", list(collect_ports(ly, c2, clip.to_itype(ly.dbu))),
       export_flat(ly, c2, st, os.path.join(OUT, "zero_port.gds"), box=clip).kept)
+
+# export dialog preview (stackup from the layout's meta info, region clipped)
+from klayout_em_export.gui import ExportDialog
+class CellView:   # the parts of pya.CellView the dialog uses
+    def __init__(self, layout, cell): self._layout, self.cell = layout, cell
+    def layout(self): return self._layout
+    def filename(self): return os.path.join(OUT, "dialog_test.gds")
+d = ExportDialog(CellView(ly, cell), pya.DBox(-80, -60, -30, -30), "test region")
+print("export dialog: stackup", d.stackup_label.text, "| output", d.output.text, "| export enabled", d.export_button.isEnabled())
+print("  layers:", d.layers.text.replace(chr(10), " | "))
+print("  ports:", d.ports.text.replace(chr(10), " | "))

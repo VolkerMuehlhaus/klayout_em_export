@@ -1,4 +1,8 @@
-"""KLayout menu: Tools > EM Export."""
+"""KLayout menu: Tools > EM Export.
+
+One stackup per layout, chosen once (menu, port dialog or export dialog) and used by every step. It is stored in the
+layout's meta info, so it is saved with the layout, and as the default for new layouts.
+"""
 import json
 import os
 import shutil
@@ -6,7 +10,7 @@ import subprocess
 
 import pya
 
-from .export import PORT_LAYERS, export_flat, marker_box
+from .export import PORT_LAYERS, export_flat, layer_summary, marker_box
 from .locate import drawn_metals, metals_at
 from .ports import DIRECTIONS, PROP_KEY, PortSettings, check_ports, collect_ports, settings_of, simcfg_ports
 from .simcfg import write_simcfg
@@ -14,6 +18,8 @@ from .stackup import Stackup
 
 EM_REGION = (800, 0)      # marker layer: a box on it keeps the export region in the layout
 SETTINGS_FILE = os.path.join(os.path.expanduser("~"), ".klayout_em_export.json")
+META_STACKUP = "klayout_em_export.stackup"
+META_OUTPUT = "klayout_em_export.output"
 
 
 def _load_settings():
@@ -32,6 +38,10 @@ def _save_settings(settings):
         pass
 
 
+def _status(text, seconds=5):
+    pya.Application.instance().main_window().message(text, seconds * 1000)
+
+
 def _current():
     view = pya.Application.instance().main_window().current_view()
     if view is None or view.active_cellview().layout() is None:
@@ -39,6 +49,49 @@ def _current():
         return None, None
     return view, view.active_cellview()
 
+
+# ---------- stackup, one per layout ----------
+
+def stackup_path(layout):
+    """The layout's stackup, else the last one used, or "" if there is none (or the file is gone)."""
+    path = layout.meta_info_value(META_STACKUP) if layout is not None else None
+    if path and os.path.isfile(path):
+        return path
+    path = _load_settings().get("stackup", "")
+    return path if os.path.isfile(path) else ""
+
+
+def set_stackup(layout, path):
+    if layout is not None:
+        layout.add_meta_info(pya.LayoutMetaInfo(META_STACKUP, path, "gds2palace stackup for EM export", True))
+    settings = _load_settings()
+    settings["stackup"] = path
+    _save_settings(settings)
+
+
+def ask_stackup(layout):
+    path = pya.FileDialog.ask_open_file_name("gds2palace stackup (XML)", stackup_path(layout),
+                                             "Stackup XML (*.xml);;All files (*)")
+    if path:
+        set_stackup(layout, path)
+    return path
+
+
+def read_stackup(path):
+    """(Stackup, None) or (None, error text)."""
+    try:
+        return Stackup(path), None
+    except Exception as e:      # missing file, StackupError, XML syntax error
+        return None, str(e)
+
+
+def choose_stackup():
+    view, cv = _current()
+    if view is not None and ask_stackup(cv.layout()):
+        _status(f"EM stackup: {stackup_path(cv.layout())}", 10)
+
+
+# ---------- region ----------
 
 def _selection_box(view, cellview):
     """Bounding box (DBox, um) of the selected shapes, in the current cell, or None."""
@@ -71,13 +124,7 @@ def mark_region():
     view.add_missing_layers()
 
 
-def _ask_stackup(settings):
-    path = pya.FileDialog.ask_open_file_name("gds2palace stackup (XML)", settings.get("stackup", ""),
-                                             "Stackup XML (*.xml);;All files (*)")
-    if path:
-        settings["stackup"] = path
-    return path
-
+# ---------- setupEM ----------
 
 def _setupem_command(settings):
     exe = settings.get("setupEM") or shutil.which("setupEM") or shutil.which("setupEM.bat")
@@ -87,11 +134,12 @@ def _setupem_command(settings):
                                             "Programs (*.exe *.bat);;All files (*)")
     if exe:
         settings["setupEM"] = exe
+        _save_settings(settings)
     return exe
 
 
-def open_in_setupem(simcfg_path, settings):
-    exe = _setupem_command(settings)
+def open_in_setupem(simcfg_path):
+    exe = _setupem_command(_load_settings())
     if not exe:
         return
     env = os.environ.copy()
@@ -103,72 +151,163 @@ def open_in_setupem(simcfg_path, settings):
         pya.MessageBox.critical("EM Export", f"Failed to start setupEM:\n{e}", pya.MessageBox.Ok)
 
 
+# ---------- export ----------
+
+def _layers_text(keys):
+    return ", ".join(f"{l}/{d}" for l, d in keys) or "none"
+
+
+def _stackup_row(dialog, form, on_change):
+    """Stackup label + Change... button as a form row; returns the label."""
+    label = pya.QLabel()
+    change = pya.QPushButton("Change...")
+    change.clicked += on_change
+    row = pya.QHBoxLayout()
+    row.addWidget(label, 1)
+    row.addWidget(change)
+    form.addRow("Stackup", row)
+    return label
+
+
+class ExportDialog(pya.QDialog):
+    """Everything about one export in one window: region, stackup, output file, layers, ports, setupEM."""
+
+    def __init__(self, cv, box, source):
+        super().__init__(pya.Application.instance().main_window())
+        self.em_layout, self.cell, self.box = cv.layout(), cv.cell, box
+        self.stackup = None
+        self.setWindowTitle("Export Region for EM")
+        self.resize(640, 0)
+        form = pya.QFormLayout(self)
+        region = pya.QLabel(f"{source}\n{box}" if box is not None else source)
+        form.addRow("Region", region)
+        self.stackup_label = _stackup_row(self, form, self._change_stackup)
+        self.output = pya.QLineEdit(self._default_output(cv))
+        browse = pya.QPushButton("Browse...")
+        browse.clicked += self._browse
+        row = pya.QHBoxLayout()
+        row.addWidget(self.output, 1)
+        row.addWidget(browse)
+        form.addRow("Output GDS", row)
+        form.addRow("", pya.QLabel("The .simcfg for setupEM is written next to it."))
+        self.layers = pya.QLabel()
+        self.layers.setWordWrap(True)
+        form.addRow("Layers", self.layers)
+        self.ports = pya.QLabel()
+        self.ports.setWordWrap(True)
+        form.addRow("Ports", self.ports)
+        self.setupem = pya.QCheckBox("Open in setupEM after the export")
+        self.setupem.setChecked(_load_settings().get("open_setupem", True))
+        form.addRow("", self.setupem)
+        buttons = pya.QDialogButtonBox(self)
+        self.export_button = buttons.addButton("Export", pya.QDialogButtonBox.AcceptRole)
+        buttons.addButton(pya.QDialogButtonBox.Cancel)
+        buttons.accepted += self.accept
+        buttons.rejected += self.reject
+        form.addRow(buttons)
+        self._refresh()
+
+    def _default_output(self, cv):
+        remembered = self.em_layout.meta_info_value(META_OUTPUT)
+        if remembered:
+            return remembered
+        base = os.path.splitext(cv.filename())[0] if cv.filename() else os.path.join(os.path.expanduser("~"), self.cell.name)
+        return base + "_em.gds"
+
+    def _browse(self):
+        path = pya.FileDialog.ask_save_file_name("Export EM layout", self.output.text, "GDSII (*.gds)")
+        if path:
+            self.output.setText(path)
+
+    def _change_stackup(self):
+        if ask_stackup(self.em_layout):
+            self._refresh()
+
+    def _refresh(self):
+        path = stackup_path(self.em_layout)
+        self.stackup, error = read_stackup(path) if path else (None, "no stackup chosen yet")
+        self.export_button.setEnabled(self.stackup is not None)
+        if self.stackup is None:
+            self.stackup_label.setText(f"<b>{error}</b>")
+            self.layers.setText("choose a stackup first")
+            self.ports.setText("")
+            return
+        self.stackup_label.setText(os.path.basename(path))
+        self.stackup_label.setToolTip(path)
+        kept, dropped = layer_summary(self.em_layout, self.cell, self.stackup, self.box)
+        self.layers.setText(f"kept: {_layers_text(kept)}\ndropped (not in the stackup, or other purpose): "
+                            f"{_layers_text(dropped)}")
+        clip = None if self.box is None else self.box.to_itype(self.em_layout.dbu)
+        ports = collect_ports(self.em_layout, self.cell, clip, stackup=self.stackup)
+        problems = check_ports(ports, self.stackup)
+        if not ports:
+            text = "no ports in the region (add them with the EM Port tool, or in setupEM)"
+        elif problems:
+            text = f"{len(ports)} port(s), incomplete ones are exported and can be completed in setupEM:\n" + \
+                   "\n".join(problems)
+        else:
+            text = f"{len(ports)} port(s), all complete"
+        self.ports.setText(text)
+
+
 def export_region():
     view, cv = _current()
     if view is None:
         return
     layout, cell = cv.layout(), cv.cell
     box = _selection_box(view, cv)
-    source = "the selected shapes"
+    source = "bounding box of the selected shapes"
     if box is None:
         box = marker_box(layout, cell, EM_REGION)
-        source = f"the EM region box (layer {EM_REGION[0]}/{EM_REGION[1]})"
+        source = f"EM region box (layer {EM_REGION[0]}/{EM_REGION[1]})"
     if box is None:
-        answer = pya.MessageBox.question(
-            "EM Export", f"Nothing is selected and cell {cell.name} has no EM region box on layer "
-            f"{EM_REGION[0]}/{EM_REGION[1]}.\n\nExport the whole cell?", pya.MessageBox.Yes | pya.MessageBox.No)
-        if answer != pya.MessageBox.Yes:
+        source = f"whole cell {cell.name} (nothing selected, no EM region box)"
+
+    dialog = ExportDialog(cv, box, source)
+    while True:
+        if not dialog.exec_():
             return
-        source = "the whole cell"
+        gds_path = dialog.output.text.strip()
+        problem = None
+        if not gds_path.lower().endswith(".gds"):
+            problem = "The output file must end with .gds."
+        elif cv.filename() and os.path.normcase(os.path.abspath(gds_path)) == os.path.normcase(os.path.abspath(cv.filename())):
+            problem = "The output file is the layout itself. Choose another file."
+        if problem is None:
+            if (os.path.exists(gds_path) and gds_path != layout.meta_info_value(META_OUTPUT) and
+                    pya.MessageBox.question("EM Export", f"{gds_path} exists. Overwrite it?",
+                                            pya.MessageBox.Yes | pya.MessageBox.No) != pya.MessageBox.Yes):
+                continue
+            break
+        pya.MessageBox.warning("EM Export", problem, pya.MessageBox.Ok)
 
-    settings = _load_settings()
-    stackup_path = _ask_stackup(settings)
-    if not stackup_path:
-        return
-    try:
-        stackup = Stackup(stackup_path)
-    except Exception as e:      # StackupError, missing file, XML syntax error
-        pya.MessageBox.critical("EM Export", f"Cannot read the stackup:\n{e}", pya.MessageBox.Ok)
-        return
-
-    base = os.path.splitext(cv.filename())[0] if cv.filename() else os.path.join(os.path.expanduser("~"), cell.name)
-    gds_path = pya.FileDialog.ask_save_file_name("Export EM layout", base + "_em.gds", "GDSII (*.gds)")
-    if not gds_path:
-        return
-    _save_settings(settings)
-
+    stackup = dialog.stackup
     result = export_flat(layout, cell, stackup, gds_path, box=box)
     ports = collect_ports(layout, cell, None if box is None else box.to_itype(layout.dbu), stackup=stackup)
     simcfg_path = os.path.splitext(gds_path)[0] + ".simcfg"
-    write_simcfg(simcfg_path, gds_path, stackup_path, result.cellname, ports=simcfg_ports(ports))
-    problems = check_ports(ports, stackup)
-    port_text = f"{len(ports)} port(s)" + (":\n" + "\n".join(problems) + "\n(complete them in setupEM)"
-                                           if problems else ", all complete")
-    answer = pya.MessageBox.question(
-        "EM Export", f"Region: {source}\n\n{result.report()}\nwrote {simcfg_path}\n{port_text}\n\nOpen in setupEM?",
-        pya.MessageBox.Yes | pya.MessageBox.No)
-    if answer == pya.MessageBox.Yes:
-        open_in_setupem(simcfg_path, settings)
-        _save_settings(settings)
+    write_simcfg(simcfg_path, gds_path, stackup.path, result.cellname, ports=simcfg_ports(ports))
+    layout.add_meta_info(pya.LayoutMetaInfo(META_OUTPUT, gds_path, "EM export output file", True))
+    settings = _load_settings()
+    settings["open_setupem"] = dialog.setupem.isChecked()
+    _save_settings(settings)
+    _status(f"Exported {gds_path} and {os.path.basename(simcfg_path)} ({len(ports)} port(s))", 10)
+    if dialog.setupem.isChecked():
+        open_in_setupem(simcfg_path)
 
+
+# ---------- ports ----------
 
 class PortDialog(pya.QDialog):
     """Port settings for one or more port shapes. Layer choices: the metals drawn at the port(s), or all stackup
     metals. available(stackup) gives the metals at the port; the stackup can be changed here."""
 
-    def __init__(self, settings, available, current, count):
+    def __init__(self, layout, available, current, count):
         super().__init__(pya.Application.instance().main_window())
-        self.settings, self.available_for, self.current = settings, available, current
+        self.em_layout, self.available_for, self.current = layout, available, current
         self.setWindowTitle("Port Settings")
         form = pya.QFormLayout(self)
         form.addRow(pya.QLabel(f"{count} port shape(s)"))
-        self.stackup_label = pya.QLabel()
-        change = pya.QPushButton("Change...")
-        change.clicked += self._change_stackup
-        row = pya.QHBoxLayout()
-        row.addWidget(self.stackup_label, 1)
-        row.addWidget(change)
-        form.addRow("Stackup", row)
+        self.stackup_label = _stackup_row(self, form, self._change_stackup)
         self.at_port = pya.QLabel()
         self.at_port.setWordWrap(True)
         form.addRow("Drawn at the port", self.at_port)
@@ -201,12 +340,11 @@ class PortDialog(pya.QDialog):
         self._update()
 
     def _load_stackup(self):
-        path = self.settings.get("stackup", "")
-        try:
-            self.stackup = Stackup(path)
-        except Exception as e:      # missing file, StackupError, XML syntax error
-            self.stackup, self.available = None, []
-            self.stackup_label.setText(f"cannot read {os.path.basename(path) or '(none)'}: {e}")
+        path = stackup_path(self.em_layout)
+        self.stackup, error = read_stackup(path) if path else (None, "no stackup chosen yet")
+        if self.stackup is None:
+            self.available = []
+            self.stackup_label.setText(f"<b>{error}</b>")
             self.at_port.setText("")
         else:
             self.stackup_label.setText(os.path.basename(path))
@@ -216,8 +354,7 @@ class PortDialog(pya.QDialog):
         self._fill(initial=True)
 
     def _change_stackup(self):
-        if _ask_stackup(self.settings):
-            _save_settings(self.settings)
+        if ask_stackup(self.em_layout):
             self._load_stackup()
 
     def _fill(self, initial=False):
@@ -267,11 +404,8 @@ def _selected_port_shapes(view, cv):
 def edit_ports(view, cv, shapes, current=None):
     """Open the port dialog for [(shape, trans)] and store the result on the shapes. Returns True if applied."""
     layout, cell = cv.layout(), cv.cell
-    settings = _load_settings()
-    if not os.path.isfile(settings.get("stackup", "")):
-        if not _ask_stackup(settings):
-            return False
-        _save_settings(settings)
+    if not stackup_path(layout) and not ask_stackup(layout):
+        return False
 
     def available(stackup):
         common = None
@@ -280,8 +414,9 @@ def edit_ports(view, cv, shapes, current=None):
             common = here if common is None else [n for n in common if n in here]
         return common or []
 
+    settings = _load_settings()
     current = current or settings_of(shapes[0][0]) or PortSettings.decode(settings.get("last_port")) or PortSettings()
-    dialog = PortDialog(settings, available, current, len(shapes))
+    dialog = PortDialog(layout, available, current, len(shapes))
     if not dialog.exec_():
         return False
     new = dialog.result_settings()
@@ -312,7 +447,7 @@ def port_settings():
     shapes = _selected_port_shapes(view, cv)
     if not shapes:
         pya.MessageBox.warning("EM Export", "Select one or more port shapes first (layers 201..299, datatype 0), "
-                               "or create one with the EM Port tool in the toolbar.", pya.MessageBox.Ok)
+                               "or create one with the EM Port tool.", pya.MessageBox.Ok)
         return
     edit_ports(view, cv, shapes)
 
@@ -321,8 +456,8 @@ def port_overview():
     view, cv = _current()
     if view is None:
         return
-    settings = _load_settings()
-    stackup = Stackup(settings["stackup"]) if os.path.isfile(settings.get("stackup", "")) else None
+    path = stackup_path(cv.layout())
+    stackup = read_stackup(path)[0] if path else None
     ports = collect_ports(cv.layout(), cv.cell, stackup=stackup)
     if not ports:
         pya.MessageBox.info("EM Export", f"Cell {cv.cell.name} has no port shapes on layers 201..299.", pya.MessageBox.Ok)
@@ -338,21 +473,38 @@ def port_overview():
     pya.MessageBox.info("EM Export", "\n".join(lines), pya.MessageBox.Ok)
 
 
+def port_tool():
+    view, cv = _current()
+    if view is not None:
+        view.switch_mode("em_port_tool")
+
+
+# ---------- menu ----------
+
 _actions = []    # keep references, or the menu entries lose their handlers
 
 
 def install_menu():
+    from .tool import PortToolFactory
+    _actions.append(PortToolFactory())     # registers the EM Port tool in the toolbar
     menu = pya.Application.instance().main_window().menu()
     if not menu.is_valid("tools_menu.em_export"):
         menu.insert_menu("tools_menu.end", "em_export", "EM Export")
-    for name, title, handler in (("export_region", "Export Region for EM...", export_region),
-                                 ("mark_region", "Mark EM Region from Selection", mark_region),
-                                 ("port_settings", "Port Settings...", port_settings),
-                                 ("port_overview", "Port Overview", port_overview)):
+    entries = (("choose_stackup", "Choose Stackup...", choose_stackup),
+               None,
+               ("port_tool", "EM Port Tool (click edge: via port, Shift+click gap: in-plane port)", port_tool),
+               ("port_settings", "Port Settings...", port_settings),
+               ("port_overview", "Port Overview", port_overview),
+               None,
+               ("mark_region", "Mark EM Region from Selection", mark_region),
+               ("export_region", "Export Region for EM...", export_region))
+    for n, entry in enumerate(entries):
+        if entry is None:
+            menu.insert_separator("tools_menu.em_export.end", f"separator{n}")
+            continue
+        name, title, handler = entry
         action = pya.Action()
         action.title = title
         action.on_triggered = handler
         _actions.append(action)
         menu.insert_item("tools_menu.em_export.end", name, action)
-    from .tool import PortToolFactory
-    _actions.append(PortToolFactory())     # registers the EM Port tool in the toolbar

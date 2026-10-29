@@ -15,31 +15,35 @@ KLayout adds `python/` to its module path and runs `pymacros/em_export_menu.lym`
 
 ## Usage: Tools > EM Export
 
-- **Export Region for EM...**: the region is the bounding box of the selected shapes. If nothing is selected, it is
-  the box on the EM region layer **800/0** of the current cell. If there is none either, the whole cell is exported
-  after asking.
-  - Asks for the gds2palace stackup XML and the output file (default `<layout>_em.gds`).
-  - Writes the flat GDS and a `.simcfg` next to it, shows what was kept and dropped, and offers to open setupEM.
-- **Mark EM Region from Selection**: draws the bounding box of the selected shapes on layer 800/0, replacing an
-  earlier box. Saved with the layout, it gives the same region on the next export.
-- **EM Port** tool (toolbar): click a metal edge to create a via port, a zero-width line along that edge; Shift+click
-  into the gap between two shapes of one metal to create an in-plane port, a box that bridges the gap. The edge or
-  gap under the cursor is highlighted first. The shape goes on the next free port layer, then the port dialog
-  opens; Cancel removes the shape again.
-- **Port Settings...**: for the selected port shapes (layers 201..299, datatype 0; from the EM Port tool or drawn
-  with KLayout's own tools): direction, from/to layer (via port, Z/-Z) or target layer (in-plane port), Z0 and
-  excitation.
-  - Shows the stackup it uses (Change... to pick another) and which stackup metals are drawn at the port. Only those
-    are offered, unless "offer all stackup metals" is ticked. New via ports default to from = lowest, to = highest
-    metal at the port.
-  - A via port is a line (path of width 0) or a thin box; an in-plane port is a box that bridges the gap.
-  - The settings are stored on the shape as GDS property 200, e.g. `port:dir=-Z;from=Metal3;to=TopMetal2;z0=50;v=1`,
-    so they are saved with the layout. Port number = layer - 200.
-  - The export writes them into the `.simcfg`. Ports without settings, with layer names that are not in the stackup,
-    or with layers that are not drawn at the port are still listed there and reported, to be completed in setupEM.
-- **Port Overview**: all ports of the current cell with their settings and problems.
-- The last stackup and the setupEM program are remembered in `~/.klayout_em_export.json`. If `setupEM` is not on
-  the `PATH` that KLayout sees, the plug-in asks once for the program (e.g. `<venv>\Scripts\setupEM.exe`).
+The menu follows the workflow, top to bottom.
+
+1. **Choose Stackup...**: the gds2palace stackup XML for this layout. It is chosen once and used by every step. It
+   is stored in the layout (meta info, saved with it) and as the default for other layouts. The port dialog and the
+   export dialog show it and can change it too.
+2. **EM Port Tool** (also in the toolbar as "EM Port"): click a metal edge to create a via port, a zero-width line
+   along that edge; Shift+click into the gap between two shapes of one metal to create an in-plane port, a box that
+   bridges the gap. The edge or gap under the cursor is highlighted first. The shape goes on the next free port
+   layer (port number = layer - 200), then the port dialog opens; Cancel removes the shape again.
+3. **Port Settings...**: the same dialog for selected port shapes (layers 201..299, datatype 0; from the tool or
+   drawn with KLayout's own tools): direction, from/to layer (via port, Z/-Z) or target layer (in-plane port), Z0
+   and excitation.
+   - Shows which stackup metals are drawn at the port and offers only those, unless "offer all stackup metals" is
+     ticked. New via ports default to from = lowest, to = highest metal at the port.
+   - The settings are stored on the shape as GDS property 200, e.g. `port:dir=-Z;from=Metal3;to=TopMetal2;z0=50;v=1`,
+     so they are saved with the layout.
+4. **Port Overview**: all ports of the current cell with their settings and problems.
+5. **Mark EM Region from Selection**: draws the bounding box of the selected shapes on layer **800/0**, replacing an
+   earlier box. Saved with the layout, it gives the same region on the next export.
+6. **Export Region for EM...**: one dialog with everything about the export, then one click.
+   - Region: the bounding box of the selected shapes; else the box on layer 800/0; else the whole cell.
+   - Stackup (Change...), output GDS (Browse...; default `<layout>_em.gds`, then the last output of this layout).
+   - Preview: which layers are kept and which are dropped, and the ports in the region with their problems
+     (incomplete ports are still exported, to be completed in setupEM).
+   - "Open in setupEM after the export". The `.simcfg` is written next to the GDS.
+
+Remembered in `~/.klayout_em_export.json`: the last stackup, the last port settings, the setupEM program and the
+setupEM option. If `setupEM` is not on the `PATH` that KLayout sees, the plug-in asks once for the program (e.g.
+`<venv>\Scripts\setupEM.exe`).
 
 ## Modules
 
