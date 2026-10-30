@@ -327,6 +327,32 @@ def unreplace(view, cell):
     return len(tagged)
 
 
+def unconnected_terminals(layout, devices, check):
+    """[(device, terminal)] of the terminals that connect to no wiring: the net traced from the pin (check: a
+    connectivity.GroundCheck of the region, for its metal and via regions) holds only the device's own metal. Such a
+    terminal floats in the EM model, e.g. when the wiring to the device was cut."""
+    from .connectivity import flood
+    out = []
+    for device in devices:
+        c = layout.cell(device.cell_index)
+        own = {}
+        for layer in check.metals:
+            li = layout.find_layer(layer, 0)
+            own[layer] = pya.Region() if li is None else pya.Region(c.begin_shapes_rec(li)).transformed(device.trans)
+        for terminal, (pin_layer, pins) in sorted(device.terminals.items()):
+            if pin_layer not in check.metals:
+                continue
+            seed = pya.Region()
+            for pin in pins:
+                seed += check.metals[pin_layer].interacting(pya.Region(pin))
+            if seed.is_empty():
+                continue                # pin outside the checked region: not checked
+            net = flood(check.metals, check.vias, check.connections, {pin_layer: seed})
+            if all((region - own.get(layer, pya.Region())).is_empty() for layer, region in net.items()):
+                out.append((device, terminal))
+    return out
+
+
 def device_shapes(layout, devices, stackup):
     """{GDS layer: Region} of the replaced devices' own shapes that belong to the device model, in the cell the
     devices were found in: the export removes them. These are all its shapes below Metal1 (device_level_layers),

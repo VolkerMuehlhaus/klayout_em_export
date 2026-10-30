@@ -60,6 +60,9 @@ summary; the arrow shows its details and buttons.
     coordinates (the pins have no names). A resistor of several segments is not replaced. Unreplaced resistors stay
     layout: the stackup models them as sheet resistors. Capacitors (cmim) and inductors are never replaced.
   - The port map names the device and terminal of these ports, for connecting the `.snp` to the device models.
+  - A terminal whose net (traced through the vias from its pin) holds only the device's own metal is reported as
+    not connected to any wiring, in the Devices step and in the export dialog: it floats in the EM model, e.g. when
+    the wiring to the device was cut.
   - Recognition needs the SG13G2 PDK library loaded in KLayout.
 - **Ports**: one table with the ports of the cell and the ports proposed where the EM region box cuts conductors.
   - Columns: number and layer in the layout, the port, its number in the export (and the `.snp`; "outside" if it

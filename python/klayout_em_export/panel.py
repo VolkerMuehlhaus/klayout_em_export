@@ -288,8 +288,11 @@ class EMPanel(pya.QWidget):
                 state = "not replaced: simulated as layout"
             lines.append(f"{d.pcell} {name} {d.params}: {state}")
         lines += [f"{count} x {qname}: not supported yet" for qname, count in unknown]
-        from .devices import touching_patches
+        from .devices import touching_patches, unconnected_terminals
         touching = touching_patches(layout, cell, stackup)
+        loose = unconnected_terminals(layout, devices, self.result) if self.result is not None else []
+        lines += [f"{t} of {d.pcell} {d.id.split('@')[0]} is not connected to any wiring (floats in the EM model)"
+                  for d, t in loose]
         lines += [f"REF patches of {a.split('@')[0]} and {b.split('@')[0]} touch: one shared reference"
                   for a, b in touching]
         self.devices_detail.setText("\n".join(lines) or "no PDK devices (SG13_dev pcells) in the cell")
@@ -305,8 +308,10 @@ class EMPanel(pya.QWidget):
             parts.append(f"{sum(c for _, c in unknown)} not supported")
         if touching:
             parts.append(f"{len(touching)} pair(s) of REF patches touch")
+        if loose:
+            parts.append(f"{len(loose)} terminal(s) not connected")
         # resistors are optional: unreplaced ones do not make this a warning
-        state = OK if all(d.replaced for d in transistors) and not unknown and not touching else WARN
+        state = OK if all(d.replaced for d in transistors) and not unknown and not touching and not loose else WARN
         self.devices_step.set(state, ", ".join(parts))
 
     def _replace_devices(self):

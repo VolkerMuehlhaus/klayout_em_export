@@ -84,6 +84,8 @@ class GroundCheck:
         self.other_polygons = 0     # metal polygons not in the ground net
         self.other_nets = None      # number of separate other nets, None if not counted (too many polygons)
         self.metals = {}            # {GDS layer: merged Region} of the traced metals in the region
+        self.vias = {}              # {GDS layer: merged Region} of the vias between them
+        self.connections = []       # [(via layer, layer below, layer above)]
         self.shorted = []           # numbers of via ports whose two ends are on the same net (a short circuit)
 
     def summary(self):
@@ -130,7 +132,7 @@ def check_ground(layout, cell, stackup, box=None, seeds=(), ports=None):
     vias = layer_regions(layout, cell, [c[0] for c in connections], box)
     result = GroundCheck()
     result.names = metal_names
-    result.metals = metals
+    result.metals, result.vias, result.connections = metals, vias, connections
     port_ends = []                  # (port number, layer, Region of the metal at the port line)
     for port in (ports or {}).values():
         s = port.settings
