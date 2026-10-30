@@ -146,14 +146,39 @@ def is_complete(port):
     return s is not None and s.direction in DIRECTIONS and all(s.layer_names())
 
 
-def simcfg_ports(ports):
-    """setupEM port list of the complete ports (see is_complete)."""
+def export_numbering(ports):
+    """{layout port layer: exported port layer}: the complete ports numbered 1..N in layout order, then the
+    incomplete ones. Port numbers without gaps, because the .snp conversion after Palace (combine_extend_snp)
+    takes the highest port number as the port count and fills missing ports with |S| = 1."""
+    order = ([l for l in sorted(ports) if is_complete(ports[l])] +
+             [l for l in sorted(ports) if not is_complete(ports[l])])
+    if len(order) > len(PORT_LAYERS):
+        raise ValueError(f"{len(order)} ports, but only {len(PORT_LAYERS)} port layers (201..299)")
+    return {layer: PORT_LAYERS[i] for i, layer in enumerate(order)}
+
+
+def simcfg_ports(ports, numbering=None):
+    """setupEM port list of the complete ports (see is_complete), numbered by numbering (export_numbering) if
+    given, else by their layout numbers."""
     out = []
-    for layer in sorted(ports):
+    for layer in sorted(ports, key=lambda l: (numbering or {}).get(l, l)):
         if not is_complete(ports[layer]):
             continue
         s = ports[layer].settings
-        out.append(port_entry(ports[layer].number, layer, s.direction, target_layername=s.target or None,
+        new_layer = (numbering or {}).get(layer, layer)
+        out.append(port_entry(new_layer - 200, new_layer, s.direction, target_layername=s.target or None,
                               from_layername=s.from_layer or None, to_layername=s.to_layer or None,
                               port_Z0=s.z0, voltage=s.voltage))
     return out
+
+
+def port_map(ports, numbering):
+    """The port map file's content: per exported port its layout number and layer, and whether it is simulated."""
+    rows = []
+    for layer, new_layer in sorted(numbering.items(), key=lambda item: item[1]):
+        port = ports[layer]
+        rows.append({"port": new_layer - 200, "layer": new_layer, "layout_port": port.number, "layout_layer": layer,
+                     "in_simcfg": is_complete(port), "settings": str(port.settings) if port.settings else None})
+    return {"note": "port = number in the exported GDS, .simcfg and .snp; layout_port = number in the layout "
+                    "(layer - 200). Ports not in the .simcfg are exported as shapes only.",
+            "ports": rows}

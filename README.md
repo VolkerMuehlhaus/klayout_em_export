@@ -76,6 +76,10 @@ The same steps are in the **EM** menu in the menu bar, top to bottom in workflow
    - The ports with their problems. Ports without complete settings are exported as shapes but left out of the
      `.simcfg`, because setupEM cannot load them. Only the stackup's layers are exported; the others are dropped.
    - "Open in setupEM after the export". The `.simcfg` is written next to the GDS.
+   - Ports are numbered without gaps in the export: the complete ports 1..N in layout order, then the incomplete
+     ones. The exported GDS, the `.simcfg` and so the `.snp` use these numbers; `<name>_portmap.json` maps them
+     back to the layout's port numbers (the dialog shows the map when numbers change). Reason: after Palace,
+     `combine_extend_snp` takes the highest port number as the port count and fills missing ports with |S| = 1.
    - Exporting again updates an existing `.simcfg`: the GDS file, stackup, cell and ports are set, everything
      else (frequencies, mesh, ... saved with setupEM's Save Config) is kept. The ports always come from the
      layout, where they are defined.

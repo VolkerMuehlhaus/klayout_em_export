@@ -12,8 +12,8 @@ import pya
 
 from .export import PORT_LAYERS, export_flat, marker_box
 from .locate import drawn_metals, metals_at
-from .ports import (DIRECTIONS, PROP_KEY, PortSettings, check_ports, collect_ports, is_complete, ports_of, settings_of,
-                    simcfg_ports)
+from .ports import (DIRECTIONS, PROP_KEY, PortSettings, check_ports, collect_ports, export_numbering, is_complete,
+                    port_map, ports_of, settings_of, simcfg_ports)
 from .selection import Selection
 from .simcfg import write_simcfg
 from .stackup import Stackup
@@ -427,6 +427,16 @@ class ExportDialog(pya.QDialog):
                          "Settings first.")
             if problems:
                 text += "\n" + "\n".join(problems)
+            try:
+                numbering = export_numbering(ports)
+            except ValueError as e:
+                text += f"\n{e}: the export is not possible"
+                self.export_button.setEnabled(False)
+            else:
+                pairs = sorted((new - 200, ports[old].number) for old, new in numbering.items())
+                if any(new != old for new, old in pairs):
+                    text += ("\nnumbered without gaps for the export (exported/.snp port <- layout port): " +
+                             ", ".join(f"{new} <- {old}" for new, old in pairs) + "; written to the port map file")
         self.ports.setText(text)
 
 
@@ -464,14 +474,19 @@ def export_region():
 
     stackup = dialog.stackup
     if dialog.shapes_only():
-        result = export_flat(layout, cell, stackup, gds_path, selection=dialog.completed)
         ports = ports_of(layout, cell, dialog.completed.ports, stackup=stackup)
     else:
-        result = export_flat(layout, cell, stackup, gds_path, box=box)
         ports = collect_ports(layout, cell, None if box is None else box.to_itype(layout.dbu), stackup=stackup)
+    numbering = export_numbering(ports)      # ports 1..N without gaps, see export_numbering
+    if dialog.shapes_only():
+        result = export_flat(layout, cell, stackup, gds_path, selection=dialog.completed, port_layers=numbering)
+    else:
+        result = export_flat(layout, cell, stackup, gds_path, box=box, port_layers=numbering)
     simcfg_path = os.path.splitext(gds_path)[0] + ".simcfg"
-    port_list = simcfg_ports(ports)
+    port_list = simcfg_ports(ports, numbering)
     kept = write_simcfg(simcfg_path, gds_path, stackup.path, result.cellname, ports=port_list)
+    with open(os.path.splitext(gds_path)[0] + "_portmap.json", "w") as f:
+        json.dump(port_map(ports, numbering), f, indent=2)
     set_layout_value(layout, META_OUTPUT, gds_path, "EM export output file")
     settings = _load_settings()
     settings["open_setupem"] = dialog.setupem.isChecked()

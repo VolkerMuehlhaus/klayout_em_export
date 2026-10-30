@@ -54,14 +54,17 @@ def _is_kept(key, keep, purposes):
     return (layer in keep or layer in PORT_LAYERS) and datatype in purposes
 
 
-def export_flat(layout, cell, stackup, gds_path, box=None, purposes=(0,), cellname=None, selection=None):
+def export_flat(layout, cell, stackup, gds_path, box=None, purposes=(0,), cellname=None, selection=None,
+                port_layers=None):
     """Write cell, flattened and clipped to box (DBox in um, None = whole cell), to gds_path. With a selection
     (selection.Selection), only its shapes are written, uncut, and box is ignored.
 
     Kept: the stackup's GDS layers (derived layers by their sources) and the port layers 201..299, only for the
     given purposes (datatypes). Everything else is reported in result.dropped. Metal is merged per layer and cut
-    at the box edge; port shapes are copied unchanged if they touch the box.
+    at the box edge; port shapes are copied unchanged if they touch the box. port_layers {layout port layer:
+    exported layer} renumbers the ports (ports.export_numbering).
     """
+    port_layers = port_layers or {}
     keep = set(stackup.gds_layers())
     clip = None if box is None or selection is not None else box.to_itype(layout.dbu)
     result = ExportResult(gds_path, cellname or cell.name, None if selection is not None else box)
@@ -81,8 +84,9 @@ def export_flat(layout, cell, stackup, gds_path, box=None, purposes=(0,), cellna
             if not _is_kept(key, keep, purposes):
                 result.dropped[key] = result.dropped.get(key, 0) + 1
                 continue
-            _copy_port_shape(layout, shape, trans, top.shapes(em.layer(*key)), em)
-            result.kept[key] = result.kept.get(key, 0) + 1
+            out = (port_layers.get(key[0], key[0]), key[1])
+            _copy_port_shape(layout, shape, trans, top.shapes(em.layer(*out)), em)
+            result.kept[out] = result.kept.get(out, 0) + 1
         em.write(gds_path)
         return result
     for li in layout.layer_indexes():
@@ -95,7 +99,9 @@ def export_flat(layout, cell, stackup, gds_path, box=None, purposes=(0,), cellna
             if count:
                 result.dropped[key] = count
             continue
-        target = em.layer(info.layer, info.datatype)
+        if is_port:
+            key = (port_layers.get(info.layer, info.layer), info.datatype)
+        target = em.layer(*key)
         if is_port:
             count = _copy_port_shapes(layout, cell, li, clip, top.shapes(target), em)
         else:
