@@ -96,6 +96,15 @@ class Stackup:
         base = ("bottom", 0.0) if not layer.reference else self._edge(layer.reference, layer.reference_edge, seen)
         return None if base is None else (base[0], base[1] + zmin, base[1] + zmax)
 
+    def is_above(self, upper, lower):
+        """True if the layer named upper lies above the layer named lower (by their bottom), False if below, None
+        if their positions cannot be compared."""
+        a, b = self.layer(upper), self.layer(lower)
+        za, zb = (self.z_range(a) if a else None), (self.z_range(b) if b else None)
+        if za is None or zb is None or za[0] != zb[0]:
+            return None
+        return za[1] > zb[1]
+
     def via_neighbors(self, delta=1e-5):
         """{via layer number: ([metals directly below], [metals directly above])} as StackupLayers, for the vias
         drawn in the GDS that have drawn metals on both sides (z within delta, as gds2palace). Lists, because

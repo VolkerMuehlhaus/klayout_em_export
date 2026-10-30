@@ -174,16 +174,35 @@ def export_numbering(ports):
     return {layer: PORT_LAYERS[i] for i, layer in enumerate(order)}
 
 
-def simcfg_ports(ports, numbering=None):
+def export_directions(ports, nets, stackup):
+    """{port layer: direction} for the via ports whose signal layer is known (nets from connectivity.port_nets):
+    'Z' if the signal metal is the upper end, '-Z' if it is the lower one. gds2palace hands 'Z' to Palace as +z, so
+    a via port's upper end is its positive terminal; with these directions the signal metal is always the positive
+    terminal, as a circuit wrapper connecting the EM model expects."""
+    out = {}
+    for layer, port in ports.items():
+        s = port.settings
+        signal = (nets or {}).get(layer, (None, None, None))[2]
+        if s is None or not s.is_via or signal not in (s.from_layer, s.to_layer):
+            continue
+        other = s.to_layer if signal == s.from_layer else s.from_layer
+        above = stackup.is_above(signal, other)
+        if above is not None:
+            out[layer] = "Z" if above else "-Z"
+    return out
+
+
+def simcfg_ports(ports, numbering=None, directions=None):
     """setupEM port list of the complete ports (see is_complete), numbered by numbering (export_numbering) if
-    given, else by their layout numbers."""
+    given, else by their layout numbers; directions (export_directions) replace the ports' own."""
     out = []
     for layer in sorted(ports, key=lambda l: (numbering or {}).get(l, l)):
         if not is_complete(ports[layer]):
             continue
         s = ports[layer].settings
         new_layer = (numbering or {}).get(layer, layer)
-        out.append(port_entry(new_layer - 200, new_layer, s.direction, target_layername=s.target or None,
+        direction = (directions or {}).get(layer, s.direction)
+        out.append(port_entry(new_layer - 200, new_layer, direction, target_layername=s.target or None,
                               from_layername=s.from_layer or None, to_layername=s.to_layer or None,
                               port_Z0=s.z0, voltage=s.voltage))
     return out
@@ -201,24 +220,29 @@ def device_of(port):
     return None
 
 
-def port_map(ports, numbering, devices=(), nets=None):
+def port_map(ports, numbering, devices=(), nets=None, directions=None):
     """The port map file's content: per exported port its layout number and layer, and whether it is simulated;
-    with devices (devices.Device), also the replaced devices' pcell and parameters, and with nets
-    (connectivity.port_nets) the net of each port's signal end, for a circuit wrapper."""
+    with devices (devices.Device), also the replaced devices' pcell and parameters, with nets
+    (connectivity.port_nets) the net and layer of each port's signal end, for a circuit wrapper, and with
+    directions (export_directions) the direction exported for the ports it covers."""
     rows = []
     for layer, new_layer in sorted(numbering.items(), key=lambda item: item[1]):
         port = ports[layer]
         row = {"port": new_layer - 200, "layer": new_layer, "layout_port": port.number, "layout_layer": layer,
                "in_simcfg": is_complete(port), "settings": str(port.settings) if port.settings else None}
+        if port.settings and layer in (directions or {}):
+            row["direction"] = directions[layer]
         device = device_of(port)
         if device is not None:
             row["device"], row["terminal"] = device
         if nets and layer in nets:
-            row["net"], row["ground_net"] = nets[layer]
+            row["net"], row["ground_net"], row["signal_layer"] = nets[layer]
         rows.append(row)
     return {"note": "port = number in the exported GDS, .simcfg and .snp; layout_port = number in the layout "
                     "(layer - 200). Ports not in the .simcfg are exported as shapes only. device/terminal: the "
-                    "port replaces that terminal of a PDK device (to be connected to the device model).",
+                    "port replaces that terminal of a PDK device (to be connected to the device model). "
+                    "direction: as exported, chosen so that the signal metal (signal_layer) is the port's positive "
+                    "terminal.",
             "ports": rows,
             "devices": {d.id: {"pcell": d.pcell, "params": {k: str(v) for k, v in d.params.items()}}
                         for d in devices if d.replaced}}

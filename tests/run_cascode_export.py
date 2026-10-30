@@ -50,10 +50,14 @@ gds = os.path.join(OUT, "cascode_em.gds")
 export_flat(ly, cell, st, gds, port_layers=numbering, remove=device_shapes(ly, devices, st))
 if os.path.exists(gds.replace(".gds", ".simcfg")):
     os.remove(gds.replace(".gds", ".simcfg"))
-write_simcfg(gds.replace(".gds", ".simcfg"), gds, st.path, cell.name, ports=simcfg_ports(ports, numbering))
 from klayout_em_export.connectivity import check_ground, port_nets
-pm = port_map(ports, numbering, devices, port_nets(ports, check_ground(ly, cell, st, ports=ports)))
+from klayout_em_export.ports import export_directions
+nets = port_nets(ports, check_ground(ly, cell, st, ports=ports))
+directions = export_directions(ports, nets, st)
+write_simcfg(gds.replace(".gds", ".simcfg"), gds, st.path, cell.name, ports=simcfg_ports(ports, numbering, directions))
+pm = port_map(ports, numbering, devices, nets, directions)
 json.dump(pm, open(gds.replace(".gds", "_portmap.json"), "w"), indent=2)
 for row in pm["ports"]:
     print(row["port"], "<- layout", row["layout_port"], row.get("device", "").split("@")[0], row.get("terminal", ""),
-          "" if row["in_simcfg"] else "(shape only)", row["settings"])
+          "" if row["in_simcfg"] else "(shape only)", row["settings"], "exported", row.get("direction"),
+          "signal", row.get("signal_layer"))

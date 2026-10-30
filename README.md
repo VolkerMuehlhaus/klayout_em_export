@@ -130,21 +130,27 @@ After the Palace run, `tools/spice_wrapper.py` (in a Python with snp2le, e.g. `d
 into a circuit with the PDK devices put back:
 
 ```bash
-python tools/spice_wrapper.py <export>_portmap.json <model>.sNp -o <name>.cir --pdk <IHP-Open-PDK>/ihp-sg13g2
+python tools/spice_wrapper.py <export>_portmap.json <model>_dc.sNp -o <name>.cir --pdk <IHP-Open-PDK>/ihp-sg13g2
 ```
 
-- The EM model becomes a lumped-element equivalent circuit (snp2le universal mode: vector fitted, passive).
+- Start the Palace sweep at 0 Hz in gds2palace: it then simulates 10 MHz and 20 MHz and writes `<model>_dc.sNp`
+  with a 0 Hz point extrapolated from them. Give the wrapper that file.
+- The EM model becomes a lumped-element equivalent circuit (snp2le universal mode: vector fitted, passive, pinned
+  to the 0 Hz point).
 - Subcircuit `<name>`: its pins are the ports that belong to no device (pads, bias inputs); each replaced device is
   an instance of its PDK model (npn13G2 with Nx, le, we; MOSFETs with w, l, ng; resistors with w, l), its substrate or
   bulk pin to ground (pmos: to its source). A resistor from a static Cadence cell has no parameters: an ideal resistor
   of its label value, noted in the header.
-- Each device keeps its own floating reference node, as its REF patch in the EM model: its ports are coupled into the
-  equivalent circuit by ideal 1:1 transformers (controlled sources). Grounding these references instead changes the
-  result (cascode test: 0.06 dB at 10 GHz, 0.4 dB at 200 GHz).
-- DC: a fit of S-parameters does not keep the wires' DC paths, so every port has a bias tee: the EM model is
-  connected through 1 uF, and the ports of each net (from the port map, traced through the layout's vias at the
-  export) are tied together, and to ground on the ground net, by 1 mH. The wires' DC resistance is not modelled.
-- The port map has the devices' parameters and each port's net (export again if it lacks them).
+- Each device terminal is wired straight to its port's pin. This grounds the device's REF patch, which floats in the
+  EM model, and adds the patch's capacitance (about 7 fF per npn13G2 Nx=8). Cascode test: S21 0.06 dB lower at
+  10 GHz, 0.4 dB at 200 GHz, than with the patches floating.
+- DC: a port measures a voltage difference, so the EM model does not fix a device's absolute potential. The ports of
+  each net (from the port map, traced through the layout's vias at the export) are tied together, and to ground on
+  the ground net, by 1 mH. The wires' DC resistance is not modelled. Without a 0 Hz point in the .sNp, the equivalent
+  circuit's DC is a guess of the fit, and every port gets a 1 uF DC block as well.
+- The export sets each via port's direction (`Z` or `-Z`) so that the signal metal is the port's positive terminal;
+  the port map records it with each port's net and signal layer. Export again if the port map lacks them.
+- Test report: [doc/test_cascode_wrapper](doc/test_cascode_wrapper/README.md).
 
 ## Modules
 

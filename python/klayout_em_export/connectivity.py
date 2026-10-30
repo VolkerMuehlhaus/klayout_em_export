@@ -211,10 +211,12 @@ def check_ground(layout, cell, stackup, box=None, seeds=(), ports=None):
 
 
 def port_nets(ports, check):
-    """{port layer: (net id, on the ground net)} of each port's signal end, from check (a GroundCheck of the same
-    region): for a device port its terminal (the other end is the device's REF patch, which is not traced); for a
-    port between two metals the end that is not on the ground net. Ports on the same net share the net id. A circuit
-    wrapper ties them together for DC (the EM model, fitted from S-parameters, does not keep the wires' DC paths)."""
+    """{port layer: (net id, on the ground net, signal layer name or None)} of each port's signal end, from check
+    (a GroundCheck of the same region): for a device port its terminal (the other end is the device's REF patch,
+    which is not traced); for a port between two metals the end that is not on the ground net. The signal layer is
+    None where that is ambiguous (both ends on the ground net, or both on other nets). Ports on the same net share
+    the net id. A circuit wrapper ties them together for DC: a port measures a voltage difference, so the EM model
+    alone does not fix the absolute potential of a device whose ports end on its floating REF patch."""
     nets = []                   # [{layer: Region}]
     out = {}
 
@@ -240,9 +242,11 @@ def port_nets(ports, check):
                 seed += check.metals[metal].interacting(pya.Region(shape.bbox().transformed(trans).enlarged(1, 1)))
             if not seed.is_empty():
                 ground = _touches(check.net, metal, seed)
-                ends.append((ground, net_id(metal, seed)))
+                ends.append((ground, net_id(metal, seed), name))
         signal = [e for e in ends if not e[0]] or ends
         if signal:
-            ground, net = signal[0]
-            out[layer] = (net, ground)
+            ground, net, name = signal[0]
+            other_is_sheet = any(by_name.get(n) is None for n in s.layer_names())   # e.g. REF_FOR_TRANSISTOR
+            known = len(signal) == 1 and (len(ends) == 2 or other_is_sheet)
+            out[layer] = (net, ground, name if known else None)
     return out

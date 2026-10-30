@@ -12,8 +12,8 @@ import pya
 
 from .export import PORT_LAYERS, export_flat, marker_box
 from .locate import drawn_metals, metals_at
-from .ports import (DIRECTIONS, PROP_KEY, PortSettings, check_ports, collect_ports, export_numbering, is_complete,
-                    port_map, ports_of, settings_of, simcfg_ports)
+from .ports import (DIRECTIONS, PROP_KEY, PortSettings, check_ports, collect_ports, export_directions,
+                    export_numbering, is_complete, port_map, ports_of, settings_of, simcfg_ports)
 from .selection import Selection
 from .simcfg import write_simcfg
 from .stackup import Stackup
@@ -488,14 +488,15 @@ def export_region():
                              remove=remove)
     else:
         result = export_flat(layout, cell, stackup, gds_path, box=box, port_layers=numbering, remove=remove)
+    from .connectivity import check_ground, port_nets
+    clip = None if box is None else box.to_itype(layout.dbu)
+    nets = port_nets(ports, check_ground(layout, cell, stackup, clip, ground_seeds(layout), ports))
+    directions = export_directions(ports, nets, stackup)    # signal metal = positive terminal
     simcfg_path = os.path.splitext(gds_path)[0] + ".simcfg"
-    port_list = simcfg_ports(ports, numbering)
+    port_list = simcfg_ports(ports, numbering, directions)
     kept = write_simcfg(simcfg_path, gds_path, stackup.path, result.cellname, ports=port_list)
     with open(os.path.splitext(gds_path)[0] + "_portmap.json", "w") as f:
-        from .connectivity import check_ground, port_nets
-        clip = None if box is None else box.to_itype(layout.dbu)
-        check = check_ground(layout, cell, stackup, clip, ground_seeds(layout), ports)
-        json.dump(port_map(ports, numbering, devices, port_nets(ports, check)), f, indent=2)
+        json.dump(port_map(ports, numbering, devices, nets, directions), f, indent=2)
     set_layout_value(layout, META_OUTPUT, gds_path, "EM export output file")
     settings = _load_settings()
     settings["open_setupem"] = dialog.setupem.isChecked()

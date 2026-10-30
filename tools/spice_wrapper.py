@@ -3,26 +3,28 @@ circuit (snp2le, vector fitted, passive) plus the PDK device models at the ports
 
     python tools/spice_wrapper.py <export>_portmap.json <model>.sNp [-o wrapper.cir] [--pdk <IHP-Open-PDK/ihp-sg13g2>]
 
-Run it in a Python with snp2le (e.g. d:\\venv\\palace). It writes, next to the output:
+Run it in a Python with snp2le (e.g. d:\\venv\\palace). Use the gds2palace result with its DC point (<model>_dc.sNp,
+from a sweep started at 0 Hz: gds2palace then simulates 10 MHz and 20 MHz and extrapolates 0 Hz from them); snp2le
+pins the equivalent circuit to that point. It writes, next to the output:
   <name>_le.cir        the EM model's equivalent circuit (snp2le universal mode), subcircuit with one pin per port
   <name>.cir           subcircuit <name> whose pins are the ports that belong to no device (pads, bias inputs, ...),
                        the EM model and one PDK device instance per replaced device
-The equivalent circuit references all its ports to ground, but in the EM model a device's ports end on the device's
-own REF_FOR_TRANSISTOR patch, which floats (it is tied to ground only by its small capacitance, part of the EM
-model). So each device gets its own reference node, and each of its ports is coupled into the equivalent circuit
-through an ideal 1:1 transformer made of controlled sources: E sets the equivalent circuit's port voltage to
-V(terminal) - V(reference), F draws that port current from the terminal and returns it to the reference. A 1 GOhm
-resistor gives the floating reference its DC level.
 
-DC paths: a model fitted to S-parameters reproduces the RF behaviour but not the DC paths of the wiring (a wire has
-S close to 1, where small fit errors are large resistance errors), so no bias reaches the devices. The port map
-names each port's net (traced through the layout's vias at the export); ports on one net are tied together, and to
-ground on the ground net, by 1 mH inductors: a short at DC, open at GHz. And the EM model is connected through 1 uF
-DC blocks, so its arbitrary DC behaviour (it has no data below the first frequency point) cannot load the bias:
-together a bias tee at every port. The wires' DC resistance is not modelled. Connecting device ports straight to ground instead puts the REF
-capacitance in series between the wiring and the device: no DC bias reaches it. Ports to real ground (pads, bias
-inputs) connect directly. The device's substrate/bulk pin, not part of the EM model, goes to ground (nmos, npn,
-resistors) or to the source (pmos).
+Each device terminal is wired straight to its port's pin of the equivalent circuit. In the EM model a device's ports
+end on the device's own floating REF_FOR_TRANSISTOR patch, while the equivalent circuit references every port to
+ground: wiring the device directly grounds that patch. This adds the patch's capacitance (a few fF per transistor) and
+changes the result slightly (cascode test: S21 0.06 dB at 10 GHz, 0.4 dB at 200 GHz), against a much simpler netlist.
+
+The export sets each via port's direction so that the signal metal is the positive terminal (port map: direction,
+signal_layer); a port map without them is from an older export, whose ports may be reversed: export again.
+
+DC paths: a port measures a voltage difference, so the EM model does not fix the absolute potential of a device
+whose ports end on its floating REF patch. The port map names each port's net (traced through the layout's vias at
+the export); ports on one net are tied together, and to ground on the ground net, by 1 mH inductors: a short at DC,
+open at GHz. The wires' DC resistance is not modelled. Without a 0 Hz point in the .sNp the equivalent circuit's DC
+is a guess of the fit (it leaks tens of kOhm between nets): then every port also gets a 1 uF DC block, which keeps
+the equivalent circuit out of the DC solution. The device's substrate/bulk pin, not part of the EM model, goes to
+ground (nmos, npn, resistors) or to the source (pmos).
 """
 import argparse
 import json
@@ -41,6 +43,15 @@ DEVICES = {
 LIBRARIES = {"hbt": ("cornerHBT.lib", "hbt_typ"), "mos": ("cornerMOSlv.lib", "mos_tt"),
              "moshv": ("cornerMOShv.lib", "mos_tt"), "res": ("cornerRES.lib", "res_typ")}
 PARAMS = {"hbt": ("Nx", "Ny", "le", "we"), "mos": ("w", "l", "ng"), "moshv": ("w", "l", "ng"), "res": ("w", "l", "b")}
+
+
+def has_dc_point(snp):
+    """True if the Touchstone file's first frequency is 0 Hz."""
+    for line in open(snp):
+        line = line.split("!")[0].strip()
+        if line and not line.startswith("#") and not line.startswith("["):
+            return float(line.split()[0]) == 0.0
+    return False
 
 
 def equivalent_circuit(snp, out):
@@ -63,30 +74,21 @@ def label_value(label):
     return m.group(1).replace(" ", "") if m else None
 
 
-def wrapper(portmap, le_name, le_pins, le_file, name, pdk):
+def wrapper(portmap, le_name, le_pins, le_file, name, pdk, dc_blocks):
     ports = {r["port"]: r for r in portmap["ports"] if r["in_simcfg"]}
     if len(ports) != le_pins:
         sys.exit(f"the port map has {len(ports)} simulated ports, the equivalent circuit {le_pins} pins")
-    node = {n: f"n{n}" for n in ports}
+    node = {n: (f"n{n}" if "device" in r else f"port{n}") for n, r in ports.items()}
     external = [n for n in sorted(ports) if "device" not in ports[n]]
-    for n in external:
-        node[n] = f"port{n}"
     terminals = {}                              # device id -> {terminal: node}
     for n, r in ports.items():
         if "device" in r:
             terminals.setdefault(r["device"], {})[r["terminal"]] = node[n]
 
     lines, kinds, notes = [], set(), []
-    em_node = {n: node[n] for n in ports}       # node at the equivalent circuit's pin
+    if any(r["settings"] and "signal_layer" not in r for r in ports.values()):
+        notes.append("the port map has no signal layers (older export): via ports may be reversed, export again")
     for k, (device_id, term) in enumerate(sorted(terminals.items()), start=1):
-        # the device's floating reference (its REF patch) and one controlled-source transformer per port
-        ref = f"ref{k}"
-        for n, r in sorted(ports.items()):
-            if r.get("device") == device_id:
-                em_node[n] = f"e{n}"
-                lines += [f"E{n} a{n} 0 {node[n]} {ref} 1", f"V{n} a{n} b{n} 0", f"Cdc{n} b{n} e{n} 1u",
-                          f"F{n} {node[n]} {ref} V{n} 1"]
-        lines.append(f"R{ref} {ref} 0 1G")
         info = portmap.get("devices", {}).get(device_id, {})
         pcell = info.get("pcell") or device_id.split("@")[0].split("_CDNS_")[0].split("$")[0]
         params = info.get("params", {})
@@ -132,9 +134,15 @@ def wrapper(portmap, le_name, le_pins, le_file, name, pdk):
         chain = (["0"] if ground else []) + members
         dc += [f"Ldc{net}_{i} {a} {b} 1m" for i, (a, b) in enumerate(zip(chain, chain[1:]))]
     if not nets:
-        notes.append("the port map has no nets: no DC paths, the devices get no bias (export again)")
+        notes.append("the port map has no nets: no DC paths, the devices get no defined bias (export again)")
     lines += ["* DC paths of the wiring (open at RF)"] + dc
 
+    if dc_blocks:
+        notes.append("no 0 Hz point in the .sNp: the equivalent circuit is connected through 1 uF DC blocks")
+        em = [f"XEM {' '.join(f'e{n}' for n in sorted(ports))} {le_name}"]
+        em += [f"Cdc{n} {node[n]} e{n} 1u" for n in sorted(ports)]
+    else:
+        em = [f"XEM {' '.join(node[n] for n in sorted(ports))} {le_name}"]
     head = [f"* {name}: EM model with PDK devices, generated by klayout_em_export tools/spice_wrapper.py",
             f"* pins: " + ", ".join(f"{node[n]} = export port {n} (layout port {ports[n]['layout_port']})"
                                    for n in external),
@@ -146,20 +154,14 @@ def wrapper(portmap, le_name, le_pins, le_file, name, pdk):
             f"<IHP-Open-PDK>/ihp-sg13g2/libs.tech/ngspice/models/{lib}"
         head.append(("" if pdk else "* ") + f".lib {path} {section}")
     head += [f"* notes: {n}" for n in notes]
-    blocks = []
-    for n in sorted(ports):
-        if em_node[n] == node[n]:               # a port to real ground: DC block between its node and the EM model
-            em_node[n] = f"e{n}"
-            blocks.append(f"Cdc{n} {node[n]} e{n} 1u")
-    em = "\n".join([f"XEM {' '.join(em_node[n] for n in sorted(ports))} {le_name}"] + blocks)
-    return "\n".join(head + ["", f".subckt {name} {' '.join(node[n] for n in external)}", em] + lines +
+    return "\n".join(head + ["", f".subckt {name} {' '.join(node[n] for n in external)}"] + em + lines +
                      [f".ends {name}", ""])
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("portmap")
-    parser.add_argument("snp")
+    parser.add_argument("snp", help="the EM result, preferably <model>_dc.sNp (with its 0 Hz point)")
     parser.add_argument("-o", "--output", help="wrapper file (default: <snp name>_wrapper.cir next to the .snp)")
     parser.add_argument("--pdk", help="IHP-Open-PDK ihp-sg13g2 folder: writes active .lib lines")
     args = parser.parse_args()
@@ -167,7 +169,8 @@ def main():
     name = re.sub(r"\W", "_", os.path.splitext(os.path.basename(out))[0])
     le_file = os.path.join(os.path.dirname(os.path.abspath(out)), name + "_le.cir")
     le_name, le_pins = equivalent_circuit(args.snp, le_file)
-    text = wrapper(json.load(open(args.portmap)), le_name, le_pins, le_file, name, args.pdk)
+    text = wrapper(json.load(open(args.portmap)), le_name, le_pins, le_file, name, args.pdk,
+                   dc_blocks=not has_dc_point(args.snp))
     open(out, "w").write(text)
     print("wrote", out, "and", le_file)
 
