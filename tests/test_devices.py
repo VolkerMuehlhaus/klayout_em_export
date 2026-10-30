@@ -79,7 +79,7 @@ idx = view.load_layout(r"D:\github-claude\klayout_em_export_tests\testcases\50_g
 vly = view.cellview(idx).layout()
 vly.add_meta_info(pya.LayoutMetaInfo(META_STACKUP, st.path, "", True))
 view.cellview(idx).cell = next(c for c in vly.top_cells() if not c.name.startswith("$$$"))
-gui.replace_devices = lambda v, c: _replace(NoUndo(), c.cell, st, gui.find_layout_devices(c.layout(), c.cell, st)[0])
+gui.replace_devices = lambda v, c, include_resistors=False: _replace(NoUndo(), c.cell, st, gui.find_layout_devices(c.layout(), c.cell, st)[0], include_resistors)
 EMPanel._view = lambda self: (view, view.active_cellview())
 panel = EMPanel()
 print("devices step:", panel.devices_step.summary.text, "|", panel.devices_detail.text)
