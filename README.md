@@ -33,8 +33,10 @@ summary; the arrow shows its details and buttons.
     vertically adjacent metals (from the stackup's z positions). Activ, Cont, resistors and the PEC sheets are left
     out, so a transistor or resistor is an open circuit here. Ground that is joined only outside the region shows
     up as separate pieces.
-- **Devices**: PDK transistors (SG13_dev pcells: npn13G2, npn13G2L, npn13G2V, nmos, pmos and their HV and rf
-  variants) found in the cell, and whether they are replaced by ports. The reference plane is at the pcell's pins: the device model
+- **Devices**: PDK transistors (npn13G2, npn13G2L, npn13G2V, nmos, pmos and their HV and rf variants) and resistors
+  (rsil, rppd, rhigh) found in the cell, and whether they are replaced by ports. Recognized as SG13_dev pcells, or
+  as static device cells exported from Cadence (`<device>_CDNS_<number>`, same pins, no parameters: the resistor
+  value label is shown instead). The reference plane is at the pcell's pins: the device model
   (circuit simulator) covers the device up to its pins, the EM model everything from there on.
   - **Replace All** adds, in the layout and tagged (GDS property 202): one `REF_FOR_TRANSISTOR` patch per device,
     under its pins (their bounding box + 0.2 um; separate for devices side by side, the Devices step warns if two
@@ -52,6 +54,11 @@ summary; the arrow shows its details and buttons.
     device side).
   - Ports with several lines (multielement ports) need gds2palace 0.9.3 (branch `multi-element-ports`): it makes
     them one Palace lumped port with parallel elements. Older gds2palace versions use only one of the lines.
+  - Resistors are optional: **Replace All** replaces them only with **include resistors** ticked. A replaced
+    resistor gets two via ports, PLUS and MINUS, from its Metal1 heads down to its own REF patch; the export removes
+    its body, contacts and implants. PLUS is the head with the lower coordinate along the resistor in the cell's own
+    coordinates (the pins have no names). A resistor of several segments is not replaced. Unreplaced resistors stay
+    layout: the stackup models them as sheet resistors. Capacitors (cmim) and inductors are never replaced.
   - The port map names the device and terminal of these ports, for connecting the `.snp` to the device models.
   - Recognition needs the SG13G2 PDK library loaded in KLayout.
 - **Ports**: one table with the ports of the cell and the ports proposed where the EM region box cuts conductors.

@@ -125,10 +125,15 @@ class EMPanel(pya.QWidget):
             _button("Run Checks", lambda: self.refresh(run_checks=True),
                     "ground and boundary checks for a region too large to check on every refresh")]))
         self.devices_detail = _label()
+        self.include_resistors = pya.QCheckBox("include resistors")
+        self.include_resistors.setToolTip("also replace rsil, rppd, rhigh by two via ports each; unreplaced, the "
+                                          "stackup models them as sheet resistors")
         self.devices_step = Step("Devices", _details(self.devices_detail, [
             _button("Replace All", self._replace_devices,
-                    "replace each PDK device by ports at its pins: a REF_FOR_TRANSISTOR patch and one via port per "
-                    "terminal; the export removes the device's shapes below Metal1"),
+                    "replace each PDK transistor (and, if ticked, each resistor) by ports at its pins: a "
+                    "REF_FOR_TRANSISTOR patch and one via port per terminal; the export removes the device's "
+                    "shapes below its pins"),
+            self.include_resistors,
             _button("Undo Replace", self._unreplace_devices, "remove the patches and ports made by Replace All")]))
         self.ports_step = Step("Ports")
         for step in (self.stackup_step, self.region_step, self.ground_step, self.devices_step, self.ports_step):
@@ -268,7 +273,8 @@ class EMPanel(pya.QWidget):
             self.devices_step.set(ERROR, "needs a stackup")
             return
         devices, unknown = gui.find_layout_devices(layout, cell, stackup)
-        replaced = [d for d in devices if d.replaced]
+        transistors = [d for d in devices if not d.is_resistor]
+        resistors = [d for d in devices if d.is_resistor]
         lines = []
         for d in devices:
             name, at = d.id.split("@")
@@ -276,6 +282,8 @@ class EMPanel(pya.QWidget):
                 state = "replaced: " + ", ".join(f"{t} port {n}" for t, n in sorted(d.ports.items()))
             elif d.problems:
                 state = "cannot be replaced: " + "; ".join(d.problems)
+            elif d.is_resistor:
+                state = "not replaced: simulated as layout (sheet resistor); optional"
             else:
                 state = "not replaced: simulated as layout"
             lines.append(f"{d.pcell} {name} {d.params}: {state}")
@@ -288,18 +296,23 @@ class EMPanel(pya.QWidget):
         if not devices and not unknown:
             self.devices_step.set(OK, "none")
             return
-        parts = [f"{len(devices)} device(s), {len(replaced)} replaced by ports"] if devices else []
+        parts = []
+        if transistors:
+            parts.append(f"{len(transistors)} transistor(s), {sum(d.replaced for d in transistors)} replaced")
+        if resistors:
+            parts.append(f"{len(resistors)} resistor(s), {sum(d.replaced for d in resistors)} replaced")
         if unknown:
             parts.append(f"{sum(c for _, c in unknown)} not supported")
         if touching:
             parts.append(f"{len(touching)} pair(s) of REF patches touch")
-        state = OK if len(replaced) == len(devices) and not unknown and not touching else WARN
+        # resistors are optional: unreplaced ones do not make this a warning
+        state = OK if all(d.replaced for d in transistors) and not unknown and not touching else WARN
         self.devices_step.set(state, ", ".join(parts))
 
     def _replace_devices(self):
         view, cv = self._view()
         if view is not None:
-            done = gui.replace_devices(view, cv)
+            done = gui.replace_devices(view, cv, self.include_resistors.isChecked())
             self.refresh()
             gui._status(f"{len(done)} device(s) replaced by ports", 10)
 

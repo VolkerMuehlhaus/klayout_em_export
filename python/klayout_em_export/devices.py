@@ -23,6 +23,8 @@ from .ports import DEVICE_KEY, PROP_KEY, PortSettings
 
 DEVICE_PCELLS = {"npn13G2", "npn13G2L", "npn13G2V", "rfnmos", "rfpmos", "rfnmosHV", "rfpmosHV"}   # named pins
 MOSFET_PCELLS = {"nmos", "pmos", "nmosHV", "pmosHV"}    # unnamed (nmos) or no (pmos) pins: terminals from geometry
+RESISTOR_PCELLS = {"rsil", "rppd", "rhigh"}             # two unnamed Metal1 pins (PLUS, MINUS); replaced on request
+STATIC_SUFFIX = "_CDNS_"            # a device cell exported from Cadence: <pcell name>_CDNS_<number>, no pcell context
 POLY_LAYER = 5                      # SG13G2 GatPoly.drawing (datatype 0)
 CONT_NAME = "Cont"
 LIBRARY = "SG13_dev"
@@ -43,6 +45,7 @@ class Device:
         self.terminals = {}         # name -> (GDS layer of the pin metal, [pin Box in the searched cell, ...]):
                                     # several boxes for a terminal on several fingers (multielement port)
         self.gate_trace = {}        # MOSFET: {GDS layer: Region} of the gate poly and contacts up to your gate contact
+        self.is_resistor = pcell in RESISTOR_PCELLS
         self.problems = []
         self.ports = {}             # terminal -> port number, if replaced
         self.replaced = False
@@ -93,25 +96,35 @@ def find_devices(layout, cell, stackup):
     while not it.at_end():
         c = it.inst_cell()
         qname = c.qname()
+        name, params = None, {}
         if qname.startswith(LIBRARY + "."):
             decl = c.pcell_declaration()
-            name = decl.name() if decl is not None else qname.split(".", 1)[1]
             if decl is None:
                 key = qname + " (PDK library not loaded)"
                 unknown[key] = unknown.get(key, 0) + 1
-            elif name in DEVICE_PCELLS or name in MOSFET_PCELLS:
-                trans = it.trans() * it.inst_trans()
-                device = Device(name, c.cell_index(), trans, c.bbox().transformed(trans), c.name)
-                params = c.pcell_parameters_by_name()
-                device.params = {k: params[k] for k in ("model", "Nx", "Ny", "le", "we", "w", "l", "ng") if k in params}
-                device.m1 = pya.Region(c.begin_shapes_rec(m1_li)).transformed(trans).merged() if m1_li is not None \
-                    else pya.Region()
-                device.m1_layer = m1
-                if name in MOSFET_PCELLS:
-                    _mosfet_terminals(layout, cell, c, trans, device, m1_li, m1, stackup)
-                else:
-                    _terminals(layout, c, trans, device, pin_layers, text_li, m1)
-                devices.append(device)
+            else:
+                name = decl.name()
+                values = c.pcell_parameters_by_name()
+                params = {k: values[k] for k in ("model", "Nx", "Ny", "le", "we", "w", "l", "ng", "b") if k in values}
+        elif STATIC_SUFFIX in c.name:
+            name = c.name.split(STATIC_SUFFIX)[0]           # a device cell from Cadence: same pins, no parameters
+            labels = [] if text_li is None else [s.text.string for s in c.shapes(text_li).each() if s.is_text()]
+            if labels:
+                params = {"label": labels[0]}
+        if name in DEVICE_PCELLS or name in MOSFET_PCELLS or name in RESISTOR_PCELLS:
+            trans = it.trans() * it.inst_trans()
+            device = Device(name, c.cell_index(), trans, c.bbox().transformed(trans), c.name)
+            device.params = params
+            device.m1 = pya.Region(c.begin_shapes_rec(m1_li)).transformed(trans).merged() if m1_li is not None \
+                else pya.Region()
+            device.m1_layer = m1
+            if name in MOSFET_PCELLS:
+                _mosfet_terminals(layout, cell, c, trans, device, m1_li, m1, stackup)
+            elif name in RESISTOR_PCELLS:
+                _resistor_terminals(layout, c, trans, device, pin_layers, m1)
+            else:
+                _terminals(layout, c, trans, device, pin_layers, text_li, m1)
+            devices.append(device)
         it.next()
     return devices, sorted(unknown.items())
 
@@ -137,6 +150,22 @@ def _terminals(layout, c, trans, device, pin_layers, text_li, m1):
         device.terminals[names[0]] = (layer, [box])
     if len(device.terminals) < 2:
         device.problems.append("fewer than two named pins")
+
+
+def _resistor_terminals(layout, c, trans, device, pin_layers, m1):
+    """rsil, rppd, rhigh: two Metal1 pins without names, one per contact head. PLUS is the one with the lower
+    coordinate along the resistor in the cell's own coordinates (the pcell draws PLUS at the bottom contact area).
+    A resistor of several segments has more pins and is not replaced."""
+    pins = [s.bbox() for li in pin_layers if layout.get_info(li).layer == m1 for s in c.shapes(li).each()
+            if not s.is_text()]
+    if len(pins) != 2:
+        device.problems.append(f"{len(pins)} Metal1 pins, expected 2 (a resistor of several segments?)")
+        return
+    a, b = pins
+    along_y = abs(a.center().y - b.center().y) >= abs(a.center().x - b.center().x)
+    plus, minus = sorted(pins, key=lambda box: box.center().y if along_y else box.center().x)
+    device.terminals["PLUS"] = (m1, [plus.transformed(trans)])
+    device.terminals["MINUS"] = (m1, [minus.transformed(trans)])
 
 
 def _mosfet_terminals(layout, top, c, trans, device, m1_li, m1, stackup):
@@ -240,9 +269,10 @@ def touching_patches(layout, cell, stackup):
     return [(a, b) for i, (a, box_a) in enumerate(patches) for b, box_b in patches[i + 1:] if box_a.touches(box_b)]
 
 
-def replace(view, cell, stackup, devices):
-    """Add the REF patch and the via ports for each device (not yet replaced, without problems). Returns
-    {device id: {terminal: port number}}."""
+def replace(view, cell, stackup, devices, include_resistors=False):
+    """Add the REF patch and the via ports for each device (not yet replaced, without problems); resistors only
+    with include_resistors (replacing them is optional: unreplaced, the stackup models them as sheet resistors).
+    Returns {device id: {terminal: port number}}."""
     layout = cell.layout()
     ref = next((l for l in stackup.layers if l.name == REF_NAME), None)
     if ref is None:
@@ -253,7 +283,7 @@ def replace(view, cell, stackup, devices):
     view.transaction("Replace devices by ports")
     try:
         for device in devices:
-            if device.replaced or device.problems:
+            if device.replaced or device.problems or (device.is_resistor and not include_resistors):
                 continue
             # properties set at insertion: a set_property after insert can move the shape (crash in KLayout 0.29.4)
             cell.shapes(layout.layer(ref.layer, 0)).insert(

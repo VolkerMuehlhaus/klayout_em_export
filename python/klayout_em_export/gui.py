@@ -206,14 +206,14 @@ def find_layout_devices(layout, cell, stackup):
     return mark_replaced(layout, cell, devices), unknown
 
 
-def replace_devices(view, cv):
+def replace_devices(view, cv, include_resistors=False):
     from .devices import replace
     layout, cell = cv.layout(), cv.cell
     stackup = read_stackup(stackup_path(layout))[0]
     if stackup is None:
         return {}
     try:
-        return replace(view, cell, stackup, find_layout_devices(layout, cell, stackup)[0])
+        return replace(view, cell, stackup, find_layout_devices(layout, cell, stackup)[0], include_resistors)
     except ValueError as e:
         pya.MessageBox.warning("EM Export", str(e), pya.MessageBox.Ok)
         return {}
