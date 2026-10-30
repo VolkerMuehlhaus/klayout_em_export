@@ -25,6 +25,8 @@ back). It shows the whole workflow in one place:
   Ports drawn with KLayout's own tools appear on **Refresh**.
 - **Ground**: the ground net, traced through the vias in the EM region box (or the whole cell). **Check** outlines
   it in the layout and reports which via ports reach it and how many other separate nets there are.
+  It also reports via ports whose two ends are on the same net (a short circuit); the export dialog lists them
+  with the other port problems.
   - The ground is found from the via ports: of the nets at both ends of the via ports, the one most ports reach (on
     a tie, the larger one). Which end is from and which is to does not matter.
   - **Mark Selected** marks the selected metal shapes as ground instead (stored in the layout); **Use Ports**

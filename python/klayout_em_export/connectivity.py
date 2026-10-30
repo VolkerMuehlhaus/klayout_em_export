@@ -84,6 +84,7 @@ class GroundCheck:
         self.other_polygons = 0     # metal polygons not in the ground net
         self.other_nets = None      # number of separate other nets, None if not counted (too many polygons)
         self.metals = {}            # {GDS layer: merged Region} of the traced metals in the region
+        self.shorted = []           # numbers of via ports whose two ends are on the same net (a short circuit)
 
     def summary(self):
         if not self.net:
@@ -93,6 +94,9 @@ class GroundCheck:
         if self.via_ports:
             lines.append(f"via ports reaching ground: {', '.join(map(str, self.ports)) or 'none'} "
                          f"of {len(self.via_ports)}")
+        if self.shorted:
+            lines.append(f"short circuit: both ends of via port(s) {', '.join(map(str, self.shorted))} are on the "
+                         "same net")
         if self.pieces > 1:
             lines.append(f"the marked ground is {self.pieces} separate pieces in the region (connected outside?)")
         others = f"{self.other_polygons} other metal polygon(s)"
@@ -100,6 +104,22 @@ class GroundCheck:
             others += f" in {self.other_nets} separate net(s)"
         lines.append(others)
         return "\n".join(lines)
+
+
+def shorted_ports(metals, vias, connections, port_ends):
+    """Numbers of the via ports whose two ends (port_ends: [(port number, layer, Region at the port line)]) are
+    connected through the traced metal and vias: such a port measures a short circuit."""
+    ends = {}                       # port number -> {layer: Region of the metal at that end}
+    for number, layer, region in port_ends:
+        ends.setdefault(number, {}).setdefault(layer, region)
+    out = []
+    for number, by_layer in sorted(ends.items()):
+        if len(by_layer) < 2:
+            continue                # one end on a sheet (REF_FOR_TRANSISTOR) or outside the metal: not traced
+        (layer_a, a), (layer_b, b) = list(by_layer.items())[:2]
+        if _touches(flood(metals, vias, connections, {layer_a: a}), layer_b, b):
+            out.append(number)
+    return out
 
 
 def check_ground(layout, cell, stackup, box=None, seeds=(), ports=None):
@@ -127,6 +147,7 @@ def check_ground(layout, cell, stackup, box=None, seeds=(), ports=None):
                 if not touched.is_empty():
                     port_ends.append((port.number, layer, touched))
     result.via_ports.sort()
+    result.shorted = shorted_ports(metals, vias, connections, port_ends)
 
     if seeds:
         result.source = f"{len(seeds)} marked shape(s)"
@@ -148,6 +169,8 @@ def check_ground(layout, cell, stackup, box=None, seeds=(), ports=None):
     else:
         nets = []                   # [net, set of port numbers]
         for number, layer, region in port_ends:
+            if number in result.shorted:
+                continue            # both ends on one net: says nothing about which net is ground
             found = next((n for n in nets if _touches(n[0], layer, region)), None)
             if found is None:
                 found = [flood(metals, vias, connections, {layer: region}), set()]

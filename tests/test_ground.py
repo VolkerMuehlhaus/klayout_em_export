@@ -42,3 +42,18 @@ run("OctaDiffTap, marked: the LA feed on TopMetal2 (ports would say Metal1)",
     r"D:\Palace_testcases\demo_mcp\OctaDiffTap_0n50_ports3.gds",
     os.path.join(IHP, r"XML_stackup\latest\IHP\SG13G2_FEM_200um.xml"),
     {l: PortSettings("Z", "Metal1", "TopMetal2") for l in (201, 202, 203)}, seeds=[(134, 33.7, -41.5)])
+
+# a shorted port: OctaDiffTap with a TopVia-free direct short is not available, so use a port whose both ends are
+# the inductor: TopMetal1 -> TopMetal2 at a TopVia2 crossing joins the same net
+st = Stackup(os.path.join(IHP, r"XML_stackup\latest\IHP\SG13G2_FEM_200um.xml"))
+ly = pya.Layout(); ly.read(r"D:\Palace_testcases\demo_mcp\OctaDiffTap_0n50_ports3.gds")
+cell = ly.top_cell()
+for layer in (201, 202, 203):
+    for shape in cell.shapes(ly.find_layer(layer, 0)).each():
+        shape.set_property(PROP_KEY, PortSettings("Z", "Metal1", "TopMetal2").encode())
+tv2 = pya.Region(cell.begin_shapes_rec(ly.find_layer(133, 0)))
+via = list(tv2.each())[0].bbox()                                   # a TopVia2: TopMetal1 and TopMetal2 both there
+cell.shapes(ly.layer(204, 0)).insert(pya.Box(via.left, via.center().y, via.right, via.center().y)).set_property(
+    PROP_KEY, PortSettings("Z", "TopMetal1", "TopMetal2").encode())
+result = check_ground(ly, cell, st, ports=collect_ports(ly, cell, stackup=st))
+print("## OctaDiffTap with port 4 across a TopVia2\n" + result.summary())

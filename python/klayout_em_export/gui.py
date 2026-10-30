@@ -411,7 +411,12 @@ class ExportDialog(pya.QDialog):
             clip = None if self.box is None else self.box.to_itype(self.em_layout.dbu)
             ports = collect_ports(self.em_layout, self.cell, clip, stackup=self.stackup)
         problems = check_ports(ports, self.stackup)
-        left_out = [ports[layer].number for layer in sorted(ports) if not is_complete(ports[layer])]
+        from .connectivity import check_ground
+        clip = None if self.box is None else self.box.to_itype(self.em_layout.dbu)
+        shorted = check_ground(self.em_layout, self.cell, self.stackup, clip, ground_seeds(self.em_layout),
+                               ports).shorted
+        problems += [f"port {n}: both ends are on the same net (short circuit)" for n in shorted]
+        left_out =[ports[layer].number for layer in sorted(ports) if not is_complete(ports[layer])]
         if not ports:
             text = "no ports in the region (add them with the EM Port tool)"
         else:
