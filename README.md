@@ -126,7 +126,7 @@ when the layout is closed without saving. If `setupEM` is not on the `PATH` that
 
 ## Circuit wrapper (ngspice)
 
-After the Palace run, `tools/spice_wrapper.py` (in a Python with snp2le, e.g. `d:env\palace`) turns the result
+After the Palace run, `tools/spice_wrapper.py` (in a Python with snp2le, e.g. `d:\venv\palace`) turns the result
 into a circuit with the PDK devices put back:
 
 ```bash
