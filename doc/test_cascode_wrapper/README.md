@@ -62,15 +62,21 @@ rms deviation is 0.0004.
 ## 4. Putting the devices back
 
 `tools/spice_wrapper.py` builds the circuit from the equivalent circuit and the port map that the export writes.
-Everything connected to one device, here Q1:
+Everything connected to the two transistors:
 
-![Wiring around Q1](fig_device_wiring.png)
+![Wiring around Q1 and Q2](fig_device_wiring.png)
 
-- **Device pins to EM pins.** Q1's base, collector and emitter connect directly to pins 3, 4 and 5 of the equivalent
-  circuit. The substrate pin goes to ground.
+- **Device pins to EM pins.** Each transistor's base, collector and emitter connect directly to its pins of the
+  equivalent circuit: pins 3, 4 and 5 for Q1, pins 10, 11 and 12 for Q2. The substrate pins go to ground.
 - **DC ties (1 mH).** Every terminal is tied to the other ports of its layout net, which the export traces through
-  the vias: the base to the Cas_in pad (pin 2), the collector to Q2's emitter (pin 12). The emitter is on the ground
-  net, so it is tied to ground. At DC the ties are shorts and carry the bias. At RF they are open (1 mH is 6 kΩ at
+  the vias:
+  - Q2's collector to the Cas_out pad (pin 1);
+  - Q2's base to the rsil resistor (pin 8);
+  - Q1's collector to Q2's emitter, which are one net;
+  - Q1's base to the Cas_in pad (pin 2);
+  - Q1's emitter, on the ground net, to ground.
+
+  At DC the ties are shorts and carry the bias. At RF they are open (1 mH is 6 kΩ at
   1 MHz and 63 kΩ at 10 MHz), and only the EM model is left.
 
 The whole netlist:
@@ -100,6 +106,14 @@ The testbench: 50 Ω source and load with DC blocks, bias tees at the input and 
 Cas_Bias. The bias values are estimates, not taken from the design.
 
 ![Testbench](fig_testbench.png)
+
+The full circuit as simulated, with the testbench at the pads. Each 1 mH tie ends in its net's name (in the netlist
+the ties of a net form a chain). Dashed inside the EM model: the layout's wiring between the pins of each net. That
+is where the RF goes. Q2's collector signal, for example, enters the EM model at pin 11, follows the wire to the
+Cas_out pad, and leaves at pin 1 towards the 10 pF and the load. The 1 mH from pin 1 to the CAS_OUT net carries only
+the collector's DC current.
+
+![Full circuit](fig_full_schematic.png)
 
 ## 5. Result
 
