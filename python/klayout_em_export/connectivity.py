@@ -208,3 +208,41 @@ def check_ground(layout, cell, stackup, box=None, seeds=(), ports=None):
             other[layer] = other[layer].not_interacting(start)    # always progress, even if the seed was lost
             other = {l: r for l, r in other.items() if not r.is_empty()}
     return result
+
+
+def port_nets(ports, check):
+    """{port layer: (net id, on the ground net)} of each port's signal end, from check (a GroundCheck of the same
+    region): for a device port its terminal (the other end is the device's REF patch, which is not traced); for a
+    port between two metals the end that is not on the ground net. Ports on the same net share the net id. A circuit
+    wrapper ties them together for DC (the EM model, fitted from S-parameters, does not keep the wires' DC paths)."""
+    nets = []                   # [{layer: Region}]
+    out = {}
+
+    def net_id(layer, region):
+        for i, net in enumerate(nets):
+            if layer in net and not net[layer].interacting(region).is_empty():
+                return i
+        nets.append(flood(check.metals, check.vias, check.connections, {layer: region}))
+        return len(nets) - 1
+
+    by_name = {name: layer for layer, name in check.names.items()}
+    for layer, port in ports.items():
+        s = port.settings
+        if s is None:
+            continue
+        ends = []
+        for name in (s.layer_names() if s.is_via else [s.target]):
+            metal = by_name.get(name)
+            if metal is None or metal not in check.metals:
+                continue        # a sheet (REF_FOR_TRANSISTOR) or a layer that is not traced
+            seed = pya.Region()
+            for shape, trans, _ in port.items:
+                seed += check.metals[metal].interacting(pya.Region(shape.bbox().transformed(trans).enlarged(1, 1)))
+            if not seed.is_empty():
+                ground = _touches(check.net, metal, seed)
+                ends.append((ground, net_id(metal, seed)))
+        signal = [e for e in ends if not e[0]] or ends
+        if signal:
+            ground, net = signal[0]
+            out[layer] = (net, ground)
+    return out

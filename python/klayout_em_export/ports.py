@@ -201,8 +201,10 @@ def device_of(port):
     return None
 
 
-def port_map(ports, numbering):
-    """The port map file's content: per exported port its layout number and layer, and whether it is simulated."""
+def port_map(ports, numbering, devices=(), nets=None):
+    """The port map file's content: per exported port its layout number and layer, and whether it is simulated;
+    with devices (devices.Device), also the replaced devices' pcell and parameters, and with nets
+    (connectivity.port_nets) the net of each port's signal end, for a circuit wrapper."""
     rows = []
     for layer, new_layer in sorted(numbering.items(), key=lambda item: item[1]):
         port = ports[layer]
@@ -211,8 +213,12 @@ def port_map(ports, numbering):
         device = device_of(port)
         if device is not None:
             row["device"], row["terminal"] = device
+        if nets and layer in nets:
+            row["net"], row["ground_net"] = nets[layer]
         rows.append(row)
     return {"note": "port = number in the exported GDS, .simcfg and .snp; layout_port = number in the layout "
                     "(layer - 200). Ports not in the .simcfg are exported as shapes only. device/terminal: the "
                     "port replaces that terminal of a PDK device (to be connected to the device model).",
-            "ports": rows}
+            "ports": rows,
+            "devices": {d.id: {"pcell": d.pcell, "params": {k: str(v) for k, v in d.params.items()}}
+                        for d in devices if d.replaced}}

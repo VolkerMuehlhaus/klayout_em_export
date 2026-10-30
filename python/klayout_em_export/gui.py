@@ -492,7 +492,10 @@ def export_region():
     port_list = simcfg_ports(ports, numbering)
     kept = write_simcfg(simcfg_path, gds_path, stackup.path, result.cellname, ports=port_list)
     with open(os.path.splitext(gds_path)[0] + "_portmap.json", "w") as f:
-        json.dump(port_map(ports, numbering), f, indent=2)
+        from .connectivity import check_ground, port_nets
+        clip = None if box is None else box.to_itype(layout.dbu)
+        check = check_ground(layout, cell, stackup, clip, ground_seeds(layout), ports)
+        json.dump(port_map(ports, numbering, devices, port_nets(ports, check)), f, indent=2)
     set_layout_value(layout, META_OUTPUT, gds_path, "EM export output file")
     settings = _load_settings()
     settings["open_setupem"] = dialog.setupem.isChecked()

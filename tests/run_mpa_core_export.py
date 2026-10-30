@@ -40,7 +40,7 @@ numbering = export_numbering(ports)
 gds = os.path.join(OUT, "mpa_core_npn_em.gds")
 export_flat(ly, cell, st, gds, port_layers=numbering, remove=device_shapes(ly, devices, st))
 write_simcfg(gds.replace(".gds", ".simcfg"), gds, st.path, cell.name, ports=simcfg_ports(ports, numbering))
-pm = port_map(ports, numbering)
+pm = port_map(ports, numbering, devices)
 json.dump(pm, open(gds.replace(".gds", "_portmap.json"), "w"), indent=2)
 for row in pm["ports"]:
     print(row["port"], "<- layout", row["layout_port"], row.get("terminal", ""), "simulated" if row["in_simcfg"] else "shape only",

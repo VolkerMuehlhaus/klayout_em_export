@@ -124,6 +124,28 @@ itself (saved with it), but storing them does not mark the layout as modified, s
 when the layout is closed without saving. If `setupEM` is not on the `PATH` that KLayout sees, the plug-in asks once for the program (e.g.
 `<venv>\Scripts\setupEM.exe`).
 
+## Circuit wrapper (ngspice)
+
+After the Palace run, `tools/spice_wrapper.py` (in a Python with snp2le, e.g. `d:env\palace`) turns the result
+into a circuit with the PDK devices put back:
+
+```bash
+python tools/spice_wrapper.py <export>_portmap.json <model>.sNp -o <name>.cir --pdk <IHP-Open-PDK>/ihp-sg13g2
+```
+
+- The EM model becomes a lumped-element equivalent circuit (snp2le universal mode: vector fitted, passive).
+- Subcircuit `<name>`: its pins are the ports that belong to no device (pads, bias inputs); each replaced device is
+  an instance of its PDK model (npn13G2 with Nx, le, we; MOSFETs with w, l, ng; resistors with w, l), its substrate or
+  bulk pin to ground (pmos: to its source). A resistor from a static Cadence cell has no parameters: an ideal resistor
+  of its label value, noted in the header.
+- Each device keeps its own floating reference node, as its REF patch in the EM model: its ports are coupled into the
+  equivalent circuit by ideal 1:1 transformers (controlled sources). Grounding these references instead changes the
+  result (cascode test: 0.06 dB at 10 GHz, 0.4 dB at 200 GHz).
+- DC: a fit of S-parameters does not keep the wires' DC paths, so every port has a bias tee: the EM model is
+  connected through 1 uF, and the ports of each net (from the port map, traced through the layout's vias at the
+  export) are tied together, and to ground on the ground net, by 1 mH. The wires' DC resistance is not modelled.
+- The port map has the devices' parameters and each port's net (export again if it lacks them).
+
 ## Modules
 
 - `stackup.py`: reads a gds2palace stackup XML. It finds the GDS layers the EM model reads, with derived layers (such
