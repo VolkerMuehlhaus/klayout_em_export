@@ -516,7 +516,7 @@ class PortDialog(pya.QDialog):
         self.stackup_label = _stackup_row(self, form, self._change_stackup)
         self.at_port = pya.QLabel()
         self.at_port.setWordWrap(True)
-        form.addRow("Drawn at the port", self.at_port)
+        form.addRow("Drawn at the port" if count == 1 else f"Drawn at all {count} shapes", self.at_port)
         self.show_all = pya.QCheckBox("offer all stackup metals")
         self.show_all.toggled += lambda checked: self._fill()
         form.addRow("", self.show_all)

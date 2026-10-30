@@ -77,6 +77,7 @@ class Port:
         self.conflict = False       # shapes on this layer carry different settings
         self.available = None       # stackup metals drawn at every shape of the port (set), None if not checked
         self.items = []             # (shape, trans into the cell, instance path or None) per shape
+        self.dbu = 0.001            # of the layout, for messages
 
     @property
     def number(self):
@@ -107,6 +108,7 @@ def ports_of(layout, cell, items, datatype=0, stackup=None):
         if shape.is_text() or dt != datatype:
             continue
         port = ports.setdefault(layer, Port(layer))
+        port.dbu = layout.dbu
         port.shapes += 1
         port.items.append((shape, trans, item[3] if len(item) > 3 else None))
         settings = settings_of(shape)
@@ -120,11 +122,31 @@ def ports_of(layout, cell, items, datatype=0, stackup=None):
     return ports
 
 
+def shape_problems(port):
+    """Problems of the port's shapes: gds2palace takes the bounding box of all shapes on a port layer."""
+    boxes = [shape.bbox().transformed(trans) for shape, trans, _ in port.items if not shape.is_text()]
+    out = []
+    if len(boxes) > 1:
+        union = pya.Box()
+        for b in boxes:
+            union += b
+        out.append(f"{len(boxes)} shapes on this layer: gds2palace uses their common bounding box "
+                   f"{union.to_dtype(port.dbu)}; keep one")
+    for b in boxes:
+        if b.width() == 0 and b.height() == 0:
+            out.append(f"point-size shape at {b.p1.to_dtype(port.dbu)}: delete it")
+    s = port.settings
+    if s is not None and not s.is_via and any(b.width() == 0 or b.height() == 0 for b in boxes):
+        out.append("an in-plane port needs a box with area that bridges the gap")
+    return out
+
+
 def port_problems(port, stackup):
     """Problems of one port, as short texts (empty when it is complete)."""
     if port.settings is None:
-        return ["no port settings"]
+        return ["no port settings"] + shape_problems(port)
     out = ["shapes with different settings, the first is used"] if port.conflict else []
+    out += shape_problems(port)
     out += port.settings.problems(stackup.metal_names())
     if port.available is not None:
         drawn = {name for name, _ in drawn_metals(stackup)}
