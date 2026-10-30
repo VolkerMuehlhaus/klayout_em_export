@@ -91,6 +91,9 @@ class EMPanel(pya.QWidget):
         row.addWidget(_button("Mark Region", lambda: self._run(gui.mark_region),
                               f"draw the selection's bounding box on layer {gui.EM_REGION[0]}/{gui.EM_REGION[1]}"))
         row.addWidget(_button("Export for EM...", lambda: self._run(gui.export_region)))
+        self.open_button = _button("Open in setupEM", gui.open_last_in_setupem,
+                                   "open the last export of this layout in setupEM, without exporting again")
+        row.addWidget(self.open_button)
         column.addLayout(row)
 
         main_window = pya.Application.instance().main_window()
@@ -153,6 +156,10 @@ class EMPanel(pya.QWidget):
             self.port_rows.append(port)
         self.table.resizeColumnsToContents()
         self._update_region()
+        last = gui.last_simcfg(layout)
+        self.open_button.setEnabled(last is not None)
+        self.open_button.setToolTip(f"open {last} in setupEM, without exporting again" if last else
+                                    "this layout has not been exported yet")
         marks = len(gui.ground_seeds(layout))
         if not self.markers:
             self.ground_label.setText((f"{marks} marked ground shape(s)" if marks else

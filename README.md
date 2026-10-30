@@ -34,7 +34,8 @@ back). It shows the whole workflow in one place:
     out, so a transistor or resistor is an open circuit here. Ground that is joined only outside the region shows
     up as separate pieces.
 - **Export**: what the export will use right now (the selection, the EM region box, or the whole cell), with
-  **Mark Region** and **Export for EM...**.
+  **Mark Region**, **Export for EM...** and **Open in setupEM** (the last export of this layout, without exporting
+  again).
 
 The same steps are in the **EM** menu in the menu bar, top to bottom in workflow order:
 
@@ -66,6 +67,9 @@ The same steps are in the **EM** menu in the menu bar, top to bottom in workflow
    - The ports with their problems. Ports without complete settings are exported as shapes but left out of the
      `.simcfg`, because setupEM cannot load them. Only the stackup's layers are exported; the others are dropped.
    - "Open in setupEM after the export". The `.simcfg` is written next to the GDS.
+   - Exporting again updates an existing `.simcfg`: the GDS file, stackup, cell and ports are set, everything
+     else (frequencies, mesh, ... saved with setupEM's Save Config) is kept. The ports always come from the
+     layout, where they are defined.
 
 Remembered in `~/.klayout_em_export.json`: the last stackup, the last port settings, the setupEM program and the
 setupEM option. If `setupEM` is not on the `PATH` that KLayout sees, the plug-in asks once for the program (e.g.

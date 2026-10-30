@@ -215,6 +215,27 @@ def open_in_setupem(simcfg_path):
         pya.MessageBox.critical("EM Export", f"Failed to start setupEM:\n{e}", pya.MessageBox.Ok)
 
 
+def last_simcfg(layout):
+    """The .simcfg of this layout's last export, or None if there was none (or it is gone)."""
+    gds = layout.meta_info_value(META_OUTPUT) if layout is not None else None
+    path = os.path.splitext(gds)[0] + ".simcfg" if gds else None
+    return path if path and os.path.isfile(path) else None
+
+
+def open_last_in_setupem():
+    """Open the last export of the current layout in setupEM, without exporting again."""
+    view, cv = _current()
+    if view is None:
+        return
+    path = last_simcfg(cv.layout())
+    if path is None:
+        pya.MessageBox.warning("EM Export", "This layout has not been exported yet (or its .simcfg is gone). "
+                               "Use Export for EM first.", pya.MessageBox.Ok)
+        return
+    open_in_setupem(path)
+    _status(f"setupEM: {path}", 10)
+
+
 # ---------- export ----------
 
 def _stackup_row(dialog, form, on_change):
@@ -379,14 +400,14 @@ def export_region():
         ports = collect_ports(layout, cell, None if box is None else box.to_itype(layout.dbu), stackup=stackup)
     simcfg_path = os.path.splitext(gds_path)[0] + ".simcfg"
     port_list = simcfg_ports(ports)
-    write_simcfg(simcfg_path, gds_path, stackup.path, result.cellname, ports=port_list)
+    kept = write_simcfg(simcfg_path, gds_path, stackup.path, result.cellname, ports=port_list)
     layout.add_meta_info(pya.LayoutMetaInfo(META_OUTPUT, gds_path, "EM export output file", True))
     settings = _load_settings()
     settings["open_setupem"] = dialog.setupem.isChecked()
     settings.pop("export_mode", None)      # no longer remembered: a selection always starts as "selected shapes"
     _save_settings(settings)
     _status(f"Exported {gds_path} and {os.path.basename(simcfg_path)} ({len(port_list)} of {len(ports)} port(s) "
-            "in the .simcfg)", 10)
+            "in the .simcfg" + ("; setupEM's other settings kept" if kept else "") + ")", 10)
     if dialog.setupem.isChecked():
         open_in_setupem(simcfg_path)
 
@@ -624,7 +645,8 @@ def install_menu():
                ("port_overview", "Port Overview", port_overview),
                None,
                ("mark_region", "Mark EM Region from Selection", mark_region),
-               ("export_region", "Export for EM...", export_region))
+               ("export_region", "Export for EM...", export_region),
+               ("open_setupem", "Open Last Export in setupEM", open_last_in_setupem))
     for n, entry in enumerate(entries):
         if entry is None:
             menu.insert_separator("em_menu.end", f"separator{n}")
