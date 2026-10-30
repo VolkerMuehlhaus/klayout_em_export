@@ -52,10 +52,13 @@ class Device:
 
 
 def _lowest_wiring_metal(stackup):
-    """(GDS layer, name) of the lowest traced metal (Metal1): the ports start there."""
-    metals = wiring(stackup)[0]
+    """(GDS layer, name) of the lowest metal that a via connects to another metal (Metal1): the ports start there.
+    Not simply the lowest conductor: a stackup can define ground planes (SUBGND, BACKSIDEGND) as PEC conductors
+    below it, which no via connects."""
+    metals, connections = wiring(stackup)
+    connected = {layer for _, below, above in connections for layer in (below, above)} or set(metals)
     z = {l.layer: stackup.z_range(l) for l in stackup.layers}
-    layer = min(metals, key=lambda l: z[l][1] if z.get(l) else 1e9)
+    layer = min(connected, key=lambda l: z[l][1] if z.get(l) else 1e9)
     return layer, metals[layer]
 
 
