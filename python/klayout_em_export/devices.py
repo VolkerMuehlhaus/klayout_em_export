@@ -7,10 +7,11 @@ TIE). Plain nmos/pmos have unnamed or no pins and are not supported yet.
 
 Replace adds, in the layout and tagged (GDS property 202):
   - one REF_FOR_TRANSISTOR patch over the device (bounding box + 0.2 um), shared by all its ports;
-  - one via port per terminal, from the lowest wiring metal (Metal1) down to that patch: along the pin if the pin is
-    on Metal1, else along the device's Metal1 piece under the pin that is closest to the pin's center (the npn
-    emitter: a Metal2 strip on one Metal1 island per finger, joined by Via1).
-The export removes the device's own shapes below Metal1 (device_level_layers); its Metal1 and above stay.
+  - one via port per terminal, from the pin's metal down to that patch, along the full pin: one port for the whole
+    terminal (all emitter fingers of an npn).
+The reference plane is at the pins: the export removes the device's own shapes below them (device_shapes) - below
+Metal1 everywhere, and under a pin on a higher metal also its wiring down to Metal1 (the npn emitter pin is a Metal2
+strip on one Metal1 island per finger, joined by Via1). The device's other metal stays.
 """
 import pya
 
@@ -129,21 +130,13 @@ def _terminals(layout, c, trans, device, pin_layers, text_li, m1_li, m1):
 
 
 def port_line(device, terminal):
-    """Box (zero width) of the via port line for a terminal, or None: along the pin if it is on the lowest wiring
-    metal, else along the device's Metal1 piece under the pin closest to the pin's center."""
-    layer, pin = device.terminals[terminal]
-    if layer == device.m1_layer:
-        piece = pin
-    else:
-        under = [p.bbox() for p in device.m1.each() if p.bbox().overlaps(pin)]
-        if not under:
-            return None
-        center = pin.center()
-        piece = min(under, key=lambda b: b.center().distance(center))
-    c = piece.center()
-    if piece.height() >= piece.width():
-        return pya.Box(c.x, piece.bottom, c.x, piece.top)
-    return pya.Box(piece.left, c.y, piece.right, c.y)
+    """Box (zero width) of the via port line for a terminal: along the pin, through its center, over its full
+    length - one port for the whole terminal, e.g. all emitter fingers of an npn."""
+    _, pin = device.terminals[terminal]
+    c = pin.center()
+    if pin.height() >= pin.width():
+        return pya.Box(c.x, pin.bottom, c.x, pin.top)
+    return pya.Box(pin.left, c.y, pin.right, c.y)
 
 
 def mark_replaced(layout, cell, devices):
@@ -175,7 +168,7 @@ def replace(view, cell, stackup, devices):
     ref = next((l for l in stackup.layers if l.name == REF_NAME), None)
     if ref is None:
         raise ValueError(f"the stackup has no {REF_NAME} layer")
-    _, m1_name = _lowest_wiring_metal(stackup)
+    names = {l.layer: l.name for l in stackup.layers}
     margin = round(REF_MARGIN_UM / layout.dbu)
     done = {}
     view.transaction("Replace devices by ports")
@@ -191,7 +184,7 @@ def replace(view, cell, stackup, devices):
                 layer = next_port_layer(layout, cell)
                 if line is None or layer is None:
                     continue
-                settings = PortSettings("Z", m1_name, REF_NAME)
+                settings = PortSettings("Z", names[device.terminals[terminal][0]], REF_NAME)   # from the pin metal
                 cell.shapes(layout.layer(layer, 0)).insert(line, layout.properties_id(
                     [[PROP_KEY, settings.encode()], [DEVICE_KEY, f"device:{device.id}:{terminal}"]]))
                 device.ports[terminal] = layer - 200
@@ -221,19 +214,36 @@ def unreplace(view, cell):
     return len(tagged)
 
 
-def device_shapes(layout, devices, layers):
-    """{GDS layer: Region} of the replaced devices' own shapes on the given layers (datatype 0), in the cell the
-    devices were found in: the export removes them."""
+def device_shapes(layout, devices, stackup):
+    """{GDS layer: Region} of the replaced devices' own shapes that belong to the device model, in the cell the
+    devices were found in: the export removes them. These are all its shapes below Metal1 (device_level_layers),
+    and under a pin on a higher metal also its wiring between Metal1 and that metal (the npn emitter: one Metal1
+    island per finger and the Via1 under the Metal2 emitter pin) - the reference plane is at the pin."""
+    z = {l.layer: stackup.z_range(l) for l in stackup.layers}
+    wiring_layers = [l.layer for l in stackup.layers if l.kind in ("conductor", "via") and l.layer not in stackup.derived]
+    device_level = device_level_layers(stackup)
     out = {}
+
+    def add(layer, region):
+        if not region.is_empty():
+            out[layer] = (out[layer] + region) if layer in out else region
+
     for device in devices:
         if not device.replaced:
             continue
         c = layout.cell(device.cell_index)
-        for layer in layers:
+
+        def shapes(layer):
             li = layout.find_layer(layer, 0)
-            if li is None:
+            return pya.Region() if li is None else pya.Region(c.begin_shapes_rec(li)).transformed(device.trans)
+
+        for layer in device_level:
+            add(layer, shapes(layer))
+        for pin_layer, pin in device.terminals.values():
+            if pin_layer == device.m1_layer or not z.get(pin_layer):
                 continue
-            region = pya.Region(c.begin_shapes_rec(li)).transformed(device.trans)
-            if not region.is_empty():
-                out[layer] = (out[layer] + region) if layer in out else region
+            below = [l for l in wiring_layers if l not in device_level and z.get(l) and z[l][0] == z[pin_layer][0]
+                     and z[l][2] <= z[pin_layer][1] + 1e-6]
+            for layer in below:
+                add(layer, shapes(layer) & pya.Region(pin))
     return out

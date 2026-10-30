@@ -41,7 +41,7 @@ for layer, port in sorted(collect_ports(ly, cell, stackup=st).items()):
     print(f"   port {port.number}: {port.settings} at {[str(s.bbox().to_dtype(dbu)) for s, t, _ in port.items]}"
           f" metals at the port: {sorted(port.available or [])}")
 print("REF patch:", [str(s.dbbox()) for s in cell.shapes(ly.find_layer(300, 0)).each()])
-removed = device_shapes(ly, again, device_level_layers(st))
+removed = device_shapes(ly, again, st)
 print("device shapes removed at export:", {l: r.count() for l, r in sorted(removed.items())})
 
 # export with the device replaced: its shapes below Metal1 are removed, ports and REF patch are kept
@@ -64,7 +64,7 @@ json.dump(pm, open(gds.replace(".gds", "_portmap.json"), "w"), indent=2)
 print("simulated ports:", [(r["port"], r["layout_port"], r.get("device", "").split("@")[0], r.get("terminal", "")) for r in pm["ports"] if r["in_simcfg"]])
 check = pya.Layout(); check.read(gds)
 dev_box = again[0].bbox
-for layer, name in ((1, "Activ"), (6, "Cont"), (8, "Metal1"), (19, "Via1"), (10, "Metal2"), (300, "REF")):
+for layer, name in ((1, "Activ"), (6, "Cont"), (8, "Metal1"), (19, "Via1"), (10, "Metal2"), (300, "REF")):  # Metal1: B, C strips stay, E islands go
     li = check.find_layer(layer, 0)
     inside = 0 if li is None else (pya.Region(check.top_cell().begin_shapes_rec(li)) & pya.Region(dev_box)).count()
     print(f"   exported {name:7s} polygons inside the device box: {inside}")

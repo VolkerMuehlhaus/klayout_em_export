@@ -477,9 +477,9 @@ def export_region():
     else:
         ports = collect_ports(layout, cell, None if box is None else box.to_itype(layout.dbu), stackup=stackup)
     numbering = export_numbering(ports)      # ports 1..N without gaps, see export_numbering
-    from .devices import device_level_layers, device_shapes
+    from .devices import device_shapes
     devices = find_layout_devices(layout, cell, stackup)[0]
-    remove = device_shapes(layout, devices, device_level_layers(stackup))   # replaced devices, below Metal1
+    remove = device_shapes(layout, devices, stackup)    # replaced devices: their shapes below the pins
     if dialog.shapes_only():
         result = export_flat(layout, cell, stackup, gds_path, selection=dialog.completed, port_layers=numbering,
                              remove=remove)
