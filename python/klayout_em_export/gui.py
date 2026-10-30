@@ -205,6 +205,31 @@ def ground_check(view, cv):
                         collect_ports(layout, cell, clip, stackup=stackup))
 
 
+def boundary_crossings(view, cv):
+    """(crossings, moved boundary port numbers, ground summary) for the EM region box, or (None, reason)."""
+    from .boundary import find_crossings, moved_ports
+    from .connectivity import check_ground
+    layout, cell = cv.layout(), cv.cell
+    path = stackup_path(layout)
+    stackup = read_stackup(path)[0] if path else None
+    if stackup is None:
+        return None, "choose a stackup first"
+    box = marker_box(layout, cell, EM_REGION)
+    if box is None:
+        return None, (f"no EM region box: the cut needs a region kept with the layout (layer {EM_REGION[0]}/"
+                      f"{EM_REGION[1]}). Select shapes and use Mark Region first.")
+    clip = box.to_itype(layout.dbu)
+    ground = check_ground(layout, cell, stackup, clip, ground_seeds(layout),
+                          collect_ports(layout, cell, clip, stackup=stackup))
+    return (find_crossings(layout, cell, stackup, clip, ground), moved_ports(layout, cell, clip), ground), None
+
+
+def create_boundary_ports(view, cv, crossings):
+    from .boundary import create_ports
+    stackup = read_stackup(stackup_path(cv.layout()))[0]
+    return create_ports(view, cv.cell, stackup, crossings)
+
+
 # ---------- region ----------
 
 def mark_region():

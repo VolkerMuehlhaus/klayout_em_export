@@ -14,6 +14,7 @@ from .ports import collect_ports, is_complete, port_problems
 
 COLUMNS = ("Port", "Layer", "Dir", "Layers", "Z0", "Status")
 MAX_MARKERS = 2000                  # ground outline: at most this many polygons
+CROSSING_COLUMNS = ("Side", "Metal", "From - to (um)", "Status")
 
 
 def _get(value):
@@ -82,6 +83,28 @@ class EMPanel(pya.QWidget):
         self.ground_label = pya.QLabel()
         self.ground_label.setWordWrap(True)
         column.addWidget(self.ground_label)
+
+        column.addWidget(_heading("Boundary (where the EM region box cuts conductors)"))
+        row = pya.QHBoxLayout()
+        row.addWidget(_button("Find Crossings", self._find_crossings,
+                              "conductors cut by the EM region box: ground, signal (needs a port), existing port"))
+        row.addWidget(_button("Create Ports", self._create_boundary_ports,
+                              "via ports from each signal crossing to the ground metal at the cut "
+                              "(the selected rows, or all that need one)"))
+        column.addLayout(row)
+        self.crossing_table = pya.QTableWidget(0, len(CROSSING_COLUMNS))
+        self.crossing_table.setHorizontalHeaderLabels(list(CROSSING_COLUMNS))
+        self.crossing_table.setSelectionBehavior(pya.QAbstractItemView.SelectRows)
+        self.crossing_table.setEditTriggers(pya.QAbstractItemView.NoEditTriggers)
+        _get(self.crossing_table.verticalHeader).setVisible(False)
+        _get(self.crossing_table.horizontalHeader).setStretchLastSection(True)
+        self.crossing_table.itemSelectionChanged += self._crossing_selected
+        column.addWidget(self.crossing_table, 1)
+        self.boundary_label = pya.QLabel("Find Crossings lists them")
+        self.boundary_label.setWordWrap(True)
+        column.addWidget(self.boundary_label)
+        self.crossings = []
+        self.crossing_marker = None
 
         column.addWidget(_heading("Export"))
         self.region_label = pya.QLabel()
@@ -231,6 +254,78 @@ class EMPanel(pya.QWidget):
         if shown >= MAX_MARKERS:
             text += f"\n(outline shows the first {MAX_MARKERS} polygons)"
         self.ground_label.setText(text)
+
+    def _find_crossings(self):
+        view, cv = self._view()
+        self.crossing_table.setRowCount(0)
+        self.crossings = []
+        if view is None:
+            return
+        found, reason = gui.boundary_crossings(view, cv)
+        if found is None:
+            self.boundary_label.setText(reason)
+            return
+        self.crossings, moved, ground = found
+        dbu = cv.layout().dbu
+        for c in self.crossings:
+            e = c.edge.to_dtype(dbu)
+            span = (f"x {min(e.p1.x, e.p2.x):g} .. {max(e.p1.x, e.p2.x):g}, y {e.p1.y:g}" if c.side in ("bottom", "top")
+                    else f"y {min(e.p1.y, e.p2.y):g} .. {max(e.p1.y, e.p2.y):g}, x {e.p1.x:g}")
+            row = _get(self.crossing_table.rowCount)
+            self.crossing_table.insertRow(row)
+            for col, value in enumerate((c.side, c.name, span, c.status())):
+                item = pya.QTableWidgetItem(value)
+                item.setToolTip(value)
+                self.crossing_table.setItem(row, col, item)
+        self.crossing_table.resizeColumnsToContents()
+        signal = [c for c in self.crossings if not c.ground]
+        text = (f"{len(self.crossings)} crossing(s): {len(self.crossings) - len(signal)} ground, {len(signal)} signal "
+                f"({sum(c.needs_port for c in signal)} need a port, {sum(c.port is not None for c in signal)} have one, "
+                f"{sum(c.ground_layer is None and c.port is None for c in signal)} without ground metal at the cut)")
+        text += "\nground: " + ground.source
+        if moved:
+            text += (f"\nboundary port(s) {', '.join(map(str, moved))} no longer lie on the region edge (box moved?): "
+                     "delete them in the port table and create them again")
+        self.boundary_label.setText(text)
+
+    def _selected_crossings(self):
+        rows = sorted({_get(index.row) for index in _get(self.crossing_table.selectionModel).selectedRows()})
+        return [self.crossings[r] for r in rows if r < len(self.crossings)]
+
+    def _crossing_selected(self):
+        view, cv = self._view()
+        if self.crossing_marker is not None:
+            self.crossing_marker._destroy()
+            self.crossing_marker = None
+        selected = self._selected_crossings()
+        if view is None or not selected:
+            return
+        dbu = cv.layout().dbu
+        self.crossing_marker = pya.Marker(view)
+        self.crossing_marker.set(selected[0].edge.to_dtype(dbu))
+        self.crossing_marker.color = 0xff00ff
+        self.crossing_marker.line_width = 4
+        box = selected[0].edge.bbox().to_dtype(dbu)
+        if not box.inside(view.box()):
+            margin = max(box.width(), box.height(), 5.0)
+            view.zoom_box(box.enlarged(margin, margin))
+
+    def _create_boundary_ports(self):
+        view, cv = self._view()
+        if view is None:
+            return
+        if not self.crossings:
+            self._find_crossings()
+        chosen = self._selected_crossings() or self.crossings
+        todo = [c for c in chosen if c.needs_port]
+        if not todo:
+            pya.MessageBox.info("EM Export", "No crossing needs a port: ground crossings get none, existing ports "
+                                "are kept, and a signal crossing needs ground metal at the cut.", pya.MessageBox.Ok)
+            return
+        numbers = gui.create_boundary_ports(view, cv, todo)
+        self.refresh()
+        self._find_crossings()
+        gui._status(f"boundary ports {', '.join(map(str, numbers))} created", 10)
 
     def _selected_ports(self):
         rows = sorted({_get(index.row) for index in _get(self.table.selectionModel).selectedRows()})

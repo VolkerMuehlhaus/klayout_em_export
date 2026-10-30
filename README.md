@@ -33,6 +33,13 @@ back). It shows the whole workflow in one place:
     vertically adjacent metals (from the stackup's z positions). Activ, Cont, resistors and the PEC sheets are left
     out, so a transistor or resistor is an open circuit here. Ground that is joined only outside the region shows
     up as separate pieces.
+- **Boundary**: where the EM region box (layer 800/0) cuts conductors. **Find Crossings** lists each cut piece of
+  metal: ground (no port), signal that needs a port, signal with a port, or signal without ground metal at the cut.
+  **Create Ports** adds a via port on each signal crossing (the selected rows, or all): a zero-width line on the
+  box edge, from the signal metal to the ground metal at the cut (the closest in height), from = lower, to = upper,
+  direction Z, Z0 50 Ohm. The export cuts the metal there, so the port sits exactly on the cut. Ports made here are
+  tagged (GDS property 201 = "boundary"); if the box is moved, they are reported as no longer on the edge.
+  - Works on the EM region box only: the ports are drawn in the layout, so the region has to be kept with it.
 - **Export**: what the export will use right now (the selection, the EM region box, or the whole cell), with
   **Mark Region**, **Export for EM...** and **Open in setupEM** (the last export of this layout, without exporting
   again).

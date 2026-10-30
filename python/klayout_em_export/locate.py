@@ -40,7 +40,7 @@ def edge_at(layout, cell, stackup, point, tol):
             if d > tol:
                 continue
             if best is None or (d, rank) < (best[0], best[1]):
-                best = (d, rank, name, edge)
+                best = (d, rank, name, edge.dup())     # the edge must outlive the Edges it comes from
     return None if best is None else (best[2], best[3])
 
 
