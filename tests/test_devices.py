@@ -86,3 +86,19 @@ print("devices step:", panel.devices_step.summary.text, "|", panel.devices_detai
 panel._replace_devices()
 print("after Replace All:", panel.devices_step.summary.text, "|", panel.devices_detail.text)
 print("port rows:", [panel.table.item(r, 2).text.encode("ascii", "replace").decode() for r in range(panel.table.rowCount)])
+
+# cascode (1_St_Core_v1.gds): two npn13G2 placed side by side, their cell boxes touch. The REF patches follow the
+# pins and must stay separate (also in the export, which merges each layer)
+from klayout_em_export.devices import touching_patches
+cas = pya.Layout(); cas.technology_name = "sg13g2"
+cas.read(r"D:\Palace_testcases\klayout_export\1_St_Core_v1.gds")
+ccell = next(c for c in cas.top_cells() if c.name.startswith("Cascode"))
+cdev = find_devices(cas, ccell, st)[0]
+replace(NoUndo(), ccell, st, cdev)
+print("cascode REF patches:", [str(s.dbbox()) for s in ccell.shapes(cas.find_layer(300, 0)).each() if s.property(202)])
+print("touching patches:", touching_patches(cas, ccell, st))
+cgds = os.path.join(OUT, "cascode_em.gds")
+cports = collect_ports(cas, ccell, stackup=st)
+export_flat(cas, ccell, st, cgds, port_layers=export_numbering(cports), remove=device_shapes(cas, mark_replaced(cas, ccell, find_devices(cas, ccell, st)[0]), st))
+cchk = pya.Layout(); cchk.read(cgds)
+print("exported REF polygons:", [str(p.bbox().to_dtype(cchk.dbu)) for p in pya.Region(cchk.top_cell().shapes(cchk.find_layer(300, 0))).merged().each()])

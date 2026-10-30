@@ -280,6 +280,10 @@ class EMPanel(pya.QWidget):
                 state = "not replaced: simulated as layout"
             lines.append(f"{d.pcell} {name} {d.params}: {state}")
         lines += [f"{count} x {qname}: not supported yet" for qname, count in unknown]
+        from .devices import touching_patches
+        touching = touching_patches(layout, cell, stackup)
+        lines += [f"REF patches of {a.split('@')[0]} and {b.split('@')[0]} touch: one shared reference"
+                  for a, b in touching]
         self.devices_detail.setText("\n".join(lines) or "no PDK devices (SG13_dev pcells) in the cell")
         if not devices and not unknown:
             self.devices_step.set(OK, "none")
@@ -287,7 +291,9 @@ class EMPanel(pya.QWidget):
         parts = [f"{len(devices)} device(s), {len(replaced)} replaced by ports"] if devices else []
         if unknown:
             parts.append(f"{sum(c for _, c in unknown)} not supported")
-        state = OK if len(replaced) == len(devices) and not unknown else WARN
+        if touching:
+            parts.append(f"{len(touching)} pair(s) of REF patches touch")
+        state = OK if len(replaced) == len(devices) and not unknown and not touching else WARN
         self.devices_step.set(state, ", ".join(parts))
 
     def _replace_devices(self):

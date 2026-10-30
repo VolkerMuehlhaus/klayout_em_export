@@ -6,7 +6,9 @@ terminal name inside each: npn13G2, npn13G2L, npn13G2V (C, B on Metal1; E on Met
 TIE). Plain nmos/pmos have unnamed or no pins and are not supported yet.
 
 Replace adds, in the layout and tagged (GDS property 202):
-  - one REF_FOR_TRANSISTOR patch over the device (bounding box + 0.2 um), shared by all its ports;
+  - one REF_FOR_TRANSISTOR patch under the device's pins (their bounding box + 0.2 um), shared by all its ports.
+    Not the cell's bounding box: it includes implant and buried layers, and the boxes of devices placed side by side
+    (a cascode) overlap, which would join their patches into one reference;
   - one via port per terminal, from the pin's metal down to that patch, along the full pin: one port for the whole
     terminal (all emitter fingers of an npn).
 The reference plane is at the pins: the export removes the device's own shapes below them (device_shapes) - below
@@ -161,6 +163,28 @@ def mark_replaced(layout, cell, devices):
     return devices
 
 
+def ref_patch(device, margin):
+    """The REF_FOR_TRANSISTOR patch of a device: bounding box of its pins, grown by margin (dbu)."""
+    pins = pya.Box()
+    for _, box in device.terminals.values():
+        pins += box
+    return pins.enlarged(margin, margin)
+
+
+def touching_patches(layout, cell, stackup):
+    """[(device id, device id)] of REF patches made by replace that touch or overlap: one shared reference."""
+    ref = next((l for l in stackup.layers if l.name == REF_NAME), None)
+    li = None if ref is None else layout.find_layer(ref.layer, 0)
+    if li is None:
+        return []
+    patches = []
+    for shape in cell.shapes(li).each():
+        value = shape.property(DEVICE_KEY)
+        if isinstance(value, str) and value.startswith("device:"):
+            patches.append((value.split(":", 1)[1], shape.bbox()))
+    return [(a, b) for i, (a, box_a) in enumerate(patches) for b, box_b in patches[i + 1:] if box_a.touches(box_b)]
+
+
 def replace(view, cell, stackup, devices):
     """Add the REF patch and the via ports for each device (not yet replaced, without problems). Returns
     {device id: {terminal: port number}}."""
@@ -178,7 +202,7 @@ def replace(view, cell, stackup, devices):
                 continue
             # properties set at insertion: a set_property after insert can move the shape (crash in KLayout 0.29.4)
             cell.shapes(layout.layer(ref.layer, 0)).insert(
-                device.bbox.enlarged(margin, margin), layout.properties_id([[DEVICE_KEY, f"device:{device.id}"]]))
+                ref_patch(device, margin), layout.properties_id([[DEVICE_KEY, f"device:{device.id}"]]))
             for terminal in sorted(device.terminals):
                 line = port_line(device, terminal)
                 layer = next_port_layer(layout, cell)

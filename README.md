@@ -36,8 +36,9 @@ summary; the arrow shows its details and buttons.
 - **Devices**: PDK transistors (SG13_dev pcells with named pins: npn13G2, npn13G2L, npn13G2V, rf MOSFETs) found in
   the cell, and whether they are replaced by ports. The reference plane is at the pcell's pins: the device model
   (circuit simulator) covers the device up to its pins, the EM model everything from there on.
-  - **Replace All** adds, in the layout and tagged (GDS property 202): one `REF_FOR_TRANSISTOR` patch over each
-    device (bounding box + 0.2 um), and one via port per terminal from the pin's metal down to that patch, along
+  - **Replace All** adds, in the layout and tagged (GDS property 202): one `REF_FOR_TRANSISTOR` patch per device,
+    under its pins (their bounding box + 0.2 um; separate for devices side by side, the Devices step warns if two
+    patches touch), and one via port per terminal from the pin's metal down to that patch, along
     the full pin: one port for the whole terminal (e.g. all emitter fingers). **Undo Replace** removes them again.
   - The export removes the replaced devices' own shapes below their pins: below Metal1 everywhere (Activ, Cont,
     poly, implants), and under a pin on a higher metal also the wiring down to Metal1 (the npn emitter pin is a
