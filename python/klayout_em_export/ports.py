@@ -123,17 +123,10 @@ def ports_of(layout, cell, items, datatype=0, stackup=None):
 
 
 def shape_problems(port):
-    """Problems of the port's shapes: gds2palace expects one shape per port layer."""
+    """Problems of the port's shapes. Several shapes on one port layer are the elements of one port, in parallel
+    (Palace multielement lumped port; needs gds2palace with multielement ports, branch multi-element-ports)."""
     boxes = [shape.bbox().transformed(trans) for shape, trans, _ in port.items if not shape.is_text()]
     out = []
-    if len(boxes) > 1:
-        union = pya.Box()
-        for b in boxes:
-            union += b
-        # gds2palace (add_ports) makes one port surface per shape, but the port keeps only the last shape's surface;
-        # the others stay in the model as surfaces without a port
-        out.append(f"{len(boxes)} shapes on this layer (within {union.to_dtype(port.dbu)}): gds2palace uses only "
-                   "one of them as the port; keep one")
     for b in boxes:
         if b.width() == 0 and b.height() == 0:
             out.append(f"point-size shape at {b.p1.to_dtype(port.dbu)}: delete it")

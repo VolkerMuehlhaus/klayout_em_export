@@ -7,7 +7,7 @@ import pya
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "klayout_em_export_tests"))
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "python"))   # not via salt here
 from pdk_env import load_pdk
-from klayout_em_export.devices import device_level_layers, device_shapes, find_devices, mark_replaced, port_line, replace
+from klayout_em_export.devices import device_level_layers, device_shapes, find_devices, mark_replaced, port_lines, replace
 from klayout_em_export.ports import collect_ports
 from klayout_em_export.stackup import Stackup
 
@@ -23,8 +23,8 @@ devices, unknown = find_devices(ly, cell, st)
 print("unknown/unsupported:", unknown)
 for d in devices:
     print(f"device {d.id} {d.pcell} {d.params} bbox {d.bbox.to_dtype(dbu)} problems {d.problems}")
-    for t, (layer, box) in sorted(d.terminals.items()):
-        print(f"   {t}: pin on layer {layer} {box.to_dtype(dbu)} -> port line {port_line(d, t).to_dtype(dbu)}")
+    for t, (layer, boxes) in sorted(d.terminals.items()):
+        print(f"   {t}: pins on layer {layer} {[str(b.to_dtype(dbu)) for b in boxes]} -> port lines {[str(l.to_dtype(dbu)) for l in port_lines(d, t)]}")
 print("device level layers:", sorted(device_level_layers(st)))
 
 

@@ -33,8 +33,8 @@ summary; the arrow shows its details and buttons.
     vertically adjacent metals (from the stackup's z positions). Activ, Cont, resistors and the PEC sheets are left
     out, so a transistor or resistor is an open circuit here. Ground that is joined only outside the region shows
     up as separate pieces.
-- **Devices**: PDK transistors (SG13_dev pcells with named pins: npn13G2, npn13G2L, npn13G2V, rf MOSFETs) found in
-  the cell, and whether they are replaced by ports. The reference plane is at the pcell's pins: the device model
+- **Devices**: PDK transistors (SG13_dev pcells: npn13G2, npn13G2L, npn13G2V, nmos, pmos and their HV and rf
+  variants) found in the cell, and whether they are replaced by ports. The reference plane is at the pcell's pins: the device model
   (circuit simulator) covers the device up to its pins, the EM model everything from there on.
   - **Replace All** adds, in the layout and tagged (GDS property 202): one `REF_FOR_TRANSISTOR` patch per device,
     under its pins (their bounding box + 0.2 um; separate for devices side by side, the Devices step warns if two
@@ -44,9 +44,16 @@ summary; the arrow shows its details and buttons.
     poly, implants), and under a pin on a higher metal also the wiring down to Metal1 (the npn emitter pin is a
     Metal2 strip on one Metal1 island per finger, joined by Via1: islands and Via1 go, the emitter port runs from
     Metal2). The device's other metal stays; your own shapes are not touched.
+  - nmos/pmos: their pins are unnamed (nmos) or missing (pmos), so source and drain are the device's Metal1 strips
+    along the gate fingers, alternating S, D, S, ... from the left in the cell's own coordinates. A terminal on
+    several fingers is one port with one line per finger: the elements of one port, in parallel. The gate pin is
+    poly, below Metal1: the gate port goes on your Metal1 gate contact, found by tracing the poly from the gate
+    through Cont, and the export removes that traced poly and those contacts (their resistance belongs to the
+    device side).
+  - Ports with several lines (multielement ports) need gds2palace 0.9.3 (branch `multi-element-ports`): it makes
+    them one Palace lumped port with parallel elements. Older gds2palace versions use only one of the lines.
   - The port map names the device and terminal of these ports, for connecting the `.snp` to the device models.
-  - Plain nmos/pmos (unnamed or no pins) are not supported yet; they are listed. Recognition needs the SG13G2 PDK
-    library loaded in KLayout.
+  - Recognition needs the SG13G2 PDK library loaded in KLayout.
 - **Ports**: one table with the ports of the cell and the ports proposed where the EM region box cuts conductors.
   - Columns: number and layer in the layout, the port, its number in the export (and the `.snp`; "outside" if it
     is not in the region), and its status: ok, its problems (incomplete, layers not drawn at the port, short

@@ -21,8 +21,10 @@ from .connectivity import wiring
 from .locate import next_port_layer
 from .ports import DEVICE_KEY, PROP_KEY, PortSettings
 
-DEVICE_PCELLS = {"npn13G2", "npn13G2L", "npn13G2V", "rfnmos", "rfpmos", "rfnmosHV", "rfpmosHV"}
-NOT_SUPPORTED = {"nmos", "pmos", "nmosHV", "pmosHV"}     # pins without names (nmos) or none (pmos): later
+DEVICE_PCELLS = {"npn13G2", "npn13G2L", "npn13G2V", "rfnmos", "rfpmos", "rfnmosHV", "rfpmosHV"}   # named pins
+MOSFET_PCELLS = {"nmos", "pmos", "nmosHV", "pmosHV"}    # unnamed (nmos) or no (pmos) pins: terminals from geometry
+POLY_LAYER = 5                      # SG13G2 GatPoly.drawing (datatype 0)
+CONT_NAME = "Cont"
 LIBRARY = "SG13_dev"
 PIN_DATATYPE = 2                    # SG13G2 pin purpose, e.g. Metal1.pin = 8/2
 TEXT_LAYER = (63, 0)                # SG13G2 TEXT.drawing: the pin names
@@ -38,7 +40,9 @@ class Device:
         self.bbox = bbox            # Box in the searched cell
         self.id = f"{name}@{trans.disp.x},{trans.disp.y}"      # stable as long as the device is not moved
         self.params = {}
-        self.terminals = {}         # name -> (GDS layer of the pin metal, pin Box in the searched cell)
+        self.terminals = {}         # name -> (GDS layer of the pin metal, [pin Box in the searched cell, ...]):
+                                    # several boxes for a terminal on several fingers (multielement port)
+        self.gate_trace = {}        # MOSFET: {GDS layer: Region} of the gate poly and contacts up to your gate contact
         self.problems = []
         self.ports = {}             # terminal -> port number, if replaced
         self.replaced = False
@@ -92,22 +96,28 @@ def find_devices(layout, cell, stackup):
         if qname.startswith(LIBRARY + "."):
             decl = c.pcell_declaration()
             name = decl.name() if decl is not None else qname.split(".", 1)[1]
-            if decl is None or name not in DEVICE_PCELLS:
-                if name in NOT_SUPPORTED or decl is None:
-                    key = qname + ("" if decl is not None else " (PDK library not loaded)")
-                    unknown[key] = unknown.get(key, 0) + 1
-            else:
+            if decl is None:
+                key = qname + " (PDK library not loaded)"
+                unknown[key] = unknown.get(key, 0) + 1
+            elif name in DEVICE_PCELLS or name in MOSFET_PCELLS:
                 trans = it.trans() * it.inst_trans()
                 device = Device(name, c.cell_index(), trans, c.bbox().transformed(trans), c.name)
                 params = c.pcell_parameters_by_name()
                 device.params = {k: params[k] for k in ("model", "Nx", "Ny", "le", "we", "w", "l", "ng") if k in params}
-                _terminals(layout, c, trans, device, pin_layers, text_li, m1_li, m1)
+                device.m1 = pya.Region(c.begin_shapes_rec(m1_li)).transformed(trans).merged() if m1_li is not None \
+                    else pya.Region()
+                device.m1_layer = m1
+                if name in MOSFET_PCELLS:
+                    _mosfet_terminals(layout, cell, c, trans, device, m1_li, m1, stackup)
+                else:
+                    _terminals(layout, c, trans, device, pin_layers, text_li, m1)
                 devices.append(device)
         it.next()
     return devices, sorted(unknown.items())
 
 
-def _terminals(layout, c, trans, device, pin_layers, text_li, m1_li, m1):
+def _terminals(layout, c, trans, device, pin_layers, text_li, m1):
+    """Named pins: a pin shape on a metal pin layer, named by the TEXT label nearest to its center inside it."""
     labels = []
     if text_li is not None:
         for s in c.shapes(text_li).each():
@@ -124,21 +134,65 @@ def _terminals(layout, c, trans, device, pin_layers, text_li, m1_li, m1):
         if not names:
             device.problems.append(f"pin on layer {layer} at {box.to_dtype(layout.dbu)} has no name")
             continue
-        device.terminals[names[0]] = (layer, box)
+        device.terminals[names[0]] = (layer, [box])
     if len(device.terminals) < 2:
         device.problems.append("fewer than two named pins")
-    device.m1 = pya.Region(c.begin_shapes_rec(m1_li)).transformed(trans).merged() if m1_li is not None else pya.Region()
-    device.m1_layer = m1
 
 
-def port_line(device, terminal):
-    """Box (zero width) of the via port line for a terminal: along the pin, through its center, over its full
-    length - one port for the whole terminal, e.g. all emitter fingers of an npn."""
-    _, pin = device.terminals[terminal]
-    c = pin.center()
-    if pin.height() >= pin.width():
-        return pya.Box(c.x, pin.bottom, c.x, pin.top)
-    return pya.Box(pin.left, c.y, pin.right, c.y)
+def _mosfet_terminals(layout, top, c, trans, device, m1_li, m1, stackup):
+    """nmos/pmos (feasibility tests T3-T5): source and drain are the device's Metal1 strips along the gate fingers,
+    alternating S, D, S, ... from the left in the cell's own coordinates (the nmos pins mark only the first finger,
+    the pmos has none). The gate pin is poly: the gate port goes on your Metal1 gate contact(s), found by tracing the
+    poly from the first gate finger through Cont; that poly and those contacts are removed at the export (their
+    resistance belongs to the device side). One port per terminal; several fingers = several elements."""
+    strips = [] if m1_li is None else sorted(
+        (p.bbox() for p in pya.Region(c.begin_shapes_rec(m1_li)).merged().each() if p.bbox().height() > p.bbox().width()),
+        key=lambda b: b.left)
+    if len(strips) < 2:
+        device.problems.append("fewer than two Metal1 source/drain strips")
+        return
+    device.terminals["S"] = (m1, [b.transformed(trans) for b in strips[0::2]])
+    device.terminals["D"] = (m1, [b.transformed(trans) for b in strips[1::2]])
+
+    cont = next((l.layer for l in stackup.layers if l.name == CONT_NAME), None)
+    poly_li = layout.find_layer(POLY_LAYER, 0)
+    cont_li = None if cont is None else layout.find_layer(cont, 0)
+    poly = [] if poly_li is None else sorted(
+        (p.dup() for p in pya.Region(c.begin_shapes_rec(poly_li)).merged().each()), key=lambda p: p.bbox().left)
+    if not poly or cont_li is None:
+        device.problems.append("no gate poly or no Cont layer")
+        return
+    start = trans * poly[0].decompose_trapezoids()[0].bbox().center()     # inside the first gate finger
+    connectivity = pya.NetTracerConnectivity()
+    connectivity.connection(f"{POLY_LAYER}/0", f"{cont}/0")              # stops at Cont: not along your Metal1 wiring
+    tracer = pya.NetTracer()
+    tracer.trace(connectivity, layout, top, start, poly_li)
+    traced = {POLY_LAYER: pya.Region(), cont: pya.Region()}
+    for element in tracer.each_element():
+        info = layout.get_info(element.layer())
+        if info.layer in traced and not element.shape().is_text():
+            traced[info.layer].insert(element.shape().polygon.transformed(element.trans()))
+    contacts = traced[cont].merged()
+    if contacts.is_empty():
+        device.problems.append("gate poly has no contact")
+        return
+    pads = pya.Region(top.begin_shapes_rec_touching(m1_li, contacts.bbox())).merged().interacting(contacts)
+    if pads.is_empty():
+        device.problems.append("no Metal1 on the gate contacts")
+        return
+    device.terminals["G"] = (m1, [p.bbox() for p in pads.each()])
+    device.gate_trace = {layer: region.merged() for layer, region in traced.items()}
+
+
+def port_lines(device, terminal):
+    """Boxes (zero width) of the via port lines of a terminal, one per pin box: along the pin, through its center,
+    over its full length - all emitter fingers of an npn in one line, one line per source finger of a MOSFET."""
+    lines = []
+    for pin in device.terminals[terminal][1]:
+        c = pin.center()
+        lines.append(pya.Box(c.x, pin.bottom, c.x, pin.top) if pin.height() >= pin.width() else
+                     pya.Box(pin.left, c.y, pin.right, c.y))
+    return lines
 
 
 def mark_replaced(layout, cell, devices):
@@ -166,8 +220,9 @@ def mark_replaced(layout, cell, devices):
 def ref_patch(device, margin):
     """The REF_FOR_TRANSISTOR patch of a device: bounding box of its pins, grown by margin (dbu)."""
     pins = pya.Box()
-    for _, box in device.terminals.values():
-        pins += box
+    for _, boxes in device.terminals.values():
+        for box in boxes:
+            pins += box
     return pins.enlarged(margin, margin)
 
 
@@ -204,13 +259,14 @@ def replace(view, cell, stackup, devices):
             cell.shapes(layout.layer(ref.layer, 0)).insert(
                 ref_patch(device, margin), layout.properties_id([[DEVICE_KEY, f"device:{device.id}"]]))
             for terminal in sorted(device.terminals):
-                line = port_line(device, terminal)
                 layer = next_port_layer(layout, cell)
-                if line is None or layer is None:
+                if layer is None:
                     continue
                 settings = PortSettings("Z", names[device.terminals[terminal][0]], REF_NAME)   # from the pin metal
-                cell.shapes(layout.layer(layer, 0)).insert(line, layout.properties_id(
-                    [[PROP_KEY, settings.encode()], [DEVICE_KEY, f"device:{device.id}:{terminal}"]]))
+                properties = layout.properties_id([[PROP_KEY, settings.encode()],
+                                                   [DEVICE_KEY, f"device:{device.id}:{terminal}"]])
+                for line in port_lines(device, terminal):      # several lines: elements of one port
+                    cell.shapes(layout.layer(layer, 0)).insert(line, properties)
                 device.ports[terminal] = layer - 200
             device.replaced = True
             done[device.id] = dict(device.ports)
@@ -263,11 +319,14 @@ def device_shapes(layout, devices, stackup):
 
         for layer in device_level:
             add(layer, shapes(layer))
-        for pin_layer, pin in device.terminals.values():
+        for layer, region in device.gate_trace.items():        # MOSFET: gate poly and contacts up to your contact
+            add(layer, region)
+        for pin_layer, pins in device.terminals.values():
             if pin_layer == device.m1_layer or not z.get(pin_layer):
                 continue
             below = [l for l in wiring_layers if l not in device_level and z.get(l) and z[l][0] == z[pin_layer][0]
                      and z[l][2] <= z[pin_layer][1] + 1e-6]
             for layer in below:
-                add(layer, shapes(layer) & pya.Region(pin))
+                for pin in pins:
+                    add(layer, shapes(layer) & pya.Region(pin))
     return out
