@@ -27,3 +27,10 @@ for r in range(panel.table.rowCount):  # property in KLayout's Qt binding
 print("region:", panel.region_label.text)
 panel.table.selectRow(2)
 print("row 3 selected -> layout selection:", [str(o.shape.bbox().to_dtype(ly.dbu)) for o in view.each_object_selected()])
+
+# ground section: found from the ports (ports 1, 2, 5 reach the Metal2/3/4 ground net)
+for layer, s in {202: PortSettings("Z", "Metal3", "TopMetal2"), 205: PortSettings("Z", "Metal2", "REF_FOR_TRANSISTOR")}.items():
+    for shape in cell.shapes(ly.find_layer(layer, 0)).each():
+        shape.set_property(PROP_KEY, s.encode())
+panel._check_ground()
+print("ground:", panel.ground_label.text.replace(chr(10), " | "), "| markers:", len(panel.markers))

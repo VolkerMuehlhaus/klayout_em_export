@@ -22,6 +22,7 @@ EM_REGION = (800, 0)      # marker layer: a box on it keeps the export region in
 SETTINGS_FILE = os.path.join(os.path.expanduser("~"), ".klayout_em_export.json")
 META_STACKUP = "klayout_em_export.stackup"
 META_OUTPUT = "klayout_em_export.output"
+META_GROUND = "klayout_em_export.ground"    # JSON [[GDS layer, x, y], ...] in dbu: points in marked ground shapes
 PORT_ICON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icons", "em_port.png")
 
 
@@ -92,6 +93,75 @@ def choose_stackup():
     view, cv = _current()
     if view is not None and ask_stackup(cv.layout()):
         _status(f"EM stackup: {stackup_path(cv.layout())}", 10)
+
+
+# ---------- ground ----------
+
+def ground_seeds(layout):
+    """[(GDS layer, Point)] of the marked ground shapes of this layout."""
+    try:
+        return [(int(l), pya.Point(int(x), int(y))) for l, x, y in json.loads(layout.meta_info_value(META_GROUND) or "[]")]
+    except (TypeError, ValueError):
+        return []
+
+
+def _set_ground_seeds(layout, seeds):
+    layout.add_meta_info(pya.LayoutMetaInfo(META_GROUND, json.dumps([[l, p.x, p.y] for l, p in seeds]),
+                                            "EM export: points in the marked ground shapes", True))
+
+
+def mark_ground():
+    """Mark the selected metal shapes as ground (added to earlier marks). A point inside each shape is stored."""
+    view, cv = _current()
+    if view is None:
+        return
+    layout = cv.layout()
+    path = stackup_path(layout)
+    stackup = read_stackup(path)[0] if path else None
+    if stackup is None:
+        pya.MessageBox.warning("EM Export", "Choose a stackup first.", pya.MessageBox.Ok)
+        return
+    from .connectivity import wiring
+    traced = wiring(stackup)[0]
+    seeds, skipped = ground_seeds(layout), 0
+    for obj in view.each_object_selected():
+        if obj.cv_index != view.active_cellview_index or obj.is_cell_inst() or obj.shape.is_text():
+            skipped += 1
+            continue
+        info = layout.get_info(obj.layer)
+        if info.layer not in traced or info.datatype != 0:
+            skipped += 1
+            continue
+        polygon = obj.shape.polygon.transformed(obj.trans())
+        inside = polygon.decompose_trapezoids()[0].bbox().center()    # a trapezoid is convex: its center is inside
+        seeds.append((info.layer, inside))
+    if len(seeds) == len(ground_seeds(layout)):
+        pya.MessageBox.warning("EM Export", "Select one or more metal shapes of the ground first (shapes, not "
+                               "instances; on the stackup's wiring layers).", pya.MessageBox.Ok)
+        return
+    _set_ground_seeds(layout, seeds)
+    _status(f"{len(seeds)} ground mark(s)" + (f"; {skipped} selected object(s) skipped" if skipped else ""), 10)
+
+
+def clear_ground():
+    """Forget the marked ground shapes: the ground is found from the via ports again."""
+    view, cv = _current()
+    if view is not None:
+        _set_ground_seeds(cv.layout(), [])
+
+
+def ground_check(view, cv):
+    """GroundCheck of the current cell in the EM region box (or the whole cell), or None without a stackup."""
+    from .connectivity import check_ground
+    layout, cell = cv.layout(), cv.cell
+    path = stackup_path(layout)
+    stackup = read_stackup(path)[0] if path else None
+    if stackup is None:
+        return None
+    box = marker_box(layout, cell, EM_REGION)
+    clip = None if box is None else box.to_itype(layout.dbu)
+    return check_ground(layout, cell, stackup, clip, ground_seeds(layout),
+                        collect_ports(layout, cell, clip, stackup=stackup))
 
 
 # ---------- region ----------

@@ -23,6 +23,16 @@ back). It shows the whole workflow in one place:
   .simcfg" for incomplete ports). Click a row to select the port in the layout (and bring it into view),
   double-click or **Settings...** to edit it, **Delete** to remove its shapes. **EM Port tool** starts the tool.
   Ports drawn with KLayout's own tools appear on **Refresh**.
+- **Ground**: the ground net, traced through the vias in the EM region box (or the whole cell). **Check** outlines
+  it in the layout and reports which via ports reach it and how many other separate nets there are.
+  - The ground is found from the via ports: of the nets at both ends of the via ports, the one most ports reach (on
+    a tie, the larger one). Which end is from and which is to does not matter.
+  - **Mark Selected** marks the selected metal shapes as ground instead (stored in the layout); **Use Ports**
+    forgets the marks.
+  - Only wiring is traced: the stackup's conductors above the device level, connected by the vias between
+    vertically adjacent metals (from the stackup's z positions). Activ, Cont, resistors and the PEC sheets are left
+    out, so a transistor or resistor is an open circuit here. Ground that is joined only outside the region shows
+    up as separate pieces.
 - **Export**: what the export will use right now (the selection, the EM region box, or the whole cell), with
   **Mark Region** and **Export for EM...**.
 

@@ -18,12 +18,23 @@ def _layer_number(element, path):
                            "(expressions in layer numbers are not supported)") from None
 
 
+def _number(value):
+    """float of a plain number attribute; None for a missing value or a "=expression" (variables)."""
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
 class StackupLayer:
-    def __init__(self, name, kind, layer, material):
+    def __init__(self, name, kind, layer, material, element=None):
         self.name = name
         self.kind = kind            # conductor, via, sheet or dielectric
         self.layer = layer
         self.material = material
+        get = element.get if element is not None else (lambda key: None)
+        self.reference, self.reference_edge = get("Reference"), get("ReferenceEdge") or "Top"
+        self.zmin_attr, self.zmax_attr = get("Zmin"), get("Zmax")
 
     @property
     def is_metal(self):
@@ -37,8 +48,11 @@ class Stackup:
     def __init__(self, path):
         self.path = path
         root = ET.parse(path).getroot()
-        self.layers = [StackupLayer(e.get("Name"), e.get("Type"), _layer_number(e, path), e.get("Material"))
+        self.layers = [StackupLayer(e.get("Name"), e.get("Type"), _layer_number(e, path), e.get("Material"), e)
                        for e in root.iter("Layer")]
+        # dielectric name -> (Reference, ReferenceEdge, Thickness), for the z positions of the layers
+        self.dielectrics = {e.get("Name"): (e.get("Reference"), e.get("ReferenceEdge") or "Top", e.get("Thickness"))
+                            for e in root.iter("Dielectric")}
         # derived layer number -> (name, operation, operand layer numbers)
         self.derived = {_layer_number(e, path): (e.get("Name"), e.get("Operation"),
                                                  [_layer_number(o, path) for o in e.iter("Operand")])
@@ -53,6 +67,50 @@ class Stackup:
     def metal_names(self):
         """Conductor and sheet layers, top to bottom as in the file: the choices for port layers."""
         return [l.name for l in self.layers if l.is_metal]
+
+    def _edge(self, name, edge, seen=()):
+        """z of the Top or Bottom edge of a layer or dielectric, as (anchor, offset), or None if unknown.
+        A thickness given by a variable starts a new anchor, so z values compare only within one anchor; the
+        metal stack hangs off one anchor (e.g. the bottom of SiO2) and needs no variable."""
+        if name in seen:
+            raise StackupError(f"{self.path}: Reference loop at {name}")
+        layer = self.layer(name)
+        if layer is not None:
+            z = self.z_range(layer, seen + (name,))
+            return None if z is None else (z[0], z[2] if edge == "Top" else z[1])
+        if name in self.dielectrics:
+            reference, reference_edge, thickness = self.dielectrics[name]
+            bottom = ("bottom", 0.0) if not reference else self._edge(reference, reference_edge, seen + (name,))
+            if edge == "Bottom" or bottom is None:
+                return bottom
+            t = _number(thickness)
+            return (bottom[0], bottom[1] + t) if t is not None else (f"{name}.top", 0.0)
+        return None
+
+    def z_range(self, layer, seen=()):
+        """(anchor, zmin, zmax) of a stackup layer, or None if its position cannot be resolved.
+        With a Reference, Zmin/Zmax are offsets from that edge; without, they are absolute."""
+        zmin, zmax = _number(layer.zmin_attr), _number(layer.zmax_attr)
+        if zmin is None or zmax is None:
+            return None
+        base = ("bottom", 0.0) if not layer.reference else self._edge(layer.reference, layer.reference_edge, seen)
+        return None if base is None else (base[0], base[1] + zmin, base[1] + zmax)
+
+    def via_neighbors(self, delta=1e-5):
+        """{via layer number: ([metals directly below], [metals directly above])} as StackupLayers, for the vias
+        drawn in the GDS that have drawn metals on both sides (z within delta, as gds2palace). Lists, because
+        a via can sit on more than one layer (Cont: on Activ and on the REF_FOR_TRANSISTOR sheet)."""
+        metals = [(l, self.z_range(l)) for l in self.layers if l.is_metal and l.layer not in self.derived]
+        out = {}
+        for via in (l for l in self.layers if l.kind == "via" and l.layer not in self.derived):
+            z = self.z_range(via)
+            if z is None:
+                continue
+            below = [m for m, mz in metals if mz and mz[0] == z[0] and abs(mz[2] - z[1]) < delta]
+            above = [m for m, mz in metals if mz and mz[0] == z[0] and abs(mz[1] - z[2]) < delta]
+            if below and above:
+                out[via.layer] = (below, above)
+        return out
 
     def gds_layers(self):
         """GDS layer numbers the EM model reads: stackup layers and dielectric boundaries, with derived layers

@@ -13,6 +13,7 @@ from .export import marker_box
 from .ports import collect_ports, is_complete, port_problems
 
 COLUMNS = ("Port", "Layer", "Dir", "Layers", "Z0", "Status")
+MAX_MARKERS = 2000                  # ground outline: at most this many polygons
 
 
 def _get(value):
@@ -36,6 +37,7 @@ class EMPanel(pya.QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.port_rows = []         # Port per table row
+        self.markers = []           # pya.Marker of the shown ground net
         self._bound = set()         # ids of the views whose events are connected
         column = pya.QVBoxLayout(self)
 
@@ -66,6 +68,20 @@ class EMPanel(pya.QWidget):
         self.table.itemSelectionChanged += self._rows_selected
         self.table.cellDoubleClicked += lambda row, col: self._edit()
         column.addWidget(self.table, 1)
+
+        column.addWidget(_heading("Ground"))
+        row = pya.QHBoxLayout()
+        row.addWidget(_button("Mark Selected", self._mark_ground,
+                              "mark the selected metal shapes as ground (stored in the layout)"))
+        row.addWidget(_button("Use Ports", self._use_ports,
+                              "forget the marks: ground is the net that most via ports reach"))
+        row.addWidget(_button("Check", self._check_ground,
+                              "trace the ground net through the vias and outline it in the layout"))
+        row.addWidget(_button("Hide", self._hide_ground, "remove the ground outline"))
+        column.addLayout(row)
+        self.ground_label = pya.QLabel()
+        self.ground_label.setWordWrap(True)
+        column.addWidget(self.ground_label)
 
         column.addWidget(_heading("Export"))
         self.region_label = pya.QLabel()
@@ -137,6 +153,10 @@ class EMPanel(pya.QWidget):
             self.port_rows.append(port)
         self.table.resizeColumnsToContents()
         self._update_region()
+        marks = len(gui.ground_seeds(layout))
+        if not self.markers:
+            self.ground_label.setText((f"{marks} marked ground shape(s)" if marks else
+                                       "not marked: found from the via ports") + "; Check traces it")
 
     def _update_region(self):
         view, cv = self._view()
@@ -162,6 +182,48 @@ class EMPanel(pya.QWidget):
         view, cv = self._view()
         if view is not None and gui.ask_stackup(cv.layout()):
             self.refresh()
+
+    def _mark_ground(self):
+        gui.mark_ground()
+        self._check_ground()
+
+    def _use_ports(self):
+        gui.clear_ground()
+        self._check_ground()
+
+    def _hide_ground(self):
+        for marker in self.markers:
+            marker._destroy()
+        self.markers = []
+        self.refresh()
+
+    def _check_ground(self):
+        view, cv = self._view()
+        if view is None:
+            return
+        for marker in self.markers:
+            marker._destroy()
+        self.markers = []
+        result = gui.ground_check(view, cv)
+        if result is None:
+            self.ground_label.setText("choose a stackup first")
+            return
+        dbu = cv.layout().dbu
+        shown = 0
+        for region in result.net.values():
+            for polygon in region.each():
+                if shown >= MAX_MARKERS:
+                    break
+                marker = pya.Marker(view)
+                marker.set(polygon.to_dtype(dbu))
+                marker.color = 0x00d000
+                marker.line_width = 2
+                self.markers.append(marker)
+                shown += 1
+        text = result.summary()
+        if shown >= MAX_MARKERS:
+            text += f"\n(outline shows the first {MAX_MARKERS} polygons)"
+        self.ground_label.setText(text)
 
     def _selected_ports(self):
         rows = sorted({_get(index.row) for index in _get(self.table.selectionModel).selectedRows()})
