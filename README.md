@@ -16,35 +16,38 @@ KLayout adds `python/` to its module path and runs `pymacros/em_export_menu.lym`
 ## Usage: EM panel and EM menu
 
 The **EM panel** is docked at the right of the main window (opens at startup; menu **EM > EM Panel** brings it
-back). It shows the whole workflow in one place:
+back). It is a checklist in workflow order: each step is one line with a status mark (OK, warning, error) and a
+summary; the arrow shows its details and buttons.
 
-- **Stackup** of the current layout, with Change....
-- **Ports** of the current cell: number, layer, direction, layers, Z0 and status ("ok", the problems, or "not in
-  .simcfg" for incomplete ports). Click a row to select the port in the layout (and bring it into view),
-  double-click or **Settings...** to edit it, **Delete** to remove its shapes. **EM Port tool** starts the tool.
-  Ports drawn with KLayout's own tools appear on **Refresh**.
-- **Ground**: the ground net, traced through the vias in the EM region box (or the whole cell). **Check** outlines
-  it in the layout and reports which via ports reach it and how many other separate nets there are.
-  It also reports via ports whose two ends are on the same net (a short circuit); the export dialog lists them
-  with the other port problems.
+- **Stackup** of the current layout (details: Change...).
+- **Region**: what the export uses right now, following the selection: the bounding box of the selection, else
+  the EM region box (layer 800/0), else the whole cell. A selection of port shapes only does not count (details:
+  Mark Region from Selection).
+- **Ground**: the ground net, traced through the vias in the EM region box (or the whole cell). It is checked on
+  every refresh (a very large region: Run Checks in the details).
   - The ground is found from the via ports: of the nets at both ends of the via ports, the one most ports reach (on
     a tie, the larger one). Which end is from and which is to does not matter.
-  - **Mark Selected** marks the selected metal shapes as ground instead (stored in the layout); **Use Ports**
-    forgets the marks.
+  - Details: **Mark Selected** marks the selected metal shapes as ground instead (stored in the layout), **Use
+    Ports** forgets the marks, **Show in Layout** outlines the ground net.
   - Only wiring is traced: the stackup's conductors above the device level, connected by the vias between
     vertically adjacent metals (from the stackup's z positions). Activ, Cont, resistors and the PEC sheets are left
     out, so a transistor or resistor is an open circuit here. Ground that is joined only outside the region shows
     up as separate pieces.
-- **Boundary**: where the EM region box (layer 800/0) cuts conductors. **Find Crossings** lists each cut piece of
-  metal: ground (no port), signal that needs a port, signal with a port, or signal without ground metal at the cut.
-  **Create Ports** adds a via port on each signal crossing (the selected rows, or all): a zero-width line on the
-  box edge, from the signal metal to the ground metal at the cut (the closest in height), from = lower, to = upper,
-  direction Z, Z0 50 Ohm. The export cuts the metal there, so the port sits exactly on the cut. Ports made here are
-  tagged (GDS property 201 = "boundary"); if the box is moved, they are reported as no longer on the edge.
-  - Works on the EM region box only: the ports are drawn in the layout, so the region has to be kept with it.
-- **Export**: what the export will use right now (the selection, the EM region box, or the whole cell), with
-  **Mark Region**, **Export for EM...** and **Open in setupEM** (the last export of this layout, without exporting
-  again).
+- **Ports**: one table with the ports of the cell and the ports proposed where the EM region box cuts conductors.
+  - Columns: number and layer in the layout, the port, its number in the export (and the `.snp`; "outside" if it
+    is not in the region), and its status: ok, its problems (incomplete, layers not drawn at the port, short
+    circuit: both ends on one net), "proposed" or "cut without ground".
+  - Click a row to highlight it in the layout (a marker, not a selection: a selected port would become the
+    export region); double-click to edit a port or create a proposed one; right-click for Settings, Delete or
+    Create.
+  - **EM Port tool** starts the tool. **Create Proposed Ports** adds a via port on each signal conductor the EM
+    region box cuts: a zero-width line on the box edge, from the signal metal to the ground metal at the cut (the
+    closest in height), from = lower, to = upper, direction Z, Z0 50 Ohm. The export cuts the metal there, so the
+    port sits exactly on the cut. These ports are tagged (GDS property 201 = "boundary"); if the box is moved,
+    they are reported as no longer on the edge. Proposals need the EM region box, since the ports are drawn in
+    the layout.
+  - Ports drawn with KLayout's own tools appear on **Refresh**.
+- **Export for EM...** and **Open in setupEM** (the last export of this layout, without exporting again).
 
 The same steps are in the **EM** menu in the menu bar, top to bottom in workflow order:
 

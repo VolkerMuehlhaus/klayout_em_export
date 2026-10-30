@@ -51,14 +51,13 @@ if os.path.exists(gds.replace(".gds", ".simcfg")):
 write_simcfg(gds.replace(".gds", ".simcfg"), gds, st.path, result.cellname, ports=simcfg_ports(ports))
 print("exported", os.path.basename(gds), "ports in .simcfg:", [p["portnumber"] for p in simcfg_ports(ports)])
 
-# EM panel: Boundary section (box on 800/0), and a moved box
+# EM panel ports table (box on 800/0): the boundary ports with their export numbers, nothing left to propose;
+# and a moved box
 from klayout_em_export.gui import META_STACKUP
 from klayout_em_export.panel import EMPanel
 ly.add_meta_info(pya.LayoutMetaInfo(META_STACKUP, st.path, "", True))
 cell.shapes(ly.layer(800, 0)).insert(box)
 EMPanel._view = lambda self: (view, view.active_cellview())
 panel = EMPanel()
-panel._find_crossings()
-print("panel:", [[panel.crossing_table.item(r, c).text for c in range(4)] for r in range(panel.crossing_table.rowCount)])
-print("panel:", panel.boundary_label.text.replace(chr(10), " | "))
+print("panel:", [(kind, panel.table.item(r, 0).text, panel.table.item(r, 3).text) for r, (kind, item) in enumerate(panel.rows)])
 print("moved box -> boundary ports off the edge:", moved_ports(ly, cell, box.moved(0, round(2 / ly.dbu))))

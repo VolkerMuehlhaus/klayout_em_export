@@ -191,39 +191,6 @@ def clear_ground():
         _set_ground_seeds(cv.layout(), [])
 
 
-def ground_check(view, cv):
-    """GroundCheck of the current cell in the EM region box (or the whole cell), or None without a stackup."""
-    from .connectivity import check_ground
-    layout, cell = cv.layout(), cv.cell
-    path = stackup_path(layout)
-    stackup = read_stackup(path)[0] if path else None
-    if stackup is None:
-        return None
-    box = marker_box(layout, cell, EM_REGION)
-    clip = None if box is None else box.to_itype(layout.dbu)
-    return check_ground(layout, cell, stackup, clip, ground_seeds(layout),
-                        collect_ports(layout, cell, clip, stackup=stackup))
-
-
-def boundary_crossings(view, cv):
-    """(crossings, moved boundary port numbers, ground summary) for the EM region box, or (None, reason)."""
-    from .boundary import find_crossings, moved_ports
-    from .connectivity import check_ground
-    layout, cell = cv.layout(), cv.cell
-    path = stackup_path(layout)
-    stackup = read_stackup(path)[0] if path else None
-    if stackup is None:
-        return None, "choose a stackup first"
-    box = marker_box(layout, cell, EM_REGION)
-    if box is None:
-        return None, (f"no EM region box: the cut needs a region kept with the layout (layer {EM_REGION[0]}/"
-                      f"{EM_REGION[1]}). Select shapes and use Mark Region first.")
-    clip = box.to_itype(layout.dbu)
-    ground = check_ground(layout, cell, stackup, clip, ground_seeds(layout),
-                          collect_ports(layout, cell, clip, stackup=stackup))
-    return (find_crossings(layout, cell, stackup, clip, ground), moved_ports(layout, cell, clip), ground), None
-
-
 def create_boundary_ports(view, cv, crossings):
     from .boundary import create_ports
     stackup = read_stackup(stackup_path(cv.layout()))[0]
@@ -232,13 +199,27 @@ def create_boundary_ports(view, cv, crossings):
 
 # ---------- region ----------
 
+def region_source(view, cv):
+    """What the export uses as its region: (DBox or None for the whole cell, description, Selection or None).
+    The selection counts only if it holds something besides port shapes: a selected port line (e.g. from
+    clicking a port) never defines a region. Else the EM region box, else the whole cell."""
+    layout, cell = cv.layout(), cv.cell
+    selection = Selection.from_view(view, cv)
+    if selection.regions:
+        return selection.bbox().to_dtype(layout.dbu), "bounding box of the selected shapes", selection
+    box = marker_box(layout, cell, EM_REGION)
+    if box is not None:
+        return box, f"EM region box (layer {EM_REGION[0]}/{EM_REGION[1]})", None
+    return None, f"whole cell {cell.name} (nothing selected, no EM region box)", None
+
+
 def mark_region():
     """Draw the bounding box of the selected shapes on the EM_REGION layer, to keep the region for re-export."""
     view, cv = _current()
     if view is None:
         return
     selection = Selection.from_view(view, cv)
-    box = None if selection.is_empty() else selection.bbox()
+    box = selection.bbox() if selection.regions else None      # port lines alone are no region
     if box is None:
         pya.MessageBox.warning("EM Export", "Select one or more shapes first: their bounding box becomes the EM "
                                f"region (layer {EM_REGION[0]}/{EM_REGION[1]}).", pya.MessageBox.Ok)
@@ -445,14 +426,7 @@ def export_region():
     if view is None:
         return
     layout, cell = cv.layout(), cv.cell
-    selection = Selection.from_view(view, cv)
-    box = None if selection.is_empty() else selection.bbox().to_dtype(layout.dbu)
-    source = "bounding box of the selected shapes"
-    if box is None:
-        box = marker_box(layout, cell, EM_REGION)
-        source = f"EM region box (layer {EM_REGION[0]}/{EM_REGION[1]})"
-    if box is None:
-        source = f"whole cell {cell.name} (nothing selected, no EM region box)"
+    box, source, selection = region_source(view, cv)
 
     dialog = ExportDialog(cv, box, source, selection)
     while True:
