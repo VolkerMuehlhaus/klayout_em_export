@@ -1,0 +1,50 @@
+# Export the user's cascode 1_St_Core_v1_forEM.gds for a Palace test run: the saved replacement (made before the REF
+# patches followed the pins) is undone and redone with the resistors included. Ports numbered without gaps: pads,
+# transistors, resistors. Output folder: environment OUT. Needs the PDK (klayout_em_export_tests/pdk_env.py), run
+# like test_devices.py.
+import json
+import os
+import sys
+import pya
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "klayout_em_export_tests"))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "python"))
+from pdk_env import load_pdk
+from klayout_em_export.devices import device_shapes, find_devices, mark_replaced, replace, touching_patches, unreplace
+from klayout_em_export.export import export_flat
+from klayout_em_export.ports import collect_ports, export_numbering, port_map, port_problems, simcfg_ports
+from klayout_em_export.simcfg import write_simcfg
+from klayout_em_export.stackup import Stackup
+
+OUT = os.environ["OUT"]
+os.makedirs(OUT, exist_ok=True)
+load_pdk()
+st = Stackup(r"D:\github-claude\gds2palace_ihp_sg13g2\XML_stackup\latest\IHP\SG13G2_FEM_200um.xml")
+ly = pya.Layout(); ly.technology_name = "sg13g2"
+ly.read(r"D:\Palace_testcases\klayout_export\1_St_Core_v1_forEM.gds")
+cell = next(c for c in ly.top_cells() if c.name.startswith("Cascode"))
+
+
+class NoUndo:
+    def transaction(self, text): pass
+    def commit(self): pass
+    def add_missing_layers(self): pass
+
+
+print("undo the saved replacement:", unreplace(NoUndo(), cell), "shape(s)")
+print("replace:", replace(NoUndo(), cell, st, find_devices(ly, cell, st)[0], include_resistors=True))
+devices = mark_replaced(ly, cell, find_devices(ly, cell, st)[0])
+print("touching patches:", touching_patches(ly, cell, st))
+ports = collect_ports(ly, cell, stackup=st)
+problems = {p.number: port_problems(p, st) for p in ports.values() if port_problems(p, st)}
+print("port problems:", problems)
+numbering = export_numbering(ports)
+gds = os.path.join(OUT, "cascode_em.gds")
+export_flat(ly, cell, st, gds, port_layers=numbering, remove=device_shapes(ly, devices, st))
+if os.path.exists(gds.replace(".gds", ".simcfg")):
+    os.remove(gds.replace(".gds", ".simcfg"))
+write_simcfg(gds.replace(".gds", ".simcfg"), gds, st.path, cell.name, ports=simcfg_ports(ports, numbering))
+pm = port_map(ports, numbering)
+json.dump(pm, open(gds.replace(".gds", "_portmap.json"), "w"), indent=2)
+for row in pm["ports"]:
+    print(row["port"], "<- layout", row["layout_port"], row.get("device", "").split("@")[0], row.get("terminal", ""),
+          "" if row["in_simcfg"] else "(shape only)", row["settings"])
