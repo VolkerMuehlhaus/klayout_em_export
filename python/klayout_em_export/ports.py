@@ -172,13 +172,30 @@ def simcfg_ports(ports, numbering=None):
     return out
 
 
+DEVICE_KEY = 202                    # set by devices.replace on the ports it makes: "device:<id>:<terminal>"
+
+
+def device_of(port):
+    """(device id, terminal) of a port made by devices.replace, else None."""
+    for shape, _, _ in port.items:
+        value = shape.property(DEVICE_KEY)
+        if isinstance(value, str) and value.count(":") == 2:
+            return tuple(value.split(":")[1:])
+    return None
+
+
 def port_map(ports, numbering):
     """The port map file's content: per exported port its layout number and layer, and whether it is simulated."""
     rows = []
     for layer, new_layer in sorted(numbering.items(), key=lambda item: item[1]):
         port = ports[layer]
-        rows.append({"port": new_layer - 200, "layer": new_layer, "layout_port": port.number, "layout_layer": layer,
-                     "in_simcfg": is_complete(port), "settings": str(port.settings) if port.settings else None})
+        row = {"port": new_layer - 200, "layer": new_layer, "layout_port": port.number, "layout_layer": layer,
+               "in_simcfg": is_complete(port), "settings": str(port.settings) if port.settings else None}
+        device = device_of(port)
+        if device is not None:
+            row["device"], row["terminal"] = device
+        rows.append(row)
     return {"note": "port = number in the exported GDS, .simcfg and .snp; layout_port = number in the layout "
-                    "(layer - 200). Ports not in the .simcfg are exported as shapes only.",
+                    "(layer - 200). Ports not in the .simcfg are exported as shapes only. device/terminal: the "
+                    "port replaces that terminal of a PDK device (to be connected to the device model).",
             "ports": rows}

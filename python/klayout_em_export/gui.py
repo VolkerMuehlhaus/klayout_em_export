@@ -199,6 +199,31 @@ def create_boundary_ports(view, cv, crossings):
 
 # ---------- region ----------
 
+def find_layout_devices(layout, cell, stackup):
+    """(devices, unknown) of cell, with the replaced ones marked (devices.find_devices, mark_replaced)."""
+    from .devices import find_devices, mark_replaced
+    devices, unknown = find_devices(layout, cell, stackup)
+    return mark_replaced(layout, cell, devices), unknown
+
+
+def replace_devices(view, cv):
+    from .devices import replace
+    layout, cell = cv.layout(), cv.cell
+    stackup = read_stackup(stackup_path(layout))[0]
+    if stackup is None:
+        return {}
+    try:
+        return replace(view, cell, stackup, find_layout_devices(layout, cell, stackup)[0])
+    except ValueError as e:
+        pya.MessageBox.warning("EM Export", str(e), pya.MessageBox.Ok)
+        return {}
+
+
+def unreplace_devices(view, cv):
+    from .devices import unreplace
+    return unreplace(view, cv.cell)
+
+
 def region_source(view, cv):
     """What the export uses as its region: (DBox or None for the whole cell, description, Selection or None).
     The selection counts only if it holds something besides port shapes: a selected port line (e.g. from
@@ -452,10 +477,14 @@ def export_region():
     else:
         ports = collect_ports(layout, cell, None if box is None else box.to_itype(layout.dbu), stackup=stackup)
     numbering = export_numbering(ports)      # ports 1..N without gaps, see export_numbering
+    from .devices import device_level_layers, device_shapes
+    devices = find_layout_devices(layout, cell, stackup)[0]
+    remove = device_shapes(layout, devices, device_level_layers(stackup))   # replaced devices, below Metal1
     if dialog.shapes_only():
-        result = export_flat(layout, cell, stackup, gds_path, selection=dialog.completed, port_layers=numbering)
+        result = export_flat(layout, cell, stackup, gds_path, selection=dialog.completed, port_layers=numbering,
+                             remove=remove)
     else:
-        result = export_flat(layout, cell, stackup, gds_path, box=box, port_layers=numbering)
+        result = export_flat(layout, cell, stackup, gds_path, box=box, port_layers=numbering, remove=remove)
     simcfg_path = os.path.splitext(gds_path)[0] + ".simcfg"
     port_list = simcfg_ports(ports, numbering)
     kept = write_simcfg(simcfg_path, gds_path, stackup.path, result.cellname, ports=port_list)

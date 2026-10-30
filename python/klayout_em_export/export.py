@@ -55,16 +55,18 @@ def _is_kept(key, keep, purposes):
 
 
 def export_flat(layout, cell, stackup, gds_path, box=None, purposes=(0,), cellname=None, selection=None,
-                port_layers=None):
+                port_layers=None, remove=None):
     """Write cell, flattened and clipped to box (DBox in um, None = whole cell), to gds_path. With a selection
     (selection.Selection), only its shapes are written, uncut, and box is ignored.
 
     Kept: the stackup's GDS layers (derived layers by their sources) and the port layers 201..299, only for the
     given purposes (datatypes). Everything else is reported in result.dropped. Metal is merged per layer and cut
     at the box edge; port shapes are copied unchanged if they touch the box. port_layers {layout port layer:
-    exported layer} renumbers the ports (ports.export_numbering).
+    exported layer} renumbers the ports (ports.export_numbering). remove {GDS layer: Region} is cut out of those
+    layers (the replaced devices' own shapes below Metal1, devices.device_shapes).
     """
     port_layers = port_layers or {}
+    remove = remove or {}
     keep = set(stackup.gds_layers())
     clip = None if box is None or selection is not None else box.to_itype(layout.dbu)
     result = ExportResult(gds_path, cellname or cell.name, None if selection is not None else box)
@@ -77,7 +79,7 @@ def export_flat(layout, cell, stackup, gds_path, box=None, purposes=(0,), cellna
             if not _is_kept(key, keep, purposes):
                 result.dropped[key] = region.count()
                 continue
-            merged = region.merged()
+            merged = ((region - remove[key[0]]) if key[0] in remove else region).merged()
             top.shapes(em.layer(*key)).insert(merged)
             result.kept[key] = merged.count()
         for key, shape, trans in selection.ports:
@@ -108,6 +110,8 @@ def export_flat(layout, cell, stackup, gds_path, box=None, purposes=(0,), cellna
             region = pya.Region(cell.begin_shapes_rec(li) if clip is None else cell.begin_shapes_rec_touching(li, clip))
             if clip is not None:
                 region &= pya.Region(clip)
+            if info.layer in remove:
+                region -= remove[info.layer]
             region.merge()
             top.shapes(target).insert(region)
             count = region.count()

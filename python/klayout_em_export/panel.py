@@ -13,7 +13,7 @@ from . import gui
 from .boundary import find_crossings
 from .connectivity import check_ground, wiring
 from .export import marker_box
-from .ports import collect_ports, export_numbering, is_complete, port_problems
+from .ports import collect_ports, device_of, export_numbering, is_complete, port_problems
 
 OK, WARN, ERROR = ("✓", "#1a8f1a"), ("⚠", "#c87800"), ("✗", "#c00000")
 COLUMNS = ("#", "Layer", "Port", "Export #", "Status")
@@ -124,8 +124,14 @@ class EMPanel(pya.QWidget):
             self.show_ground,
             _button("Run Checks", lambda: self.refresh(run_checks=True),
                     "ground and boundary checks for a region too large to check on every refresh")]))
+        self.devices_detail = _label()
+        self.devices_step = Step("Devices", _details(self.devices_detail, [
+            _button("Replace All", self._replace_devices,
+                    "replace each PDK device by ports at its pins: a REF_FOR_TRANSISTOR patch and one via port per "
+                    "terminal; the export removes the device's shapes below Metal1"),
+            _button("Undo Replace", self._unreplace_devices, "remove the patches and ports made by Replace All")]))
         self.ports_step = Step("Ports")
-        for step in (self.stackup_step, self.region_step, self.ground_step, self.ports_step):
+        for step in (self.stackup_step, self.region_step, self.ground_step, self.devices_step, self.ports_step):
             column.addWidget(step)
 
         self.table = pya.QTableWidget(0, len(COLUMNS))
@@ -193,7 +199,7 @@ class EMPanel(pya.QWidget):
         self.show_ground.setChecked(False)
         view, cv = self._view()
         if view is None:
-            for step in (self.stackup_step, self.region_step, self.ground_step, self.ports_step):
+            for step in (self.stackup_step, self.region_step, self.ground_step, self.devices_step, self.ports_step):
                 step.set(ERROR, "no layout loaded")
             self.table.setRowCount(0)
             return
@@ -221,6 +227,7 @@ class EMPanel(pya.QWidget):
                 if clip is not None:
                     crossings = find_crossings(layout, cell, stackup, clip, self.result)
         self._show_ground_step(stackup, layout)
+        self._show_devices_step(stackup, layout, cell)
         self._fill_table(layout, cell, stackup, crossings)
         self._update_region()
         last = gui.last_simcfg(layout)
@@ -256,6 +263,47 @@ class EMPanel(pya.QWidget):
             self.ground_step.set(state, f"{names} ({how})", self.result.summary())
             self.ground_detail.setText(self.result.summary())
 
+    def _show_devices_step(self, stackup, layout, cell):
+        if stackup is None:
+            self.devices_step.set(ERROR, "needs a stackup")
+            return
+        devices, unknown = gui.find_layout_devices(layout, cell, stackup)
+        replaced = [d for d in devices if d.replaced]
+        lines = []
+        for d in devices:
+            name, at = d.id.split("@")
+            if d.replaced:
+                state = "replaced: " + ", ".join(f"{t} port {n}" for t, n in sorted(d.ports.items()))
+            elif d.problems:
+                state = "cannot be replaced: " + "; ".join(d.problems)
+            else:
+                state = "not replaced: simulated as layout"
+            lines.append(f"{d.pcell} {name} {d.params}: {state}")
+        lines += [f"{count} x {qname}: not supported yet" for qname, count in unknown]
+        self.devices_detail.setText("\n".join(lines) or "no PDK devices (SG13_dev pcells) in the cell")
+        if not devices and not unknown:
+            self.devices_step.set(OK, "none")
+            return
+        parts = [f"{len(devices)} device(s), {len(replaced)} replaced by ports"] if devices else []
+        if unknown:
+            parts.append(f"{sum(c for _, c in unknown)} not supported")
+        state = OK if len(replaced) == len(devices) and not unknown else WARN
+        self.devices_step.set(state, ", ".join(parts))
+
+    def _replace_devices(self):
+        view, cv = self._view()
+        if view is not None:
+            done = gui.replace_devices(view, cv)
+            self.refresh()
+            gui._status(f"{len(done)} device(s) replaced by ports", 10)
+
+    def _unreplace_devices(self):
+        view, cv = self._view()
+        if view is not None:
+            removed = gui.unreplace_devices(view, cv)
+            self.refresh()
+            gui._status(f"device replacement undone ({removed} shape(s) removed)", 10)
+
     def _fill_table(self, layout, cell, stackup, crossings):
         self.table.setRowCount(0)
         self.rows = []
@@ -275,6 +323,9 @@ class EMPanel(pya.QWidget):
                                          else f"{s.direction} on {s.target}")
             if s is not None and s.voltage == 0:
                 text += " (not excited)"
+            device = device_of(port)
+            if device is not None:
+                text += f"  [{device[1]} of {device[0].split('@')[0]}]"
             self._add_row(("port", port), (str(port.number), str(layer), text, "", "; ".join(problems) or "ok"))
         proposed = [c for c in crossings if c.needs_port]
         unground = [c for c in crossings if not c.ground and c.port is None and c.ground_layer is None]

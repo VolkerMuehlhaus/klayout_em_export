@@ -33,6 +33,18 @@ summary; the arrow shows its details and buttons.
     vertically adjacent metals (from the stackup's z positions). Activ, Cont, resistors and the PEC sheets are left
     out, so a transistor or resistor is an open circuit here. Ground that is joined only outside the region shows
     up as separate pieces.
+- **Devices**: PDK transistors (SG13_dev pcells with named pins: npn13G2, npn13G2L, npn13G2V, rf MOSFETs) found in
+  the cell, and whether they are replaced by ports. The reference plane is at the pcell's pins: the device model
+  (circuit simulator) covers the device up to its pins, the EM model everything from there on.
+  - **Replace All** adds, in the layout and tagged (GDS property 202): one `REF_FOR_TRANSISTOR` patch over each
+    device (bounding box + 0.2 um), and one via port per terminal from Metal1 down to that patch: along the pin if
+    it is on Metal1, else along the device's Metal1 piece under the pin closest to its center (the npn emitter is
+    a Metal2 strip on one Metal1 island per finger). **Undo Replace** removes them again.
+  - The export removes the replaced devices' own shapes below Metal1 (Activ, Cont, poly, implants); their Metal1
+    and above stay. Your own shapes are not touched.
+  - The port map names the device and terminal of these ports, for connecting the `.snp` to the device models.
+  - Plain nmos/pmos (unnamed or no pins) are not supported yet; they are listed. Recognition needs the SG13G2 PDK
+    library loaded in KLayout.
 - **Ports**: one table with the ports of the cell and the ports proposed where the EM region box cuts conductors.
   - Columns: number and layer in the layout, the port, its number in the export (and the `.snp`; "outside" if it
     is not in the region), and its status: ok, its problems (incomplete, layers not drawn at the port, short
