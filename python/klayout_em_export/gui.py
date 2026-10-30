@@ -54,11 +54,53 @@ def _current():
     return view, view.active_cellview()
 
 
+# ---------- values per layout ----------
+# Stored twice: in the layout's meta info (saved with the layout) and in the settings file under the layout's file
+# name. Adding meta info does not mark the layout as modified, so KLayout does not ask to save it on close; the
+# settings file keeps the value when the layout is closed without saving.
+
+def _layout_file(layout):
+    """File name of layout, found through the open views (a pya.Layout does not know it), or ""."""
+    main_window = pya.Application.instance().main_window()
+    if layout is None or main_window is None:
+        return ""
+    for i in range(main_window.views()):
+        view = main_window.view(i)
+        for j in range(view.cellviews()):
+            if view.cellview(j).layout() is layout:
+                return view.cellview(j).filename()
+    return ""
+
+
+def _file_key(path):
+    return os.path.normcase(os.path.abspath(path))
+
+
+def layout_value(layout, meta_name):
+    """Value stored for this layout: its meta info, else the settings file's record for its file, else None."""
+    value = layout.meta_info_value(meta_name) if layout is not None else None
+    if value:
+        return value
+    path = _layout_file(layout)
+    return _load_settings().get("layouts", {}).get(_file_key(path), {}).get(meta_name) if path else None
+
+
+def set_layout_value(layout, meta_name, value, description):
+    if layout is None:
+        return
+    layout.add_meta_info(pya.LayoutMetaInfo(meta_name, value, description, True))
+    path = _layout_file(layout)
+    if path:
+        settings = _load_settings()
+        settings.setdefault("layouts", {}).setdefault(_file_key(path), {})[meta_name] = value
+        _save_settings(settings)
+
+
 # ---------- stackup, one per layout ----------
 
 def stackup_path(layout):
     """The layout's stackup, else the last one used, or "" if there is none (or the file is gone)."""
-    path = layout.meta_info_value(META_STACKUP) if layout is not None else None
+    path = layout_value(layout, META_STACKUP)
     if path and os.path.isfile(path):
         return path
     path = _load_settings().get("stackup", "")
@@ -66,8 +108,7 @@ def stackup_path(layout):
 
 
 def set_stackup(layout, path):
-    if layout is not None:
-        layout.add_meta_info(pya.LayoutMetaInfo(META_STACKUP, path, "gds2palace stackup for EM export", True))
+    set_layout_value(layout, META_STACKUP, path, "gds2palace stackup for EM export")
     settings = _load_settings()
     settings["stackup"] = path
     _save_settings(settings)
@@ -100,14 +141,14 @@ def choose_stackup():
 def ground_seeds(layout):
     """[(GDS layer, Point)] of the marked ground shapes of this layout."""
     try:
-        return [(int(l), pya.Point(int(x), int(y))) for l, x, y in json.loads(layout.meta_info_value(META_GROUND) or "[]")]
+        return [(int(l), pya.Point(int(x), int(y))) for l, x, y in json.loads(layout_value(layout, META_GROUND) or "[]")]
     except (TypeError, ValueError):
         return []
 
 
 def _set_ground_seeds(layout, seeds):
-    layout.add_meta_info(pya.LayoutMetaInfo(META_GROUND, json.dumps([[l, p.x, p.y] for l, p in seeds]),
-                                            "EM export: points in the marked ground shapes", True))
+    set_layout_value(layout, META_GROUND, json.dumps([[l, p.x, p.y] for l, p in seeds]),
+                     "EM export: points in the marked ground shapes")
 
 
 def mark_ground():
@@ -217,7 +258,7 @@ def open_in_setupem(simcfg_path):
 
 def last_simcfg(layout):
     """The .simcfg of this layout's last export, or None if there was none (or it is gone)."""
-    gds = layout.meta_info_value(META_OUTPUT) if layout is not None else None
+    gds = layout_value(layout, META_OUTPUT)
     path = os.path.splitext(gds)[0] + ".simcfg" if gds else None
     return path if path and os.path.isfile(path) else None
 
@@ -303,7 +344,7 @@ class ExportDialog(pya.QDialog):
         return self.mode_shapes is not None and self.mode_shapes.isChecked()
 
     def _default_output(self, cv):
-        remembered = self.em_layout.meta_info_value(META_OUTPUT)
+        remembered = layout_value(self.em_layout, META_OUTPUT)
         if remembered:
             return remembered
         base = os.path.splitext(cv.filename())[0] if cv.filename() else os.path.join(os.path.expanduser("~"), self.cell.name)
@@ -384,7 +425,7 @@ def export_region():
         elif cv.filename() and os.path.normcase(os.path.abspath(gds_path)) == os.path.normcase(os.path.abspath(cv.filename())):
             problem = "The output file is the layout itself. Choose another file."
         if problem is None:
-            if (os.path.exists(gds_path) and gds_path != layout.meta_info_value(META_OUTPUT) and
+            if (os.path.exists(gds_path) and gds_path != layout_value(layout, META_OUTPUT) and
                     pya.MessageBox.question("EM Export", f"{gds_path} exists. Overwrite it?",
                                             pya.MessageBox.Yes | pya.MessageBox.No) != pya.MessageBox.Yes):
                 continue
@@ -401,7 +442,7 @@ def export_region():
     simcfg_path = os.path.splitext(gds_path)[0] + ".simcfg"
     port_list = simcfg_ports(ports)
     kept = write_simcfg(simcfg_path, gds_path, stackup.path, result.cellname, ports=port_list)
-    layout.add_meta_info(pya.LayoutMetaInfo(META_OUTPUT, gds_path, "EM export output file", True))
+    set_layout_value(layout, META_OUTPUT, gds_path, "EM export output file")
     settings = _load_settings()
     settings["open_setupem"] = dialog.setupem.isChecked()
     settings.pop("export_mode", None)      # no longer remembered: a selection always starts as "selected shapes"

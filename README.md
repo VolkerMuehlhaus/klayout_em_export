@@ -72,7 +72,9 @@ The same steps are in the **EM** menu in the menu bar, top to bottom in workflow
      layout, where they are defined.
 
 Remembered in `~/.klayout_em_export.json`: the last stackup, the last port settings, the setupEM program and the
-setupEM option. If `setupEM` is not on the `PATH` that KLayout sees, the plug-in asks once for the program (e.g.
+setupEM option; and per layout file its stackup, last export and ground marks. These are also stored in the layout
+itself (saved with it), but storing them does not mark the layout as modified, so the settings file keeps them
+when the layout is closed without saving. If `setupEM` is not on the `PATH` that KLayout sees, the plug-in asks once for the program (e.g.
 `<venv>\Scripts\setupEM.exe`).
 
 ## Modules
