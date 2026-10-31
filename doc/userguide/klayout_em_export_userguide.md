@@ -432,9 +432,10 @@ When the panel shows green checks (or orange ones you have checked), press **Exp
 ![The export dialog](images/11_export_dialog.png)
 
 - **Region** and **Stackup**: as in the panel.
-- **Output GDS**: where to write the layout. The settings file for setupEM (`.simcfg`) is written next to it.
+- **Output GDS**: where to write the layout. The settings file for setupEM and EMStudio (`.simcfg`) is written
+  next to it.
 - **Ports**: how many, and whether they are complete.
-- **Open in setupEM after the export**: starts setupEM with the result (chapter 11).
+- **Open after the export in**: starts setupEM (chapter 11) or EMStudio with the result. The choice is remembered.
 
 Press **Export**. You get three files, e.g. for `cascode_em.gds`:
 
@@ -454,7 +455,8 @@ Good to know:
   signal metal on the same end. That is why port 15 (Metal2 below its ground on Metal5) comes out as `-Z` in setupEM.
 - **Exporting again** keeps everything you set in setupEM (frequencies, mesh, ...) and only updates layout, stackup
   and ports.
-- **Open in setupEM** in the panel opens the last export again, without exporting.
+- **Open in setupEM** (or **Open in EMStudio**) in the panel opens the last export again, without exporting. The
+  other program is in the EM menu.
 
 **What can go wrong:** you export again after a layout change, but run the old model script (`.py`) from setupEM.
 The script reads the new layout under the same file name, with its old port list. Port numbers can shift when a
@@ -462,7 +464,8 @@ port is added or removed, so the old script's port 3 may now be another port, an
 belong to the port map. The export checks the model scripts next to the layout (and in setupEM's output folder)
 and warns about each one whose ports differ. Then create the model again in setupEM. A script you edited by hand:
 open it with setupEM's **File > Edit *.py model in place**, set the ports in the Ports tab, and Create Model writes
-only the changed values into it.
+only the changed values into it. An EMStudio model next to the layout is updated by EMStudio itself when the export
+opens it there, see below.
 
 ## setupEM and the Palace run
 
@@ -504,6 +507,21 @@ of gds2palace). After the run, `combine_snp` writes the S-parameter files, for t
 **What can go wrong:** a sweep that starts at 1 GHz or higher gives a 0 Hz point that is extrapolated too far. Its
 DC paths are not accurate enough for a bias network with kOhm resistors. Create Circuit then protects the bias with
 DC blocks (chapter 12), but the cleaner way is to start at 0.
+
+### EMStudio instead of setupEM
+
+EMStudio does the same job in one window: model settings, the Palace run and the results. Choose **EMStudio** next
+to **Open after the export in**. EMStudio then reads the export the way setupEM does.
+
+- **The first time**, EMStudio makes a new Palace model from the export: layout, cell, stackup and ports. Set the
+  frequencies there, starting at **0 GHz** as above, and save. The model is saved as `<name>.py` next to the
+  layout, e.g. `cascode_em.py`.
+- **After a layout change**, export again. EMStudio finds `cascode_em.py` and updates only its ports, layout,
+  stackup and cell. Your frequencies and mesh stay. Save to keep the update.
+- The port directions arrive as exported, `-Z` included, so the circuit wrapper fits.
+
+You need an EMStudio with **File > Import setupEM Config**. If the plug-in cannot find EMStudio, it asks once
+where the program is.
 
 ## Back to the circuit: Create Circuit
 
@@ -643,7 +661,7 @@ ground, which adds a few fF. In the cascode that lowers S21 by 0.06 dB at 10 GHz
 | layer '...' is not a metal of the stackup | a port uses a layer the stackup does not know | choose another layer in the port dialog |
 | ... is not drawn at the port | the port's from/to layer has no metal at the port | check the port position and layers |
 | All port layers 201..299 are used | no free port layer left | remove unused ports |
-| This layout has not been exported yet | Open in setupEM needs an export first | press Export for EM... |
+| This layout has not been exported yet | Open in setupEM or EMStudio needs an export first | press Export for EM... |
 | no 0 Hz point in the .sNp | the EM result has no DC point | start the sweep at 0 Hz (chapter 11) |
 
 ## Reference
@@ -661,12 +679,12 @@ ground, which adds a few fF. In the cascode that lowers S21 by 0.06 dB at 10 GHz
 | File | Written by | Content |
 | --- | --- | --- |
 | `<name>_em.gds` | Export | flat layout for the EM simulation |
-| `<name>_em.simcfg` | Export | setupEM settings |
+| `<name>_em.simcfg` | Export | settings for setupEM and EMStudio |
 | `<name>_em_portmap.json` | Export | ports: layout number, device and terminal, net |
 | `<model>.sNp`, `<model>_dc.sNp` | gds2palace after Palace | S-parameters, without and with the 0 Hz point |
 | `..._<simulator>.cir` / `.inc` / `.scs` | Create Circuit | the circuit |
 | `..._le.cir` / `_le.inc` | Create Circuit (snp2le) | the EM model's equivalent circuit |
-| `~/.klayout_em_export.json` | the plug-in | remembered choices: stackup, setupEM, Create Circuit settings |
+| `~/.klayout_em_export.json` | the plug-in | remembered choices: stackup, setupEM and EMStudio, Create Circuit settings |
 
 ### Limits
 

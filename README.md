@@ -1,7 +1,8 @@
 # klayout_em_export
 
 KLayout plug-in that exports part of a layout for EM simulation with
-[gds2palace](https://github.com/VolkerMuehlhaus/gds2palace_ihp_sg13g2) and hands it to setupEM. Work in progress.
+[gds2palace](https://github.com/VolkerMuehlhaus/gds2palace_ihp_sg13g2) and hands it to setupEM or
+[EMStudio](https://github.com/IHP-GmbH/EMStudio). Work in progress.
 
 **User's guide** for RFIC designers, step by step with screenshots: [doc/userguide](doc/userguide/klayout_em_export_userguide.md) ([PDF](doc/userguide/klayout_em_export_userguide.pdf)).
 
@@ -95,7 +96,8 @@ summary; the arrow shows its details and buttons.
     they are reported as no longer on the edge. Proposals need the EM region box, since the ports are drawn in
     the layout.
   - Ports drawn with KLayout's own tools appear on **Refresh**.
-- **Export for EM...** and **Open in setupEM** (the last export of this layout, without exporting again).
+- **Export for EM...** and **Open in setupEM** or **Open in EMStudio** (the last export of this layout, without
+  exporting again; the program last chosen in the export dialog, the other one is in the EM menu).
 
 The same steps are in the **EM** menu in the menu bar, top to bottom in workflow order:
 
@@ -126,7 +128,10 @@ The same steps are in the **EM** menu in the menu bar, top to bottom in workflow
    - Stackup (Change...), output GDS (Browse...; default `<layout>_em.gds`, then the last output of this layout).
    - The ports with their problems. Ports without complete settings are exported as shapes but left out of the
      `.simcfg`, because setupEM cannot load them. Only the stackup's layers are exported; the others are dropped.
-   - "Open in setupEM after the export". The `.simcfg` is written next to the GDS.
+   - "Open after the export in setupEM / EMStudio". The `.simcfg` is written next to the GDS. EMStudio imports it
+     as a Palace model (File > Import setupEM Config, needs EMStudio with that import, IHP-GmbH/EMStudio PR #53);
+     when `<name>.py` exists next to the `.simcfg`, EMStudio updates only that model's ports, layout file, stackup,
+     cell and purpose, and keeps its frequencies, mesh, boundaries and code.
    - Ports are numbered without gaps in the export: the complete ports 1..N in layout order, then the incomplete
      ones. The `.simcfg` and so the `.snp` use these numbers, the exported GDS the port layers 201.. in that order
      (without the stackup's own layers in that range, e.g. SUBGND on 210 or 250); `<name>_portmap.json` maps them
@@ -138,15 +143,16 @@ The same steps are in the **EM** menu in the menu bar, top to bottom in workflow
    - After the export, model scripts (`*.py` next to the GDS and in setupEM's `sim_path`) that read this GDS but
      have other ports are reported (port number, layer, direction, from/to/target; not excitation or Z0): run as
      they are, their S-parameters would not match the new port map. Create the model again, or update a
-     hand-edited script with setupEM's Edit *.py model in place.
+     hand-edited script with setupEM's Edit *.py model in place. When the export opens EMStudio, the EMStudio
+     model `<name>.py` next to the `.simcfg` is not reported: EMStudio updates its ports on that import.
 7. **Create Circuit (EM Result with Devices)...**: after the Palace run, the EM result with the PDK devices put
    back, for ngspice, VACASK, Xyce or Spectre; see [Circuit wrapper](#circuit-wrapper-ngspice-vacask-xyce-spectre).
 
-Remembered in `~/.klayout_em_export.json`: the last stackup, the last port settings, the setupEM program and the
-setupEM option, the Create Circuit choices (Python with snp2le, PDK folder, simulator); and per layout file its stackup, last export and ground marks. These are also stored in the layout
+Remembered in `~/.klayout_em_export.json`: the last stackup, the last port settings, the setupEM and EMStudio
+programs, whether and where to open the export (`open_setupem`, `open_with`), the Create Circuit choices (Python with snp2le, PDK folder, simulator); and per layout file its stackup, last export and ground marks. These are also stored in the layout
 itself (saved with it), but storing them does not mark the layout as modified, so the settings file keeps them
-when the layout is closed without saving. If `setupEM` is not on the `PATH` that KLayout sees, the plug-in asks once for the program (e.g.
-`<venv>\Scripts\setupEM.exe`).
+when the layout is closed without saving. If `setupEM` or `EMStudio` is not on the `PATH` that KLayout sees, the plug-in asks once for the program (e.g.
+`<venv>\Scripts\setupEM.exe`, `<venv>/bin/setupEM`, `EMStudio.exe`).
 
 ## Circuit wrapper (ngspice, VACASK, Xyce, Spectre)
 

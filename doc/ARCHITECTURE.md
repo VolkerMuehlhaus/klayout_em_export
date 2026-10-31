@@ -14,7 +14,7 @@ KLayout layout
    |  EM panel / EM menu / EM Port tool          (this plug-in, inside KLayout)
    v
 <name>.gds + <name>.simcfg + <name>_portmap.json
-   |  setupEM -> gds2palace -> Palace (Linux)     (other repos)
+   |  setupEM or EMStudio -> gds2palace -> Palace (other repos)
    v
 <model>_dc.sNp
    |  Create Circuit -> tools/spice_wrapper.py   (this plug-in, outside KLayout: needs snp2le)
@@ -57,7 +57,7 @@ modules only collect input and call the core.
 | `export.py` | Writes one flat cell with only the stackup's layers and the port layers, clipped and merged. |
 | `simcfg.py` | Writes or updates setupEM's `.simcfg`. |
 | `modelcheck.py` | Finds model scripts that read an exported GDS but have other ports (stale after a re-export). |
-| `gui.py` | Menu, dialogs (export, port settings), persistence (layout meta info and settings file), setupEM launch. |
+| `gui.py` | Menu, dialogs (export, port settings), persistence (layout meta info and settings file), setupEM / EMStudio launch (`open_simcfg`, `launch_command`). |
 | `panel.py` | The docked EM panel: the workflow as a checklist (Stackup, Region, Ground, Devices, Ports). |
 | `tool.py` | The EM Port tool (`pya.Plugin`): hover preview, click for a via port, Shift+click for an in-plane port. |
 | `circuit.py` | Create Circuit dialog; runs `tools/spice_wrapper.py`. |
@@ -104,7 +104,10 @@ settings).
    and signal layer; each via port gets `Z` or `-Z` so its signal metal is on the same end as for all others.
 7. **Write `<name>.simcfg`** (`simcfg.write_simcfg`) with the complete ports only, and **`<name>_portmap.json`**
    (`ports.port_map`).
-8. Optionally open setupEM.
+8. Optionally open the `.simcfg` in setupEM (`setupEM -simcfg <file>`) or EMStudio (`EMStudio <file>`), as chosen in
+   the export dialog (`open_with`). EMStudio imports it as a Palace model, or, when `<name>.py` exists next to it,
+   updates only that model's ports, layout file, stackup, cell and purpose (EMStudio's `simcfgimport.cpp`). The
+   `.simcfg` stays the one contract for both programs; the plug-in writes no EMStudio-specific file.
 
 ### Output files
 
@@ -234,6 +237,9 @@ A hand-edited script keeps its code through setupEM's preserve mode (Edit *.py m
 yet take the new ports from the `.simcfg` there: loading a `.simcfg` ends preserve mode, so the ports are set in
 the Ports tab by hand.
 
+When the export opens EMStudio, the EMStudio model `<name>.py` next to the `.simcfg` is left out of that warning
+(`gui.updated_on_open`): EMStudio's import replaces its ports with the exported ones right away.
+
 ## 8. Tests
 
 There is no test runner: each test is a KLayout batch script (`klayout_app.exe -z -nc -rx -r tests/<test>.py`),
@@ -248,7 +254,7 @@ through `klayout_em_export_tests/pdk_env.py`.
 | Ports | `test_ports.py`, `test_locate.py`, `test_numbering.py`, `test_portlayers.py`, `test_boundary.py` |
 | Ground and nets | `test_ground.py`, `test_unconnected.py` |
 | Devices | `test_devices.py`, `test_mosfets.py`, `test_resistors.py`, `test_replaced_devices.py` (selection patches, ground voting, moved devices) (PDK needed) |
-| GUI pieces in batch | `test_panel.py`, `test_reopen.py` (stand-in view, own settings file) |
+| GUI pieces in batch | `test_panel.py`, `test_reopen.py` (stand-in view, own settings file), `test_open_with.py` (setupEM / EMStudio command line, which stale scripts are reported) |
 | Create Circuit | `test_circuit.py` (needs a Python with snp2le), `tests/simulators/` (Docker, Linux) |
 | Physics checks | `tests/resistor_palace/` (Palace), `doc/test_cascode_wrapper`, `doc/test_cascode_epi_tie` |
 | Example exports | `run_cascode_export.py`, `run_cascode_epitie_export.py`, `run_mpa_core_export.py` |

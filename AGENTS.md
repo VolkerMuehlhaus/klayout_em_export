@@ -34,7 +34,7 @@ OUT=/d/tmp/out /d/KLayout/klayout_app.exe -z -nc -rx -r tests/test_export.py
 
 - Two kinds of tests, run differently:
   - Tests that add the repo's `python/` to `sys.path` (all that need the PDK, plus `test_export`, `test_simcfg`,
-    `test_portlayers`, `test_circuit`): run them with `KLAYOUT_PATH` and `KLAYOUT_HOME` pointing to an empty
+    `test_portlayers`, `test_circuit`, `test_open_with`): run them with `KLAYOUT_PATH` and `KLAYOUT_HOME` pointing to an empty
     folder, so a user-installed sg13g2 technology does not collide (see `klayout_em_export_tests/run_all.sh`). The
     PDK comes from `../klayout_em_export_tests/pdk_env.py`, a sparse checkout made by its `setup_pdk.sh`.
   - The others (`test_boundary`, `test_ground`, `test_locate`, `test_numbering`, `test_panel`, `test_ports`,

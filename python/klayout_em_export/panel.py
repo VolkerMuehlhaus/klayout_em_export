@@ -167,7 +167,7 @@ class EMPanel(pya.QWidget):
         line = pya.QFrame()
         line.setFrameShape(pya.QFrame.HLine)
         column.addWidget(line)
-        self.open_button = _button("Open in setupEM", gui.open_last_in_setupem)
+        self.open_button = _button(f"Open in {gui.open_with()}", lambda: gui.open_last_export())
         row = pya.QHBoxLayout()
         row.addWidget(_button("Export for EM...", lambda: self._run(gui.export_region)))
         row.addWidget(self.open_button)
@@ -243,9 +243,11 @@ class EMPanel(pya.QWidget):
         self._fill_table(layout, cell, stackup, crossings)
         self._update_region()
         last = gui.last_simcfg(layout)
+        tool = gui.open_with()                  # as last chosen in the export dialog
+        self.open_button.setText(f"Open in {tool}")
         self.open_button.setEnabled(last is not None)
-        self.open_button.setToolTip(f"open {last} in setupEM, without exporting again" if last else
-                                    "this layout has not been exported yet")
+        self.open_button.setToolTip(f"open {last} in {tool}, without exporting again (the other program: EM menu)"
+                                    if last else "this layout has not been exported yet")
 
     def _region_size(self, layout, cell, stackup, clip):
         layers = wiring(stackup)[0]

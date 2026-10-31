@@ -261,31 +261,53 @@ def mark_region():
     view.add_missing_layers()
 
 
-# ---------- setupEM ----------
+# ---------- setupEM / EMStudio ----------
 
-def _setupem_command(settings):
-    exe = settings.get("setupEM") or shutil.which("setupEM") or shutil.which("setupEM.bat")
+# The programs that open the exported .simcfg. EMStudio imports it as a Palace model (File > Import setupEM Config);
+# when <name>.py exists next to it, EMStudio updates only that model's ports, layout file, stackup, cell and purpose.
+TOOLS = ("setupEM", "EMStudio")
+_TOOL_HINT = {"setupEM": "e.g. <venv>\\Scripts\\setupEM.exe or <venv>/bin/setupEM",
+              "EMStudio": "e.g. C:\\Program Files\\EMStudio\\EMStudio.exe or <EMStudio folder>/EMStudio"}
+
+
+def open_with(settings=None):
+    """The program that opens exports: 'setupEM' (default) or 'EMStudio', as last chosen in the export dialog."""
+    tool = (settings if settings is not None else _load_settings()).get("open_with", "setupEM")
+    return tool if tool in TOOLS else "setupEM"
+
+
+def launch_command(tool, exe, simcfg_path):
+    """Command line that opens simcfg_path in tool (setupEM: -simcfg <file>, EMStudio: the file itself)."""
+    return [exe, "-simcfg", simcfg_path] if tool == "setupEM" else [exe, simcfg_path]
+
+
+def _program(tool, settings):
+    """Path of tool's program: the one chosen before, else on PATH, else asked for (and remembered)."""
+    exe = settings.get(tool) or shutil.which(tool) or shutil.which(tool + ".bat")
     if exe and os.path.isfile(exe):
         return exe
-    exe = pya.FileDialog.ask_open_file_name("Where is setupEM? (e.g. <venv>\\Scripts\\setupEM.exe)", "",
-                                            "Programs (*.exe *.bat);;All files (*)")
+    programs = "Programs (*.exe *.bat);;All files (*)" if os.name == "nt" else "All files (*)"
+    exe = pya.FileDialog.ask_open_file_name(f"Where is {tool}? ({_TOOL_HINT[tool]})", "", programs)
     if exe:
-        settings["setupEM"] = exe
+        settings[tool] = exe
         _save_settings(settings)
     return exe
 
 
-def open_in_setupem(simcfg_path):
-    exe = _setupem_command(_load_settings())
+def open_simcfg(simcfg_path, tool=None):
+    """Open simcfg_path in tool (default: open_with())."""
+    settings = _load_settings()
+    tool = tool or open_with(settings)
+    exe = _program(tool, settings)
     if not exe:
         return
     env = os.environ.copy()
-    env.pop("PYTHONHOME", None)      # KLayout's own Python must not leak into setupEM's
+    env.pop("PYTHONHOME", None)      # KLayout's own Python must not leak into the Pythons these programs run
     env.pop("PYTHONPATH", None)
     try:
-        subprocess.Popen([exe, "-simcfg", simcfg_path], env=env)
+        subprocess.Popen(launch_command(tool, exe, simcfg_path), env=env)
     except OSError as e:
-        pya.MessageBox.critical("EM Export", f"Failed to start setupEM:\n{e}", pya.MessageBox.Ok)
+        pya.MessageBox.critical("EM Export", f"Failed to start {tool}:\n{e}", pya.MessageBox.Ok)
 
 
 def last_simcfg(layout):
@@ -295,8 +317,8 @@ def last_simcfg(layout):
     return path if path and os.path.isfile(path) else None
 
 
-def open_last_in_setupem():
-    """Open the last export of the current layout in setupEM, without exporting again."""
+def open_last_export(tool=None):
+    """Open the last export of the current layout in tool (default: open_with()), without exporting again."""
     view, cv = _current()
     if view is None:
         return
@@ -305,8 +327,9 @@ def open_last_in_setupem():
         pya.MessageBox.warning("EM Export", "This layout has not been exported yet (or its .simcfg is gone). "
                                "Use Export for EM first.", pya.MessageBox.Ok)
         return
-    open_in_setupem(path)
-    _status(f"setupEM: {path}", 10)
+    tool = tool or open_with()
+    open_simcfg(path, tool)
+    _status(f"{tool}: {path}", 10)
 
 
 # ---------- export ----------
@@ -357,13 +380,23 @@ class ExportDialog(pya.QDialog):
         row.addWidget(self.output, 1)
         row.addWidget(browse)
         form.addRow("Output GDS", row)
-        form.addRow("", pya.QLabel("The .simcfg for setupEM is written next to it."))
+        form.addRow("", pya.QLabel("The .simcfg for setupEM and EMStudio is written next to it."))
         self.ports = pya.QLabel()
         self.ports.setWordWrap(True)
         form.addRow("Ports", self.ports)
-        self.setupem = pya.QCheckBox("Open in setupEM after the export")
-        self.setupem.setChecked(_load_settings().get("open_setupem", True))
-        form.addRow("", self.setupem)
+        settings = _load_settings()
+        self.open_after = pya.QCheckBox("Open after the export in")
+        self.open_after.setChecked(settings.get("open_setupem", True))
+        self.open_tool = pya.QComboBox()
+        self.open_tool.addItems(list(TOOLS))
+        self.open_tool.setCurrentIndex(TOOLS.index(open_with(settings)))
+        self.open_tool.setToolTip("EMStudio imports the .simcfg as a Palace model; when <name>.py exists next to "
+                                  "it, only that model's ports, layout file, stackup, cell and purpose are updated")
+        row = pya.QHBoxLayout()
+        row.addWidget(self.open_after)
+        row.addWidget(self.open_tool)
+        row.addStretch(1)
+        form.addRow("", row)
         buttons = pya.QDialogButtonBox(self)
         self.export_button = buttons.addButton("Export", pya.QDialogButtonBox.AcceptRole)
         buttons.addButton(pya.QDialogButtonBox.Cancel)
@@ -505,18 +538,32 @@ def export_region():
         json.dump(port_map(ports, numbering, devices, nets, directions), f, indent=2)
     set_layout_value(layout, META_OUTPUT, gds_path, "EM export output file")
     settings = _load_settings()
-    settings["open_setupem"] = dialog.setupem.isChecked()
+    open_after = dialog.open_after.isChecked()
+    tool = TOOLS[dialog.open_tool.currentIndex]
+    settings["open_setupem"] = open_after               # "open after the export", whichever program
+    settings["open_with"] = tool
     settings.pop("export_mode", None)      # no longer remembered: a selection always starts as "selected shapes"
     _save_settings(settings)
     _status(f"Exported {gds_path} and {os.path.basename(simcfg_path)} ({len(port_list)} of {len(ports)} port(s) "
             "in the .simcfg" + ("; setupEM's other settings kept" if kept else "") + ")", 10)
-    _warn_stale_scripts(gds_path, simcfg_path, port_list)
-    if dialog.setupem.isChecked():
-        open_in_setupem(simcfg_path)
+    _warn_stale_scripts(gds_path, simcfg_path, port_list, tool if open_after else None)
+    if open_after:
+        open_simcfg(simcfg_path, tool)
 
 
-def _warn_stale_scripts(gds_path, simcfg_path, port_list):
-    """Warn about model scripts that read the exported GDS but still have other ports (made before a re-export)."""
+def updated_on_open(stale, simcfg_path, tool):
+    """The stale scripts (stale_scripts) left to warn about when simcfg_path is opened in tool right after the
+    export: EMStudio updates <name>.py next to the .simcfg on import (ports, layout file, stackup, cell, purpose),
+    so that one is not stale for long. tool None: nothing is opened."""
+    if tool != "EMStudio":
+        return stale
+    model = os.path.normcase(os.path.abspath(os.path.splitext(simcfg_path)[0] + ".py"))
+    return [(path, diff) for path, diff in stale if os.path.normcase(os.path.abspath(path)) != model]
+
+
+def _warn_stale_scripts(gds_path, simcfg_path, port_list, opened_in=None):
+    """Warn about model scripts that read the exported GDS but still have other ports (made before a re-export).
+    opened_in: the program the export opens right now (see updated_on_open)."""
     from .modelcheck import stale_scripts
     folders = [os.path.dirname(os.path.abspath(gds_path))]
     try:
@@ -526,7 +573,7 @@ def _warn_stale_scripts(gds_path, simcfg_path, port_list):
             folders.append(sim_path)
     except (OSError, ValueError):
         pass
-    stale = stale_scripts(gds_path, port_list, folders)
+    stale = updated_on_open(stale_scripts(gds_path, port_list, folders), simcfg_path, opened_in)
     if not stale:
         return
     lines = []
@@ -538,7 +585,9 @@ def _warn_stale_scripts(gds_path, simcfg_path, port_list):
         "S-parameters do not match the new port map:\n\n" + "\n\n".join(lines) +
         "\n\nCreate the model again in setupEM. If you edited a script by hand, open it in setupEM with "
         "File > \"Edit *.py model in place\" and set its ports to the new ones in the Ports tab (only the "
-        "changed values are written, your code stays), or change its ports yourself.",
+        "changed values are written, your code stays), or change its ports yourself. An EMStudio model "
+        "<name>.py next to the .simcfg is updated by opening the .simcfg in EMStudio (File > Import setupEM "
+        "Config): its ports, layout file, stackup and cell follow the export, its other settings stay.",
         pya.MessageBox.Ok)
 
 
@@ -781,7 +830,8 @@ def install_menu():
                None,
                ("mark_region", "Mark EM Region from Selection", mark_region),
                ("export_region", "Export for EM...", export_region),
-               ("open_setupem", "Open Last Export in setupEM", open_last_in_setupem),
+               ("open_setupem", "Open Last Export in setupEM", lambda: open_last_export("setupEM")),
+               ("open_emstudio", "Open Last Export in EMStudio", lambda: open_last_export("EMStudio")),
                ("create_circuit", "Create Circuit (EM Result with Devices)...", _create_circuit))
     for n, entry in enumerate(entries):
         if entry is None:
