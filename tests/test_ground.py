@@ -5,14 +5,13 @@
 import os
 import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from testpaths import GDS2PALACE, palace_testcases
+from testpaths import EXAMPLE_BCE, STACKUP, palace_testcases
 import json
 import pya
 from klayout_em_export.connectivity import check_ground
 from klayout_em_export.ports import PROP_KEY, PortSettings, collect_ports
 from klayout_em_export.stackup import Stackup
 
-IHP = GDS2PALACE
 
 
 def run(title, gds, stackup_file, settings, seeds=()):
@@ -29,10 +28,10 @@ def run(title, gds, stackup_file, settings, seeds=()):
 
 
 run("OctaDiffTap, ground from the via ports", palace_testcases("demo_mcp", "OctaDiffTap_0n50_ports3.gds"),
-    os.path.join(IHP, r"XML_stackup\latest\IHP\SG13G2_FEM_200um.xml"),
+    STACKUP,
     {l: PortSettings("Z", "Metal1", "TopMetal2") for l in (201, 202, 203)})
 
-ex = os.path.join(IHP, r"more_examples\core_transistor_3port_bce")
+ex = EXAMPLE_BCE
 simcfg = json.load(open(os.path.join(ex, "50_ghz_mpa_core_bce_ports.simcfg")))
 settings = {p["source_layernum"]: PortSettings(p["direction"], p["from_layername"] or "", p["to_layername"] or "",
                                                p["target_layername"] or "", p["port_Z0"], p["voltage"])
@@ -43,12 +42,12 @@ run("3-port BCE transistor, ground from the via ports", os.path.join(ex, "50_ghz
 
 run("OctaDiffTap, marked: the LA feed on TopMetal2 (ports would say Metal1)",
     palace_testcases("demo_mcp", "OctaDiffTap_0n50_ports3.gds"),
-    os.path.join(IHP, r"XML_stackup\latest\IHP\SG13G2_FEM_200um.xml"),
+    STACKUP,
     {l: PortSettings("Z", "Metal1", "TopMetal2") for l in (201, 202, 203)}, seeds=[(134, 33.7, -41.5)])
 
 # a shorted port: OctaDiffTap with a TopVia-free direct short is not available, so use a port whose both ends are
 # the inductor: TopMetal1 -> TopMetal2 at a TopVia2 crossing joins the same net
-st = Stackup(os.path.join(IHP, r"XML_stackup\latest\IHP\SG13G2_FEM_200um.xml"))
+st = Stackup(STACKUP)
 ly = pya.Layout(); ly.read(palace_testcases("demo_mcp", "OctaDiffTap_0n50_ports3.gds"))
 cell = ly.top_cell()
 for layer in (201, 202, 203):

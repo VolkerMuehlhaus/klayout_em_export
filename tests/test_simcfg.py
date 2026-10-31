@@ -2,12 +2,12 @@
 import os
 import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from testpaths import STACKUP
+from testpaths import STACKUP, out_dir
 import json
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "python"))
 from klayout_em_export.simcfg import port_entry, write_simcfg
 
-out = sys.argv[1] if len(sys.argv) > 1 else os.environ["OUT"]
+out = sys.argv[1] if len(sys.argv) > 1 else out_dir("simcfg")
 path, gds = os.path.join(out, "keep_em.simcfg"), os.path.join(out, "e2e_em.gds")
 stackup = STACKUP
 if os.path.exists(path):
