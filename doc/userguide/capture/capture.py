@@ -99,6 +99,20 @@ def view_image(name, box=None, width=1400, height=900, ports=True, refs=True):
     say(f"image {name}")
 
 
+def dock_below_layers():
+    """The EM panel docked below KLayout's Layers panel, as on a fresh install. KLayout restores the dock layout of
+    the user's last session (the panel may be tabbed with Layers or floating), and floating it for grab_panel()
+    and back can tab it too; so place it explicitly before a main window shot."""
+    dock = gui._dock
+    dock.setFloating(False)
+    layers = next((w for w in mw.findChildren() if isinstance(w, pya.QDockWidget) and w is not dock
+                   and get(w.windowTitle) == "Layers"), None)
+    if layers is not None:
+        mw.splitDockWidget(layers, dock, pya.Qt.Vertical)
+    dock.show()
+    settle(40)
+
+
 def grab_panel(name, width=760):
     """The EM panel, floating and as tall as its content needs (docked, Qt squeezes open details)."""
     dock = gui._dock
@@ -176,6 +190,7 @@ def open_start():
     view.max_hier()
     view.zoom_fit()
     gui.show_panel()
+    dock_below_layers()
     expand(panel().stackup_step)
     grab(mw, "02_main_window_start")
     grab_panel("05_panel_no_stackup")
@@ -321,8 +336,7 @@ def export_dialog():
     say("exported: " + ", ".join(f for f in os.listdir(WORK) if f.startswith("cascode_em")))
     panel().refresh()
     expand()
-    gui._dock.setFloating(False)
-    settle(40)
+    dock_below_layers()
     grab(mw, "11_main_window_ready")
 
 
