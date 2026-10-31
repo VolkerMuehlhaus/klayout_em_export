@@ -510,8 +510,36 @@ def export_region():
     _save_settings(settings)
     _status(f"Exported {gds_path} and {os.path.basename(simcfg_path)} ({len(port_list)} of {len(ports)} port(s) "
             "in the .simcfg" + ("; setupEM's other settings kept" if kept else "") + ")", 10)
+    _warn_stale_scripts(gds_path, simcfg_path, port_list)
     if dialog.setupem.isChecked():
         open_in_setupem(simcfg_path)
+
+
+def _warn_stale_scripts(gds_path, simcfg_path, port_list):
+    """Warn about model scripts that read the exported GDS but still have other ports (made before a re-export)."""
+    from .modelcheck import stale_scripts
+    folders = [os.path.dirname(os.path.abspath(gds_path))]
+    try:
+        with open(simcfg_path) as f:
+            sim_path = json.load(f).get("saved_values", {}).get("sim_path")
+        if sim_path:
+            folders.append(sim_path)
+    except (OSError, ValueError):
+        pass
+    stale = stale_scripts(gds_path, port_list, folders)
+    if not stale:
+        return
+    lines = []
+    for path, diff in stale:
+        lines.append(os.path.basename(path) + ":\n  " + "\n  ".join(diff[:6]) + ("\n  ..." if len(diff) > 6 else ""))
+    pya.MessageBox.warning(
+        "EM Export",
+        "These model scripts read the exported GDS but have other ports than this export. Run as they are, their "
+        "S-parameters do not match the new port map:\n\n" + "\n\n".join(lines) +
+        "\n\nCreate the model again in setupEM. If you edited a script by hand, open it in setupEM with "
+        "File > \"Edit *.py model in place\" and set its ports to the new ones in the Ports tab (only the "
+        "changed values are written, your code stays), or change its ports yourself.",
+        pya.MessageBox.Ok)
 
 
 # ---------- ports ----------

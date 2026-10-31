@@ -56,6 +56,7 @@ modules only collect input and call the core.
 | `selection.py` | The selected shapes, flattened, completed with connecting vias and touching port shapes. |
 | `export.py` | Writes one flat cell with only the stackup's layers and the port layers, clipped and merged. |
 | `simcfg.py` | Writes or updates setupEM's `.simcfg`. |
+| `modelcheck.py` | Finds model scripts that read an exported GDS but have other ports (stale after a re-export). |
 | `gui.py` | Menu, dialogs (export, port settings), persistence (layout meta info and settings file), setupEM launch. |
 | `panel.py` | The docked EM panel: the workflow as a checklist (Stackup, Region, Ground, Devices, Ports). |
 | `tool.py` | The EM Port tool (`pya.Plugin`): hover preview, click for a via port, Shift+click for an in-plane port. |
@@ -225,6 +226,14 @@ Ports without complete settings are exported as shapes but left out of the `.sim
 them. Re-exporting keeps setupEM's own settings in an existing `.simcfg`: the ports always come from the layout,
 everything else from setupEM.
 
+The model script (`.py`) that setupEM writes is not updated by a re-export, and it reads the GDS by file name. Run
+after a re-export, it would use the new layout with its old ports, which may have been renumbered; Create Circuit
+would then wire the devices to the wrong ports, without any error. So the export reads the scripts next to the GDS
+and in setupEM's `sim_path` with `ast` (`modelcheck.py`, never run) and warns about each one whose ports differ.
+A hand-edited script keeps its code through setupEM's preserve mode (Edit *.py model in place), but setupEM cannot
+yet take the new ports from the `.simcfg` there: loading a `.simcfg` ends preserve mode, so the ports are set in
+the Ports tab by hand.
+
 ## 8. Tests
 
 There is no test runner: each test is a KLayout batch script (`klayout_app.exe -z -nc -rx -r tests/<test>.py`),
@@ -234,7 +243,7 @@ through `klayout_em_export_tests/pdk_env.py`.
 
 | Area | Tests |
 | --- | --- |
-| Export, selection, simcfg | `test_export.py`, `test_selection.py`, `test_simcfg.py` (also plain Python) |
+| Export, selection, simcfg | `test_export.py`, `test_selection.py`, `test_simcfg.py`, `test_modelcheck.py` (the last two also plain Python) |
 | Stackup parser | `test_stackup_drift.py` (plain Python): z positions against gds2palace's `util_stackup_reader.py` for every stackup in the sibling repos `gds2palace_ihp_sg13g2` and `EMStudio` |
 | Ports | `test_ports.py`, `test_locate.py`, `test_numbering.py`, `test_portlayers.py`, `test_boundary.py` |
 | Ground and nets | `test_ground.py`, `test_unconnected.py` |

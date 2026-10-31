@@ -135,6 +135,10 @@ The same steps are in the **EM** menu in the menu bar, top to bottom in workflow
    - Exporting again updates an existing `.simcfg`: the GDS file, stackup, cell and ports are set, everything
      else (frequencies, mesh, ... saved with setupEM's Save Config) is kept. The ports always come from the
      layout, where they are defined.
+   - After the export, model scripts (`*.py` next to the GDS and in setupEM's `sim_path`) that read this GDS but
+     have other ports are reported (port number, layer, direction, from/to/target; not excitation or Z0): run as
+     they are, their S-parameters would not match the new port map. Create the model again, or update a
+     hand-edited script with setupEM's Edit *.py model in place.
 7. **Create Circuit (EM Result with Devices)...**: after the Palace run, the EM result with the PDK devices put
    back, for ngspice, VACASK, Xyce or Spectre; see [Circuit wrapper](#circuit-wrapper-ngspice-vacask-xyce-spectre).
 
