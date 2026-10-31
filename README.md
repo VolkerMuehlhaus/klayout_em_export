@@ -5,6 +5,9 @@ KLayout plug-in that exports part of a layout for EM simulation with
 
 **User's guide** for RFIC designers, step by step with screenshots: [doc/userguide](doc/userguide/klayout_em_export_userguide.md) ([PDF](doc/userguide/klayout_em_export_userguide.pdf)).
 
+Developing the plug-in: [AGENTS.md](AGENTS.md) (working rules, tests, KLayout pitfalls) and
+[doc/ARCHITECTURE.md](doc/ARCHITECTURE.md) (modules, data formats, design decisions).
+
 ## Installation (development)
 
 Link the repo into KLayout's package folder, then restart KLayout (Windows, PowerShell):
@@ -54,8 +57,8 @@ summary; the arrow shows its details and buttons.
     poly, below Metal1: the gate port goes on your Metal1 gate contact, found by tracing the poly from the gate
     through Cont, and the export removes that traced poly and those contacts (their resistance belongs to the
     device side).
-  - Ports with several lines (multielement ports) need gds2palace 0.9.3 (branch `multi-element-ports`): it makes
-    them one Palace lumped port with parallel elements. Older gds2palace versions use only one of the lines.
+  - Ports with several lines (multielement ports) need gds2palace 0.9.3 (merged upstream, not yet on PyPI): it
+    makes them one Palace lumped port with parallel elements. Older gds2palace versions use only one of the lines.
   - Resistors: **Replace All** replaces them too while **include resistors** is ticked (the default). A replaced
     resistor gets two via ports, PLUS and MINUS, from its Metal1 heads down to its own REF patch; the export removes
     its body, contacts and implants. PLUS is the head with the lower coordinate along the resistor in the cell's own
@@ -180,17 +183,7 @@ N-port), and VACASK cannot yet (Touchstone import is planned).
   end; the port map records it with each port's net and signal layer. Export again if the port map lacks them.
 - Test report: [doc/test_cascode_wrapper](doc/test_cascode_wrapper/README.md).
 
-## Modules
+## Modules and tests
 
-- `stackup.py`: reads a gds2palace stackup XML. It finds the GDS layers the EM model reads, with derived layers (such
-  as the SG13G2 resistors) replaced by their source layers. It also lists the metal names for port dialogs.
-- `export.py`: writes one flat cell with only those layers and the port layers 201..299, optionally clipped to a box.
-  Metal is merged per layer. Port shapes are copied unchanged, so zero-width via-port lines survive. Every layer or
-  purpose that is left out is reported.
-- `simcfg.py`: writes a setupEM settings file (`.simcfg`) with the GDS file, stackup, cell and ports. setupEM takes
-  all other settings from its preferences.
-
-## Tests
-
-KLayout batch mode (`klayout_app.exe -z -nc -rx -r tests/test_export.py`), environment `GDS`, `STACKUP`, `OUT` and
-optionally `BOX="x1,y1,x2,y2"` (um).
+The module map, the data the plug-in stores in the layout and the export formats are in
+[doc/ARCHITECTURE.md](doc/ARCHITECTURE.md); how to run the batch tests is in [AGENTS.md](AGENTS.md).
