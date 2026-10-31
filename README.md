@@ -129,7 +129,10 @@ The same steps are in the **EM** menu in the menu bar, top to bottom in workflow
    - The ports with their problems. Ports without complete settings are exported as shapes but left out of the
      `.simcfg`, because setupEM cannot load them. Only the stackup's layers are exported; the others are dropped.
    - "Open after the export in setupEM / EMStudio". The `.simcfg` is written next to the GDS. EMStudio imports it
-     as a Palace model (File > Import setupEM Config, needs EMStudio with that import, IHP-GmbH/EMStudio PR #53);
+     as a Palace or OpenEMS model and asks which (File > Import setupEM Config, needs EMStudio with that import,
+     IHP-GmbH/EMStudio PR #53). For OpenEMS: use an OpenEMS stackup (gds2openEMS, never a gds2palace one), and
+     don't replace devices: device replacement (ports to `REF_FOR_TRANSISTOR`) is for Palace only. Neither the
+     plug-in nor EMStudio checks this;
      when `<name>.py` exists next to the `.simcfg`, EMStudio updates only that model's ports, layout file, stackup,
      cell and purpose, and keeps its frequencies, mesh, boundaries and code.
    - Ports are numbered without gaps in the export: the complete ports 1..N in layout order, then the incomplete

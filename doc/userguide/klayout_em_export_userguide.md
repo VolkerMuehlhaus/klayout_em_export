@@ -510,8 +510,9 @@ DC blocks (chapter 12), but the cleaner way is to start at 0.
 
 ### EMStudio instead of setupEM
 
-EMStudio does the same job in one window: model settings, the Palace run and the results. Choose **EMStudio** next
-to **Open after the export in**. EMStudio then reads the export the way setupEM does.
+EMStudio does the same job in one window: model settings, the simulation run and the results. Choose **EMStudio**
+next to **Open after the export in**. EMStudio then reads the export the way setupEM does, and asks whether the model
+is for **Palace** or **OpenEMS**.
 
 - **The first time**, EMStudio makes a new Palace model from the export: layout, cell, stackup and ports. Set the
   frequencies there, starting at **0 GHz** as above, and save. The model is saved as `<name>.py` next to the
@@ -519,6 +520,15 @@ to **Open after the export in**. EMStudio then reads the export the way setupEM 
 - **After a layout change**, export again. EMStudio finds `cascode_em.py` and updates only its ports, layout,
   stackup and cell. Your frequencies and mesh stay. Save to keep the update.
 - The port directions arrive as exported, `-Z` included, so the circuit wrapper fits.
+
+**For OpenEMS**, prepare the export differently:
+
+- **Stackup:** choose an OpenEMS stackup (from gds2openEMS), never a Palace one. They model some layers, e.g. the
+  MIM dielectric, differently.
+- **Devices:** don't replace them. Device ports end on a reference layer that only the Palace stackups have; for
+  OpenEMS, simulate the layout without device replacement.
+
+Nothing stops you from mixing these up, so check both before the export.
 
 You need an EMStudio with **File > Import setupEM Config**. If the plug-in cannot find EMStudio, it asks once
 where the program is.

@@ -105,9 +105,13 @@ settings).
 7. **Write `<name>.simcfg`** (`simcfg.write_simcfg`) with the complete ports only, and **`<name>_portmap.json`**
    (`ports.port_map`).
 8. Optionally open the `.simcfg` in setupEM (`setupEM -simcfg <file>`) or EMStudio (`EMStudio <file>`), as chosen in
-   the export dialog (`open_with`). EMStudio imports it as a Palace model, or, when `<name>.py` exists next to it,
+   the export dialog (`open_with`). EMStudio imports it as a Palace or OpenEMS model (it asks which), or, when
+   `<name>.py` exists next to it,
    updates only that model's ports, layout file, stackup, cell and purpose (EMStudio's `simcfgimport.cpp`). The
-   `.simcfg` stays the one contract for both programs; the plug-in writes no EMStudio-specific file.
+   `.simcfg` stays the one contract for both programs; the plug-in writes no EMStudio-specific file. The export
+   does not know the solver: device replacement and the stackup are Palace choices, and an OpenEMS model needs
+   an export without replaced devices and with a gds2openEMS stackup. Nothing enforces that (the user's decision,
+   2026-10-31: no layer-name checks in EMStudio).
 
 ### Output files
 

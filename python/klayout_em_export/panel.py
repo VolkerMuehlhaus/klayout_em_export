@@ -299,7 +299,13 @@ class EMPanel(pya.QWidget):
                 state = "not replaced: simulated as layout"
             lines.append(f"{d.pcell} {name} {d.params}: {state}")
         lines += [f"{count} x {qname}: not supported yet" for qname, count in unknown]
-        from .devices import orphaned_tags, touching_patches, unconnected_terminals
+        from .devices import REF_NAME, orphaned_tags, touching_patches, unconnected_terminals
+        # device ports end on the REF_FOR_TRANSISTOR sheet: a stackup without it cannot replace devices; Replace All
+        # would only say so afterwards. Device replacement is for Palace only (gds2palace stackups have the layer).
+        no_ref = stackup.layer(REF_NAME) is None and any(not d.replaced for d in devices)
+        if no_ref:
+            lines.insert(0, f"this stackup has no {REF_NAME} layer: devices cannot be replaced by ports (device "
+                            "replacement is for Palace, with a gds2palace stackup)")
         touching = touching_patches(layout, cell, stackup)
         loose = unconnected_terminals(layout, devices, self.result) if self.result is not None else []
         orphans = orphaned_tags(layout, cell, devices)
@@ -327,6 +333,8 @@ class EMPanel(pya.QWidget):
             parts.append(f"{len(loose)} terminal(s) not connected")
         if orphans:
             parts.append(f"ports of {len(orphans)} device(s) no longer there")
+        if no_ref:
+            parts.append(f"stackup has no {REF_NAME}")
         # an unreplaced resistor is a warning too: its sheet in the EM model lacks the PDK's width offset and contact
         # end resistance, so its R is too low (Palace: rhigh and rppd by 9 to 13 %, see tests/resistor_palace)
         state = (OK if all(d.replaced for d in devices) and not unknown and not touching and not loose and not orphans

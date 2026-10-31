@@ -273,7 +273,8 @@ def mark_region():
 
 # ---------- setupEM / EMStudio ----------
 
-# The programs that open the exported .simcfg. EMStudio imports it as a Palace model (File > Import setupEM Config);
+# The programs that open the exported .simcfg. EMStudio imports it as a Palace or OpenEMS model (it asks which;
+# File > Import setupEM Config);
 # when <name>.py exists next to it, EMStudio updates only that model's ports, layout file, stackup, cell and purpose.
 TOOLS = ("setupEM", "EMStudio")
 _TOOL_HINT = {"setupEM": "e.g. <venv>\\Scripts\\setupEM.exe or <venv>/bin/setupEM",
@@ -400,8 +401,9 @@ class ExportDialog(pya.QDialog):
         self.open_tool = pya.QComboBox()
         self.open_tool.addItems(list(TOOLS))
         self.open_tool.setCurrentIndex(TOOLS.index(open_with(settings)))
-        self.open_tool.setToolTip("EMStudio imports the .simcfg as a Palace model; when <name>.py exists next to "
-                                  "it, only that model's ports, layout file, stackup, cell and purpose are updated")
+        self.open_tool.setToolTip("EMStudio imports the .simcfg as a Palace or OpenEMS model (it asks which); when "
+                                  "<name>.py exists next to it, only that model's ports, layout file, stackup, cell "
+                                  "and purpose are updated")
         row = pya.QHBoxLayout()
         row.addWidget(self.open_after)
         row.addWidget(self.open_tool)
