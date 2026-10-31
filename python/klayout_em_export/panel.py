@@ -126,8 +126,10 @@ class EMPanel(pya.QWidget):
                     "ground and boundary checks for a region too large to check on every refresh")]))
         self.devices_detail = _label()
         self.include_resistors = pya.QCheckBox("include resistors")
-        self.include_resistors.setToolTip("also replace rsil, rppd, rhigh by two via ports each; unreplaced, the "
-                                          "stackup models them as sheet resistors")
+        self.include_resistors.setChecked(True)
+        self.include_resistors.setToolTip("also replace rsil, rppd, rhigh by two via ports each (recommended); "
+                                          "unreplaced, the stackup models them as sheet resistors of the drawn size, "
+                                          "without the PDK's width offset and contact end resistance: R too low")
         self.devices_step = Step("Devices", _details(self.devices_detail, [
             _button("Replace All", self._replace_devices,
                     "replace each PDK transistor (and, if ticked, each resistor) by ports at its pins: a "
@@ -283,7 +285,9 @@ class EMPanel(pya.QWidget):
             elif d.problems:
                 state = "cannot be replaced: " + "; ".join(d.problems)
             elif d.is_resistor:
-                state = "not replaced: simulated as layout (sheet resistor); optional"
+                low = "a few %" if d.pcell == "rsil" else "about 10 %"     # Palace, tests/resistor_palace
+                state = (f"not replaced: sheet resistor of the drawn size in the EM model, R {low} too low (no PDK "
+                         "width offset and contact end resistance)")
             else:
                 state = "not replaced: simulated as layout"
             lines.append(f"{d.pcell} {name} {d.params}: {state}")
@@ -310,8 +314,9 @@ class EMPanel(pya.QWidget):
             parts.append(f"{len(touching)} pair(s) of REF patches touch")
         if loose:
             parts.append(f"{len(loose)} terminal(s) not connected")
-        # resistors are optional: unreplaced ones do not make this a warning
-        state = OK if all(d.replaced for d in transistors) and not unknown and not touching and not loose else WARN
+        # an unreplaced resistor is a warning too: its sheet in the EM model lacks the PDK's width offset and contact
+        # end resistance, so its R is too low (Palace: rhigh and rppd by 9 to 13 %, see tests/resistor_palace)
+        state = OK if all(d.replaced for d in devices) and not unknown and not touching and not loose else WARN
         self.devices_step.set(state, ", ".join(parts))
 
     def _replace_devices(self):
