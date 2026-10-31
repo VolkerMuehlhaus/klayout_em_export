@@ -412,6 +412,8 @@ class ExportDialog(pya.QDialog):
             added = [f"{n} {names.get(layer, layer)}" for layer, n in sorted(self.completed.added_vias.items())]
             if self.completed.added_ports:
                 added.append(f"{self.completed.added_ports} port shape(s)")
+            if self.completed.added_patches:
+                added.append(f"{self.completed.added_patches} REF patch(es) of replaced devices")
             self.region.setText(region + "\nadded: " + (", ".join(added) or "nothing (no vias between selected "
                                                                              "metals, no touching ports)"))
         else:
@@ -422,10 +424,12 @@ class ExportDialog(pya.QDialog):
         clip = None if self.box is None else self.box.to_itype(self.em_layout.dbu)
         check = check_ground(self.em_layout, self.cell, self.stackup, clip, ground_seeds(self.em_layout), ports)
         problems += [f"port {n}: both ends are on the same net (short circuit)" for n in check.shorted]
-        from .devices import unconnected_terminals
+        from .devices import orphaned_tags, unconnected_terminals
         devices = find_layout_devices(self.em_layout, self.cell, self.stackup)[0]
         problems += [f"{t} of {d.pcell} {d.id.split('@')[0]} is not connected to any wiring"
                      for d, t in unconnected_terminals(self.em_layout, devices, check)]
+        problems += [f"ports of {i.split('@')[0]}: that device is no longer there (moved or deleted); Undo Replace, "
+                     "then Replace All" for i in sorted(orphaned_tags(self.em_layout, self.cell, devices))]
         left_out =[ports[layer].number for layer in sorted(ports) if not is_complete(ports[layer])]
         if not ports:
             text = "no ports in the region (add them with the EM Port tool)"

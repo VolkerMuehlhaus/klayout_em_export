@@ -20,7 +20,8 @@ def check(ok, text):
 check(os.path.isfile(circuit.WRAPPER), f"wrapper found: {circuit.WRAPPER}")
 check(circuit.default_output("a/b_dc.s15p", "xyce", "snp") == "a/b_dc_xyce_snp.cir", "default output name")
 setupem = os.path.join(os.path.dirname(python), "setupEM.exe" if os.name == "nt" else "setupEM")
-check(circuit.default_python({"setupEM": setupem}) == python, "the Python next to setupEM is the default")
+found = circuit.default_python({"setupEM": setupem})       # KLayout's Python joins paths with "/": compare files
+check(bool(found) and os.path.samefile(found, python), "the Python next to setupEM is the default")
 for label, simulator, em in circuit.CHOICES:
     target = os.path.join(out, os.path.basename(circuit.default_output(snp, simulator, em)))
     ok, report = circuit.run_wrapper(python, portmap, snp, target, simulator, em, "")

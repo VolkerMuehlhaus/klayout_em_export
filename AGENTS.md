@@ -32,9 +32,16 @@ ones you ran.
 OUT=/d/tmp/out /d/KLayout/klayout_app.exe -z -nc -rx -r tests/test_export.py
 ```
 
-- Device tests need the SG13G2 PDK: `../klayout_em_export_tests/pdk_env.py` loads a sparse PDK checkout made by its
-  `setup_pdk.sh`. Run them with `KLAYOUT_PATH` and `KLAYOUT_HOME` pointing to an empty folder, so a user-installed
-  sg13g2 technology does not collide (see `klayout_em_export_tests/run_all.sh`).
+- Two kinds of tests, run differently:
+  - Tests that add the repo's `python/` to `sys.path` (all that need the PDK, plus `test_export`, `test_simcfg`,
+    `test_portlayers`, `test_circuit`): run them with `KLAYOUT_PATH` and `KLAYOUT_HOME` pointing to an empty
+    folder, so a user-installed sg13g2 technology does not collide (see `klayout_em_export_tests/run_all.sh`). The
+    PDK comes from `../klayout_em_export_tests/pdk_env.py`, a sparse checkout made by its `setup_pdk.sh`.
+  - The others (`test_boundary`, `test_ground`, `test_locate`, `test_numbering`, `test_panel`, `test_ports`,
+    `test_reopen`, `test_selection`) import the plug-in from KLayout's salt folder: run them with the normal
+    KLayout home. With an empty home they fail with `No module named 'klayout_em_export'`.
+  - The tests print `ok`/`FAIL` lines or plain results; there are few asserts. Compare the output with an earlier
+    run rather than relying on the exit code.
 - Several tests read layouts outside the repo (`D:\Palace_testcases\...`, `klayout_em_export_tests\testcases`).
   The script header names them.
 - Anything with mouse, dialogs or the panel in the real window: run the guide capture

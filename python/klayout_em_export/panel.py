@@ -292,15 +292,19 @@ class EMPanel(pya.QWidget):
                 state = "not replaced: simulated as layout"
             lines.append(f"{d.pcell} {name} {d.params}: {state}")
         lines += [f"{count} x {qname}: not supported yet" for qname, count in unknown]
-        from .devices import touching_patches, unconnected_terminals
+        from .devices import orphaned_tags, touching_patches, unconnected_terminals
         touching = touching_patches(layout, cell, stackup)
         loose = unconnected_terminals(layout, devices, self.result) if self.result is not None else []
+        orphans = orphaned_tags(layout, cell, devices)
         lines += [f"{t} of {d.pcell} {d.id.split('@')[0]} is not connected to any wiring (floats in the EM model)"
                   for d, t in loose]
         lines += [f"REF patches of {a.split('@')[0]} and {b.split('@')[0]} touch: one shared reference"
                   for a, b in touching]
+        lines += [f"ports {', '.join(str(n) for _, n in sorted(p.items())) or '(none)'} and the REF patch of "
+                  f"{i.split('@')[0]} at {i.split('@')[1]} dbu: that device is no longer there (moved or deleted); "
+                  "Undo Replace, then Replace All" for i, p in sorted(orphans.items())]
         self.devices_detail.setText("\n".join(lines) or "no PDK devices (SG13_dev pcells) in the cell")
-        if not devices and not unknown:
+        if not devices and not unknown and not orphans:
             self.devices_step.set(OK, "none")
             return
         parts = []
@@ -314,9 +318,12 @@ class EMPanel(pya.QWidget):
             parts.append(f"{len(touching)} pair(s) of REF patches touch")
         if loose:
             parts.append(f"{len(loose)} terminal(s) not connected")
+        if orphans:
+            parts.append(f"ports of {len(orphans)} device(s) no longer there")
         # an unreplaced resistor is a warning too: its sheet in the EM model lacks the PDK's width offset and contact
         # end resistance, so its R is too low (Palace: rhigh and rppd by 9 to 13 %, see tests/resistor_palace)
-        state = OK if all(d.replaced for d in devices) and not unknown and not touching and not loose else WARN
+        state = (OK if all(d.replaced for d in devices) and not unknown and not touching and not loose and not orphans
+                 else WARN)
         self.devices_step.set(state, ", ".join(parts))
 
     def _replace_devices(self):

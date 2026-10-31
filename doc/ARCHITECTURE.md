@@ -72,7 +72,7 @@ All of it survives a GDS round trip, so a saved layout keeps its EM setup.
 | Port shape | layers 201..299, datatype 0, without the stackup's own layers in that range (SUBGND 210 or 250, BACKSIDEGND 251) | via port: zero-width box along an edge; in-plane port: box across a gap. Port number = layer − 200. |
 | Port settings | GDS property 200 on the port shape | `port:dir=-Z;from=Metal3;to=TopMetal2;z0=50;v=1` (via port) or `port:dir=X;target=Metal5;z0=50;v=1` (in-plane). Kept short: some GDS tools cut values after 126 characters. |
 | Boundary port tag | GDS property 201 | `boundary`: made by Create Proposed Ports, found again when the box moves. |
-| Device tag | GDS property 202 on the REF patch and the ports of a replaced device | `device:<id>:<terminal>`. Undo Replace removes everything with this tag. |
+| Device tag | GDS property 202 on the REF patch (`device:<id>`) and the ports (`device:<id>:<terminal>`) of a replaced device | The id is `<cell name>@<x>,<y>` (dbu), so it changes when the device moves: the old ports and patch are then orphaned, reported by `devices.orphaned_tags` in the Devices step and the export dialog. Undo Replace removes everything with this tag. |
 | REF patch | layer 300 (REF_FOR_TRANSISTOR in the stackup) | one box per replaced device: its pins' bounding box + 0.2 µm. |
 | EM region box | layer 800/0 | one box; Mark EM Region from Selection replaces it. |
 | Stackup, last output, ground marks | layout meta info `klayout_em_export.stackup`, `.output`, `.ground` (JSON `[[layer, x, y], ...]` in dbu) | persisted meta info. |
@@ -89,7 +89,8 @@ settings).
 
 1. **Region** (`gui.region_source`): the selection, else the EM region box, else the whole cell. With a selection,
    the default is "selected shapes only": `selection.Selection.completed()` adds the vias that land on two selected
-   metals and the port shapes touching selected metal, because they are easy to miss when selecting.
+   metals, the port shapes touching selected metal, and the REF patch of each replaced device whose ports are in
+   the selection, because they are easy to miss when selecting.
 2. **Ports** (`ports.collect_ports` or `ports_of`) inside the region.
 3. **Numbering** (`ports.export_numbering`): complete ports 1..N in layout order, then incomplete ones, on the
    available port layers in order.
@@ -200,7 +201,9 @@ without them is from an older export.
 ### Ground from the via ports, only wiring traced
 
 The ground net is found without user input: of the nets at both ends of the via ports, the one most ports reach
-(on a tie, the larger). The user can mark ground instead. Only wiring is traced: stackup conductors above the device
+(on a tie, the larger). Ports of replaced devices do not vote: their only traced end is the device terminal (the
+other end is the REF sheet, which is not traced), so they say nothing about ground. With device ports only, no
+ground is chosen and the panel asks for a pad port or a marked ground. The user can mark ground instead. Only wiring is traced: stackup conductors above the device
 level, through the vias between vertically adjacent metals. Activ and every via touching it are left out, because
 tracing through diffusion merges source and drain and so all nets. A device is an open circuit for this check.
 
@@ -234,7 +237,7 @@ need the PDK through `klayout_em_export_tests/pdk_env.py`.
 | Export, selection, simcfg | `test_export.py`, `test_selection.py`, `test_simcfg.py` (also plain Python) |
 | Ports | `test_ports.py`, `test_locate.py`, `test_numbering.py`, `test_portlayers.py`, `test_boundary.py` |
 | Ground and nets | `test_ground.py`, `test_unconnected.py` |
-| Devices | `test_devices.py`, `test_mosfets.py`, `test_resistors.py` (PDK needed) |
+| Devices | `test_devices.py`, `test_mosfets.py`, `test_resistors.py`, `test_replaced_devices.py` (selection patches, ground voting, moved devices) (PDK needed) |
 | GUI pieces in batch | `test_panel.py`, `test_reopen.py` (stand-in view, own settings file) |
 | Create Circuit | `test_circuit.py` (needs a Python with snp2le), `tests/simulators/` (Docker, Linux) |
 | Physics checks | `tests/resistor_palace/` (Palace), `doc/test_cascode_wrapper`, `doc/test_cascode_epi_tie` |

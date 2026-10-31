@@ -227,8 +227,8 @@ def port_lines(device, terminal):
     return lines
 
 
-def mark_replaced(layout, cell, devices):
-    """Set device.replaced/.ports from the tagged ports and patches in cell."""
+def _device_tags(layout, cell):
+    """{device id: {terminal: port number}} of the ports and patches tagged by replace in cell."""
     tags = {}
     for li in layout.layer_indexes():
         info = layout.get_info(li)
@@ -242,11 +242,24 @@ def mark_replaced(layout, cell, devices):
                 elif len(parts) == 2:
                     tags.setdefault(parts[1], {})
             it.next()
+    return tags
+
+
+def mark_replaced(layout, cell, devices):
+    """Set device.replaced/.ports from the tagged ports and patches in cell."""
+    tags = _device_tags(layout, cell)
     for device in devices:
         if device.id in tags:
             device.replaced = True
             device.ports = tags[device.id]
     return devices
+
+
+def orphaned_tags(layout, cell, devices):
+    """{device id: {terminal: port number}} of tagged ports and patches whose device is not found in cell: the device
+    was moved (its id holds its position) or deleted. Undo Replace removes them, Replace All makes new ones."""
+    ids = {device.id for device in devices}
+    return {i: ports for i, ports in _device_tags(layout, cell).items() if i not in ids}
 
 
 def ref_patch(device, margin):

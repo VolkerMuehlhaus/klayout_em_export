@@ -1,13 +1,16 @@
 """The selected shapes (not their bounding box), flattened into the current cell, for "selected shapes only" export.
 
 Selected instances contribute all their shapes. With a stackup, the selection is completed by the vias that
-connect two selected metals, and by the port shapes that touch selected metal: both are easy to miss when
-selecting, and without them the model has open circuits or no ports.
+connect two selected metals, by the port shapes that touch selected metal, and by the REF patch of each replaced
+device whose ports are in it: all easy to miss when selecting, and without them the model has open circuits, no
+ports, or device ports that end on nothing.
 """
 import pya
 
+from .devices import REF_NAME
 from .export import PORT_LAYERS
 from .locate import drawn_metals
+from .ports import DEVICE_KEY
 
 
 def instance_trans(obj):
@@ -32,6 +35,7 @@ class Selection:
         self.ports = []             # ((layer, datatype), shape, ICplxTrans into cell) of port shapes (201..299)
         self.added_vias = {}        # via layer -> count added by complete()
         self.added_ports = 0
+        self.added_patches = 0      # REF patches of replaced devices, added by complete()
 
     def is_empty(self):
         return not self.regions and not self.ports
@@ -83,6 +87,7 @@ class Selection:
         metal_layers = [layer for _, layer in drawn_metals(stackup)]
         metals = [self.regions[(l, datatype)] for l in metal_layers if (l, datatype) in self.regions]
         if not metals:
+            out._add_patches(stackup, datatype)
             return out
         all_metal = pya.Region()
         for region in metals:
@@ -123,4 +128,31 @@ class Selection:
                     have.add((key, box.to_s()))
                     out.added_ports += 1
                 it.next()
+        out._add_patches(stackup, datatype)
         return out
+
+    def _add_patches(self, stackup, datatype):
+        """Add the REF patch of each replaced device whose ports are in the selection: its ports end on it."""
+        ref = next((l for l in stackup.layers if l.name == REF_NAME), None)
+        li = None if ref is None else self.layout.find_layer(ref.layer, datatype)
+        if li is None:
+            return
+        wanted = set()
+        for _, shape, _ in self.ports:
+            value = shape.property(DEVICE_KEY)
+            if isinstance(value, str) and value.count(":") == 2:       # device:<id>:<terminal>
+                wanted.add(value.rsplit(":", 1)[0])
+        if not wanted:
+            return
+        key = (ref.layer, datatype)
+        selected = self.regions.get(key, pya.Region())
+        patches = pya.Region()
+        it = self.cell.begin_shapes_rec(li)
+        while not it.at_end():
+            if it.shape().property(DEVICE_KEY) in wanted:
+                patches.insert(it.shape().polygon.transformed(it.trans()))
+            it.next()
+        new = patches - selected
+        if not new.is_empty():
+            self.regions[key] = (selected + patches).merged()
+            self.added_patches += new.count()

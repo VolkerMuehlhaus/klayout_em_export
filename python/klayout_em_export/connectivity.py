@@ -7,9 +7,12 @@ through it merges source and drain, and so all nets, through the transistor diff
 PEC reference sheets) are not wiring either. A transistor or resistor is an open circuit for this check.
 
 The ground shape is marked by the user, or found from the via ports: of the nets at both ends of the via ports,
-the one most ports reach is ground (on a tie, the larger one: ground planes are large).
+the one most ports reach is ground (on a tie, the larger one: ground planes are large). Ports of replaced devices
+do not count: their only traced end is the device terminal.
 """
 import pya
+
+from .ports import device_of
 
 DEVICE_LEVEL = {"Activ"}            # SG13G2: diffusion, below Metal1; see the module doc
 OTHER_NETS_LIMIT = 300              # count the separate other nets only up to this many polygons
@@ -169,18 +172,25 @@ def check_ground(layout, cell, stackup, box=None, seeds=(), ports=None):
             for layer, region in piece.items():
                 result.net[layer] = (result.net[layer] + region) if layer in result.net else region
     else:
+        # a device port's only traced end is the device terminal (its other end is the REF sheet, not traced): it
+        # says nothing about which net is ground, so only the other via ports vote
+        device_ports = {p.number for p in (ports or {}).values() if device_of(p) is not None}
         nets = []                   # [net, set of port numbers]
         for number, layer, region in port_ends:
-            if number in result.shorted:
-                continue            # both ends on one net: says nothing about which net is ground
+            if number in result.shorted or number in device_ports:
+                continue            # shorted: both ends on one net, says nothing about which net is ground
             found = next((n for n in nets if _touches(n[0], layer, region)), None)
             if found is None:
                 found = [flood(metals, vias, connections, {layer: region}), set()]
                 nets.append(found)
             found[1].add(number)
         if not nets:
-            result.source = ("no ground: mark a ground shape, or add via ports whose ends lie on metal"
-                             if result.via_ports or not ports else "no ground: mark a ground shape or add via ports")
+            if result.via_ports and set(result.via_ports) <= device_ports:
+                result.source = "no ground: device ports do not show it; mark a ground shape or add pad ports"
+            elif result.via_ports or not ports:
+                result.source = "no ground: mark a ground shape, or add via ports whose ends lie on metal"
+            else:
+                result.source = "no ground: mark a ground shape or add via ports"
             return result
         best = max(nets, key=lambda n: (len(n[1]), _area(n[0])))
         result.net = best[0]
