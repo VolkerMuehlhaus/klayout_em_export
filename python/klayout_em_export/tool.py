@@ -65,7 +65,7 @@ class PortTool(pya.Plugin):
         found = edge_at(layout, cell, stackup, point, tol)
         return None if found is None else ("via", found[0], found[1].bbox())
 
-    def mouse_moving_event(self, p, buttons, prio):
+    def mouse_moved_event(self, p, buttons, prio):
         if not prio:
             return False
         self._clear()
