@@ -332,7 +332,7 @@ not cut there.
 
 ## Transistors and resistors
 
-> **In this chapter:** replacing the transistors (and optionally resistors) by ports.
+> **In this chapter:** replacing the transistors and resistors by ports.
 >
 > **Why it matters:** the EM simulation cannot simulate a transistor, and the PDK model already contains the
 > device's own parasitics up to its pins. So the EM simulation should see the wiring up to the pins, and leave the
@@ -354,9 +354,43 @@ For each transistor, the plug-in:
 
 Each device has its own REF patch: the devices' ports must not be connected to each other through the patch.
 
-Resistors (rsil, rppd, rhigh) can be replaced the same way, with two ports each. Unreplaced, the stackup simulates
-them as sheet resistors. Replace them if you want the PDK resistor model in your circuit, with its temperature
-behaviour.
+Resistors (rsil, rppd, rhigh) are replaced the same way, with two ports each, and the PDK resistor model takes
+their place in the circuit.
+
+### Why resistors should be replaced too
+
+The PDK does not compute a resistor's value from its drawn shape alone. Its pcells and SPICE models add two
+corrections:
+
+- **A width offset.** The PDK uses an effective width that differs from the drawn one: rhigh 0.04 µm narrower,
+  rsil and rppd 0.01 µm and 0.006 µm wider. This changes the width only, not the length.
+- **An end resistance.** Where the silicided contact head meets the resistor body, each end adds a resistance
+  per µm of width. It is not part of any drawn sheet.
+
+An unreplaced resistor stays in the EM model as a sheet of the drawn size, with the nominal sheet resistance. The
+width offset is missing. Of the end resistance, the EM model has only what its contacts (Cont) contribute.
+
+Both corrections are fixed amounts: a fixed width offset, and a fixed resistance at each end. They do not grow with
+the resistor. So the smaller the resistor, the larger their share, and the larger the error: physically small
+resistors are affected most. The width offset hurts narrow resistors, the end resistance hurts short ones.
+
+How large is the error? Palace simulations of the PDK cells, as drawn, give:
+
+| Resistor (w × l) | PDK | EM model | Error |
+| --- | --- | --- | --- |
+| rhigh 0.655 µm × 1.245 µm (cascode, 3 kΩ) | 2997 Ω | 2599 Ω | −13 % |
+| rppd 1 µm × 1.665 µm | 500 Ω | 442 Ω | −12 % |
+| rhigh 0.5 µm × 4.29 µm (cascode, 13 kΩ) | 13.0 kΩ | 11.7 kΩ | −10 % |
+| rhigh 2 µm × 1.325 µm | 999 Ω | 906 Ω | −9 % |
+| rsil 0.5 µm × 2.33 µm (cascode, 50 Ω) | 50.0 Ω | 48.9 Ω | −2 % |
+| rsil 2 µm × 13.06 µm | 50.0 Ω | 49.9 Ω | −0.2 % |
+
+rhigh and rppd come out about 10 % to 13 % low. rsil is close: its contacts in the EM model happen to make up
+for most of its end resistance.
+
+Replaced, the resistor is the PDK model in the circuit: the correct value, with its temperature behaviour. That is
+why **include resistors** is ticked by default. If a resistor stays in the EM model, the **Devices** line shows
+orange and says so.
 
 ### Step by step
 
@@ -364,7 +398,8 @@ behaviour.
 
    ![Devices found, none replaced yet](images/10_panel_devices_before.png)
 
-2. Tick **include resistors** if you want the resistors replaced too.
+2. Leave **include resistors** ticked (the default). Untick it only if you want the resistors in the EM model, and
+   accept that their values come out too low.
 3. Press **Replace All**.
 
    ![Two transistors and three resistors replaced](images/10_panel_devices_after.png)
@@ -595,6 +630,7 @@ ground, which adds a few fF. In the cascode that lowers S21 by 0.06 dB at 10 GHz
 | no PDK devices (SG13_dev pcells) in the cell | transistors not recognized | load the IHP PDK in KLayout |
 | N pair(s) of REF patches touch | two devices would share a reference | keep devices apart, or check the layout |
 | N terminal(s) not connected | a device terminal has no wiring in the region | enlarge the region, or check the layout |
+| resistor "not replaced: ... too low" | a resistor stays in the EM model as a sheet of drawn size | tick include resistors and press Replace All (chapter 9) |
 | port N ... not simulated (incomplete) | port settings missing | set them (EM > Port Settings...) |
 | layer '...' is not a metal of the stackup | a port uses a layer the stackup does not know | choose another layer in the port dialog |
 | ... is not drawn at the port | the port's from/to layer has no metal at the port | check the port position and layers |
@@ -632,4 +668,7 @@ ground, which adds a few fF. In the cascode that lowers S21 by 0.06 dB at 10 GHz
   6 %).
 - Resistors from static cells (no PDK parameters) become ideal resistors of their label value: no temperature
   behaviour, no parasitics.
+- Resistors left in the EM model (not replaced) come out too low: the sheet has the drawn size, without the PDK's
+  width offset and contact end resistance. rhigh and rppd are about 10 % to 13 % low, rsil up to about 2 %
+  (chapter 9). A resistor of several segments cannot be replaced yet.
 - The REF patch adds a few fF per transistor when the device is wired directly (chapter 13).

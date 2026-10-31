@@ -1,0 +1,50 @@
+[
+ {
+  "cell": "rsil_CDNS_785835985925",
+  "label": "rsil r=49.98",
+  "ports": [
+   1,
+   2
+  ]
+ },
+ {
+  "cell": "rhigh_CDNS_785835985924",
+  "label": "rhigh r=2.997k",
+  "ports": [
+   3,
+   4
+  ]
+ },
+ {
+  "cell": "rhigh_CDNS_785835985923",
+  "label": "rhigh r=13.003k",
+  "ports": [
+   5,
+   6
+  ]
+ },
+ {
+  "cell": "rsil_CDNS_786372201261",
+  "label": "rsil r=49.983",
+  "ports": [
+   7,
+   8
+  ]
+ },
+ {
+  "cell": "rppd_CDNS_786372201260",
+  "label": "rppd r=500.318",
+  "ports": [
+   9,
+   10
+  ]
+ },
+ {
+  "cell": "rhigh_CDNS_786372201262",
+  "label": "rhigh r=999.388",
+  "ports": [
+   11,
+   12
+  ]
+ }
+]

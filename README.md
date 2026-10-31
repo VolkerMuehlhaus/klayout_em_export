@@ -56,11 +56,21 @@ summary; the arrow shows its details and buttons.
     device side).
   - Ports with several lines (multielement ports) need gds2palace 0.9.3 (branch `multi-element-ports`): it makes
     them one Palace lumped port with parallel elements. Older gds2palace versions use only one of the lines.
-  - Resistors are optional: **Replace All** replaces them only with **include resistors** ticked. A replaced
+  - Resistors: **Replace All** replaces them too while **include resistors** is ticked (the default). A replaced
     resistor gets two via ports, PLUS and MINUS, from its Metal1 heads down to its own REF patch; the export removes
     its body, contacts and implants. PLUS is the head with the lower coordinate along the resistor in the cell's own
     coordinates (the pins have no names). A resistor of several segments is not replaced. Unreplaced resistors stay
-    layout: the stackup models them as sheet resistors. Capacitors (cmim) and inductors are never replaced.
+    layout: the stackup models them as sheet resistors of the drawn size, and their R comes out too low, see below.
+    Capacitors (cmim) and inductors are never replaced.
+  - Why resistors should be replaced: the PDK computes R = Rsh·l/(w + Δw) + 2·rz/w (pcell formula and SPICE models
+    agree). Δw changes the width only (rsil +0.01 µm, rppd +0.006 µm, rhigh −0.04 µm), and rz is a contact end
+    resistance (rsil 4.5 Ω·µm, rppd 35 Ω·µm, rhigh 80 Ω·µm per end) that no drawn sheet carries. The gds2palace sheet
+    has the drawn l × w and the nominal Rsh: the width offset is missing, and of the end resistance only what the
+    Cont vias contribute is there. Both are fixed amounts, so physically small resistors are affected most (narrow:
+    width offset, short: end resistance). Palace at 10 MHz, PDK cells as drawn (`tests/resistor_palace/`): rhigh
+    0.655 × 1.245 µm −13 %, rppd 1 × 1.665 µm −12 %, rhigh 0.5 × 4.29 µm −10 %, rhigh 2 × 1.325 µm −9 %, rsil
+    0.5 × 2.33 µm −2 %, rsil 2 × 13.06 µm −0.2 % (for rsil, the Cont vias happen to cover most of the end
+    resistance). An unreplaced resistor makes the **Devices** line a warning.
   - The port map names the device and terminal of these ports, for connecting the `.snp` to the device models.
   - A terminal whose net (traced through the vias from its pin) holds only the device's own metal is reported as
     not connected to any wiring, in the Devices step and in the export dialog: it floats in the EM model, e.g. when
