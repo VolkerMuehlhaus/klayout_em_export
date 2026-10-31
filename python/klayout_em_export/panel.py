@@ -218,7 +218,12 @@ class EMPanel(pya.QWidget):
             self.stackup_step.set(ERROR, f"{error}: open the details to choose one")
             self.stackup_detail.setText(path or "")
         else:
-            self.stackup_step.set(OK, os.path.basename(path), path)
+            unresolved = stackup.unresolved()
+            if unresolved:
+                self.stackup_step.set(WARN, f"{os.path.basename(path)}: height of {', '.join(unresolved)} is not "
+                                      "resolved (given by a variable), so it is left out of nets and ground", path)
+            else:
+                self.stackup_step.set(OK, os.path.basename(path), path)
             self.stackup_detail.setText(path)
 
         # ground and boundary: in the EM region box (else the whole cell), not in a selection - one selects metal

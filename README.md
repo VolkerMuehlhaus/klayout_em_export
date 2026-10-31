@@ -24,7 +24,9 @@ The **EM panel** is docked at the right of the main window (opens at startup; me
 back). It is a checklist in workflow order: each step is one line with a status mark (OK, warning, error) and a
 summary; the arrow shows its details and buttons.
 
-- **Stackup** of the current layout (details: Change...).
+- **Stackup** of the current layout (details: Change...). A warning here means a metal or via whose height is given
+  by a variable in the stackup file: the plug-in cannot place it, so it is left out of the nets, the ground and the
+  port directions.
 - **Region**: what the export uses right now, following the selection: the bounding box of the selection, else
   the EM region box (layer 800/0), else the whole cell. A selection of port shapes only does not count (details:
   Mark Region from Selection).

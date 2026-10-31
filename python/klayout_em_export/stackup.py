@@ -60,6 +60,11 @@ class Stackup:
         # dielectrics with a Boundary= layer: their outline is drawn in the GDS
         self.boundary_layers = sorted({int(e.get("Boundary")) for e in root.iter("Dielectric")
                                        if (e.get("Boundary") or "").lstrip("-").isdigit()})
+        # <Substrate Offset="..."> (schema 2.0): shifts every Layer that has no Reference. None: given by a variable,
+        # then those layers compare only among themselves (z_range anchor "offset")
+        offsets = [e.get("Offset") for e in root.iter("Substrate")]
+        offset = 0.0 if not offsets else _number(offsets[-1])
+        self.offset = offset if offset is None or offset > 0 else 0.0     # as gds2palace: only a positive offset counts
 
     def layer(self, name):
         return next((l for l in self.layers if l.name == name), None)
@@ -89,12 +94,23 @@ class Stackup:
 
     def z_range(self, layer, seen=()):
         """(anchor, zmin, zmax) of a stackup layer, or None if its position cannot be resolved.
-        With a Reference, Zmin/Zmax are offsets from that edge; without, they are absolute."""
+        With a Reference, Zmin/Zmax are offsets from that edge; without, they are absolute, plus the stackup's
+        <Substrate Offset>."""
         zmin, zmax = _number(layer.zmin_attr), _number(layer.zmax_attr)
         if zmin is None or zmax is None:
             return None
-        base = ("bottom", 0.0) if not layer.reference else self._edge(layer.reference, layer.reference_edge, seen)
+        if not layer.reference:
+            # an offset given by a variable shifts all these layers alike: an anchor of their own, like a thickness
+            return ("offset", zmin, zmax) if self.offset is None else ("bottom", zmin + self.offset, zmax + self.offset)
+        base = self._edge(layer.reference, layer.reference_edge, seen)
         return None if base is None else (base[0], base[1] + zmin, base[1] + zmax)
+
+    def unresolved(self):
+        """Names of the metals and vias drawn in the GDS whose z position cannot be resolved (a position given by
+        a variable or expression, or an unknown Reference). Such a layer is left out of everything that needs
+        heights: via connections, ground and nets, port direction. Dielectric layers (e.g. LBE) do not count."""
+        return [l.name for l in self.layers
+                if l.kind in ("conductor", "sheet", "via") and l.layer not in self.derived and self.z_range(l) is None]
 
     def is_above(self, upper, lower):
         """True if the layer named upper lies above the layer named lower (by their bottom), False if below, None

@@ -47,7 +47,7 @@ modules only collect input and call the core.
 
 | Module | Role |
 | --- | --- |
-| `stackup.py` | Reads a gds2palace stackup XML: the GDS layers the EM model reads (derived layers replaced by their source layers), metal names, z positions (`is_above`). |
+| `stackup.py` | Reads a gds2palace stackup XML: the GDS layers the EM model reads (derived layers replaced by their source layers), metal names, z positions (`is_above`; applies `<Substrate Offset>`; `unresolved()` lists metals and vias whose height is a variable, which the panel warns about). A small parser of its own, because KLayout's Python cannot import gds2palace; `test_stackup_drift.py` guards it against gds2palace's reader. |
 | `locate.py` | Finds metals at a point or port shape: `edge_at` (via port), `gap_at` (in-plane port), `metals_at`, `next_port_layer`. |
 | `ports.py` | Port settings as a shape property (`PortSettings`), collecting ports, checks, export numbering, via port directions, the `.simcfg` port list, the port map. |
 | `connectivity.py` | Traces metal through vias: the ground net (`check_ground`), shorted via ports, the net of each port (`port_nets`). |
@@ -235,6 +235,7 @@ need the PDK through `klayout_em_export_tests/pdk_env.py`.
 | Area | Tests |
 | --- | --- |
 | Export, selection, simcfg | `test_export.py`, `test_selection.py`, `test_simcfg.py` (also plain Python) |
+| Stackup parser | `test_stackup_drift.py` (plain Python): z positions against gds2palace's `util_stackup_reader.py` for every stackup in the sibling repos `gds2palace_ihp_sg13g2` and `EMStudio` |
 | Ports | `test_ports.py`, `test_locate.py`, `test_numbering.py`, `test_portlayers.py`, `test_boundary.py` |
 | Ground and nets | `test_ground.py`, `test_unconnected.py` |
 | Devices | `test_devices.py`, `test_mosfets.py`, `test_resistors.py`, `test_replaced_devices.py` (selection patches, ground voting, moved devices) (PDK needed) |
