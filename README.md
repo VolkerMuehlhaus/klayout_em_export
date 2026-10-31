@@ -3,6 +3,8 @@
 KLayout plug-in that exports part of a layout for EM simulation with
 [gds2palace](https://github.com/VolkerMuehlhaus/gds2palace_ihp_sg13g2) and hands it to setupEM. Work in progress.
 
+**User's guide** for RFIC designers, step by step with screenshots: [doc/userguide](doc/userguide/klayout_em_export_userguide.md) ([PDF](doc/userguide/klayout_em_export_userguide.pdf)).
+
 ## Installation (development)
 
 Link the repo into KLayout's package folder, then restart KLayout (Windows, PowerShell):
@@ -111,27 +113,43 @@ The same steps are in the **EM** menu in the menu bar, top to bottom in workflow
      `.simcfg`, because setupEM cannot load them. Only the stackup's layers are exported; the others are dropped.
    - "Open in setupEM after the export". The `.simcfg` is written next to the GDS.
    - Ports are numbered without gaps in the export: the complete ports 1..N in layout order, then the incomplete
-     ones. The exported GDS, the `.simcfg` and so the `.snp` use these numbers; `<name>_portmap.json` maps them
+     ones. The `.simcfg` and so the `.snp` use these numbers, the exported GDS the port layers 201.. in that order
+     (without the stackup's own layers in that range, e.g. SUBGND on 210 or 250); `<name>_portmap.json` maps them
      back to the layout's port numbers (the dialog shows the map when numbers change). Reason: after Palace,
      `combine_extend_snp` takes the highest port number as the port count and fills missing ports with |S| = 1.
    - Exporting again updates an existing `.simcfg`: the GDS file, stackup, cell and ports are set, everything
      else (frequencies, mesh, ... saved with setupEM's Save Config) is kept. The ports always come from the
      layout, where they are defined.
+7. **Create Circuit (EM Result with Devices)...**: after the Palace run, the EM result with the PDK devices put
+   back, for ngspice, VACASK, Xyce or Spectre; see [Circuit wrapper](#circuit-wrapper-ngspice-vacask-xyce-spectre).
 
 Remembered in `~/.klayout_em_export.json`: the last stackup, the last port settings, the setupEM program and the
-setupEM option; and per layout file its stackup, last export and ground marks. These are also stored in the layout
+setupEM option, the Create Circuit choices (Python with snp2le, PDK folder, simulator); and per layout file its stackup, last export and ground marks. These are also stored in the layout
 itself (saved with it), but storing them does not mark the layout as modified, so the settings file keeps them
 when the layout is closed without saving. If `setupEM` is not on the `PATH` that KLayout sees, the plug-in asks once for the program (e.g.
 `<venv>\Scripts\setupEM.exe`).
 
-## Circuit wrapper (ngspice)
+## Circuit wrapper (ngspice, VACASK, Xyce, Spectre)
 
-After the Palace run, `tools/spice_wrapper.py` (in a Python with snp2le, e.g. `d:\venv\palace`) turns the result
-into a circuit with the PDK devices put back:
+After the Palace run, **EM > Create Circuit (EM Result with Devices)...** turns the result into a circuit with the
+PDK devices put back. Choose the port map (the last export's is preselected), the EM result (`<model>_dc.sNp`), the
+simulator, optionally the IHP PDK folder, and the Python with snp2le (by default the one next to setupEM). The
+dialog runs `tools/spice_wrapper.py`, which also works on its own:
 
 ```bash
-python tools/spice_wrapper.py <export>_portmap.json <model>_dc.sNp -o <name>.cir --pdk <IHP-Open-PDK>/ihp-sg13g2
+python tools/spice_wrapper.py <export>_portmap.json <model>_dc.sNp -o <name>.cir --simulator ngspice --pdk <IHP-Open-PDK>/ihp-sg13g2
 ```
+
+| Simulator | EM model | Device models | Tested (cascode, `tests/simulators`) |
+| --- | --- | --- | --- |
+| ngspice | snp2le equivalent circuit | PDK `libs.tech/ngspice` | yes |
+| VACASK | snp2le equivalent circuit (VACASK format) | PDK `libs.tech/vacask`, found through its `.vacaskrc.toml` | yes, same as ngspice |
+| Xyce | snp2le equivalent circuit | PDK `libs.tech/xyce` | yes; S21 0.5 dB higher at 100 GHz, from Xyce's npn13G2 model |
+| Xyce | the .sNp file (`YLIN`) | PDK `libs.tech/xyce` | harmonic balance only: in AC and DC, Xyce 7.10 treats `YLIN` as open |
+| Spectre | the .sNp file (`nport`) | your PDK's includes (commented placeholders) | no |
+
+ngspice cannot use the .sNp file itself (its Touchstone support is a transfer-function element for AC, not an
+N-port), and VACASK cannot yet (Touchstone import is planned).
 
 - Start the Palace sweep at 0 Hz in gds2palace: it then simulates 10 MHz and 20 MHz and writes `<model>_dc.sNp`
   with a 0 Hz point extrapolated from them. Give the wrapper that file.
