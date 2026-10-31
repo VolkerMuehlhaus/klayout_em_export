@@ -80,7 +80,6 @@ for layer in range(201, 300):                # device ports: to SUBGND instead o
         cell.shapes(li).insert(box, ly.properties_id(props))
 
 ports = collect_ports(ly, cell, stackup=st)
-ports.pop(sub.layer, None)      # SUBGND is GDS layer 250, inside the port layer range 201..299: not a port
 problems = {p.number: port_problems(p, st) for p in ports.values() if port_problems(p, st)}
 print("port problems:", problems)
 numbering = export_numbering(ports)

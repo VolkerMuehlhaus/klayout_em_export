@@ -292,7 +292,7 @@ def replace(view, cell, stackup, devices, include_resistors=False):
             cell.shapes(layout.layer(ref.layer, 0)).insert(
                 ref_patch(device, margin), layout.properties_id([[DEVICE_KEY, f"device:{device.id}"]]))
             for terminal in sorted(device.terminals):
-                layer = next_port_layer(layout, cell)
+                layer = next_port_layer(layout, cell, stackup=stackup)
                 if layer is None:
                     continue
                 settings = PortSettings("Z", names[device.terminals[terminal][0]], REF_NAME)   # from the pin metal

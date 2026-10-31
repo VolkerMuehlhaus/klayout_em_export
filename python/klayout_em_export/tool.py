@@ -94,7 +94,7 @@ class PortTool(pya.Plugin):
             return True
         cv = self.layout_view.active_cellview()
         layout, cell = cv.layout(), cv.cell
-        layer = next_port_layer(layout, cell)
+        layer = next_port_layer(layout, cell, stackup=self.stackup())
         if layer is None:
             pya.MessageBox.warning("EM Export", "All port layers 201..299 are used in this cell.", pya.MessageBox.Ok)
             return True

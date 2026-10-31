@@ -13,7 +13,8 @@ import pya
 from .export import PORT_LAYERS, export_flat, marker_box
 from .locate import drawn_metals, metals_at
 from .ports import (DIRECTIONS, PROP_KEY, PortSettings, check_ports, collect_ports, export_directions,
-                    export_numbering, is_complete, port_map, ports_of, settings_of, simcfg_ports)
+                    export_numbering, export_port_numbers, is_complete, port_map, ports_of, settings_of,
+                    simcfg_ports)
 from .selection import Selection
 from .simcfg import write_simcfg
 from .stackup import Stackup
@@ -437,12 +438,13 @@ class ExportDialog(pya.QDialog):
             if problems:
                 text += "\n" + "\n".join(problems)
             try:
-                numbering = export_numbering(ports)
+                numbering = export_numbering(ports, self.stackup)
             except ValueError as e:
                 text += f"\n{e}: the export is not possible"
                 self.export_button.setEnabled(False)
             else:
-                pairs = sorted((new - 200, ports[old].number) for old, new in numbering.items())
+                numbers = export_port_numbers(numbering)
+                pairs = sorted((numbers[old], ports[old].number) for old in numbering)
                 if any(new != old for new, old in pairs):
                     text += ("\nnumbered without gaps for the export (exported/.snp port <- layout port): " +
                              ", ".join(f"{new} <- {old}" for new, old in pairs) + "; written to the port map file")
@@ -479,7 +481,7 @@ def export_region():
         ports = ports_of(layout, cell, dialog.completed.ports, stackup=stackup)
     else:
         ports = collect_ports(layout, cell, None if box is None else box.to_itype(layout.dbu), stackup=stackup)
-    numbering = export_numbering(ports)      # ports 1..N without gaps, see export_numbering
+    numbering = export_numbering(ports, stackup)     # ports 1..N without gaps, see export_numbering
     from .devices import device_shapes
     devices = find_layout_devices(layout, cell, stackup)[0]
     remove = device_shapes(layout, devices, stackup)    # replaced devices: their shapes below the pins
@@ -491,7 +493,7 @@ def export_region():
     from .connectivity import check_ground, port_nets
     clip = None if box is None else box.to_itype(layout.dbu)
     nets = port_nets(ports, check_ground(layout, cell, stackup, clip, ground_seeds(layout), ports))
-    directions = export_directions(ports, nets, stackup)    # signal metal = positive terminal
+    directions = export_directions(ports, nets, stackup)    # every via port: signal metal on the same end
     simcfg_path = os.path.splitext(gds_path)[0] + ".simcfg"
     port_list = simcfg_ports(ports, numbering, directions)
     kept = write_simcfg(simcfg_path, gds_path, stackup.path, result.cellname, ports=port_list)

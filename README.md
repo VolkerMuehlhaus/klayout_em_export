@@ -148,8 +148,8 @@ python tools/spice_wrapper.py <export>_portmap.json <model>_dc.sNp -o <name>.cir
   each net (from the port map, traced through the layout's vias at the export) are tied together, and to ground on
   the ground net, by 1 mH. The wires' DC resistance is not modelled. Without a 0 Hz point in the .sNp, the equivalent
   circuit's DC is a guess of the fit, and every port gets a 1 uF DC block as well.
-- The export sets each via port's direction (`Z` or `-Z`) so that the signal metal is the port's positive terminal;
-  the port map records it with each port's net and signal layer. Export again if the port map lacks them.
+- The export sets each via port's direction (`Z` or `-Z`) so that every via port has its signal metal on the same
+  end; the port map records it with each port's net and signal layer. Export again if the port map lacks them.
 - Test report: [doc/test_cascode_wrapper](doc/test_cascode_wrapper/README.md).
 
 ## Modules

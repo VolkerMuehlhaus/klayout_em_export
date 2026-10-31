@@ -36,8 +36,8 @@ Two things did not work as first planned:
 - **Activ under the REF patch**, to wire it down to the EPI, makes Palace abort: the patch lies on Activ's top face, so
   that face carries two boundaries (Activ's surface impedance and the PEC sheet). SUBGND avoids the overlap.
 - **SUBGND is GDS layer 250**, inside the plug-in's port layer range 201 to 299. The plug-in took the patches for an
-  extra port (layout port 50). The export script leaves layer 250 out of the ports. This is a plug-in bug for any
-  layout with SUBGND shapes.
+  extra port (layout port 50). Fixed since: the plug-in leaves the stackup's own layers out of the port layer range
+  (SUBGND is 250 in the SG13G2 stackups and 210 in the SG13CMOS5L ones).
 
 Palace ran the frequencies gds2palace sets up for a sweep from 0 Hz (10 MHz, 20 MHz, then 1 to 200 GHz), order 1,
 adaptive sweep, on hpz2. The result is passive and reciprocal.
@@ -85,8 +85,8 @@ EM pins, run once with the 1 mH ties and once without.
    the wires' DC resistance.
 2. **With ties, the EPI patches change nothing worth noting** (≤ 0.06 dB). The ties remain the simpler way to get
    exact, resistance-free DC paths.
-3. **To use EPI patches in the plug-in**, the replacement would draw the patch on SUBGND, and the port layer range
-   must exclude layer 250.
+3. **To use EPI patches in the plug-in**, the replacement would draw the patch on SUBGND. (The port layer range
+   already leaves SUBGND out.)
 
 ## Files
 

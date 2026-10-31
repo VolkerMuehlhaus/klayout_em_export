@@ -15,8 +15,8 @@ end on the device's own floating REF_FOR_TRANSISTOR patch, while the equivalent 
 ground: wiring the device directly grounds that patch. This adds the patch's capacitance (a few fF per transistor) and
 changes the result slightly (cascode test: S21 0.06 dB at 10 GHz, 0.4 dB at 200 GHz), against a much simpler netlist.
 
-The export sets each via port's direction so that the signal metal is the positive terminal (port map: direction,
-signal_layer); a port map without them is from an older export, whose ports may be reversed: export again.
+The export sets each via port's direction so that every via port has its signal metal on the same end (port map:
+direction, signal_layer); a port map without them is from an older export, whose ports may be reversed: export again.
 
 DC paths: a port measures a voltage difference, so the EM model does not fix the absolute potential of a device
 whose ports end on its floating REF patch. The port map names each port's net (traced through the layout's vias at

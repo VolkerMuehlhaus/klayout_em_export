@@ -10,6 +10,7 @@ This needs a region that is kept with the layout, so it works on the EM region b
 """
 import pya
 
+from .export import port_layer_numbers
 from .locate import next_port_layer
 from .ports import PROP_KEY, PortSettings
 
@@ -52,12 +53,13 @@ def _line(edge):
     return pya.Region(edge.bbox().enlarged(1, 1))
 
 
-def _port_lines(layout, cell, box):
+def _port_lines(layout, cell, box, stackup=None):
     """[(port number, Box)] of the port shapes touching the box."""
     out = []
+    port_layers = port_layer_numbers(stackup)
     for li in layout.layer_indexes():
         info = layout.get_info(li)
-        if not 201 <= info.layer <= 299 or info.datatype != 0:
+        if info.layer not in port_layers or info.datatype != 0:
             continue
         it = cell.begin_shapes_rec_touching(li, box)
         while not it.at_end():
@@ -71,7 +73,7 @@ def find_crossings(layout, cell, stackup, box, ground):
     """Crossings of the traced metals with the edge of box (Box in dbu), classified with ground (GroundCheck of
     the same box)."""
     z = {l.layer: stackup.z_range(l) for l in stackup.layers}
-    ports = _port_lines(layout, cell, box)
+    ports = _port_lines(layout, cell, box, stackup)
     out = []
     for layer, region in sorted(ground.metals.items()):
         edges = region.edges()
@@ -126,7 +128,7 @@ def create_ports(view, cell, stackup, crossings, z0=50.0):
         for crossing in crossings:
             if not crossing.needs_port:
                 continue
-            layer = next_port_layer(layout, cell)
+            layer = next_port_layer(layout, cell, stackup=stackup)
             if layer is None:
                 break
             a, b = crossing.name, crossing.ground_layer[1]

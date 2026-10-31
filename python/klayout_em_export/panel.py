@@ -13,7 +13,7 @@ from . import gui
 from .boundary import find_crossings
 from .connectivity import check_ground, wiring
 from .export import marker_box
-from .ports import collect_ports, device_of, export_numbering, is_complete, port_problems
+from .ports import collect_ports, device_of, export_numbering, export_port_numbers, is_complete, port_problems
 
 OK, WARN, ERROR = ("✓", "#1a8f1a"), ("⚠", "#c87800"), ("✗", "#c00000")
 COLUMNS = ("#", "Layer", "Port", "Export #", "Status")
@@ -402,16 +402,17 @@ class EMPanel(pya.QWidget):
         stackup = gui.read_stackup(path)[0] if path else None
         clip = None if box is None else box.to_itype(layout.dbu)
         try:
-            self.numbering = export_numbering(collect_ports(layout, cell, clip, stackup=stackup))
+            self.numbering = export_numbering(collect_ports(layout, cell, clip, stackup=stackup), stackup)
         except ValueError:
             self.numbering = {}
+        numbers = export_port_numbers(self.numbering)
         for row, (kind, item) in enumerate(self.rows):
             if kind == "port":
-                new = self.numbering.get(item.layer)
+                new = numbers.get(item.layer)
                 cell_item = self.table.item(row, 3)
-                text = "– (outside)" if new is None else str(new - 200)
+                text = "– (outside)" if new is None else str(new)
                 cell_item.setText(text)
-                cell_item.setToolTip("number in the exported GDS, .simcfg and .snp" if new else "not in the region")
+                cell_item.setToolTip("number in the .simcfg and .snp" if new else "not in the region")
 
     # ---------- table ----------
 

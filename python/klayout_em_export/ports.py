@@ -8,7 +8,7 @@ Short on purpose: some GDS tools cut property values after 126 characters.
 """
 import pya
 
-from .export import PORT_LAYERS
+from .export import port_layer_numbers
 from .locate import drawn_metals, metals_at
 from .simcfg import port_entry
 
@@ -86,11 +86,13 @@ class Port:
 
 def collect_ports(layout, cell, box=None, datatype=0, stackup=None):
     """Ports drawn in cell (recursively), optionally only those touching box (Box in dbu): {layer: Port}.
-    With a stackup, port.available is set to the metals drawn at the port."""
+    With a stackup, port.available is set to the metals drawn at the port, and the stackup's own layers in the
+    port layer range (SUBGND, ...) are not ports."""
     items = []
+    port_layers = port_layer_numbers(stackup)
     for li in layout.layer_indexes():
         info = layout.get_info(li)
-        if info.layer not in PORT_LAYERS or info.datatype != datatype:
+        if info.layer not in port_layers or info.datatype != datatype:
             continue
         it = cell.begin_shapes_rec(li) if box is None else cell.begin_shapes_rec_touching(li, box)
         while not it.at_end():
@@ -101,11 +103,12 @@ def collect_ports(layout, cell, box=None, datatype=0, stackup=None):
 
 def ports_of(layout, cell, items, datatype=0, stackup=None):
     """{layer: Port} from [((layer, datatype), shape, trans into cell[, instance path])], e.g. a Selection's
-    ports."""
+    ports. With a stackup, its own layers in the port layer range (SUBGND, ...) are left out."""
     ports = {}
+    port_layers = port_layer_numbers(stackup)
     for item in items:
         (layer, dt), shape, trans = item[:3]
-        if shape.is_text() or dt != datatype:
+        if shape.is_text() or dt != datatype or layer not in port_layers:
             continue
         port = ports.setdefault(layer, Port(layer))
         port.dbu = layout.dbu
@@ -163,22 +166,23 @@ def is_complete(port):
     return s is not None and s.direction in DIRECTIONS and all(s.layer_names())
 
 
-def export_numbering(ports):
+def export_numbering(ports, stackup=None):
     """{layout port layer: exported port layer}: the complete ports numbered 1..N in layout order, then the
     incomplete ones. Port numbers without gaps, because the .snp conversion after Palace (combine_extend_snp)
     takes the highest port number as the port count and fills missing ports with |S| = 1."""
     order = ([l for l in sorted(ports) if is_complete(ports[l])] +
              [l for l in sorted(ports) if not is_complete(ports[l])])
-    if len(order) > len(PORT_LAYERS):
-        raise ValueError(f"{len(order)} ports, but only {len(PORT_LAYERS)} port layers (201..299)")
-    return {layer: PORT_LAYERS[i] for i, layer in enumerate(order)}
+    targets = port_layer_numbers(stackup)          # with a stackup: skips its layers (SUBGND on 210, ...)
+    if len(order) > len(targets):
+        raise ValueError(f"{len(order)} ports, but only {len(targets)} port layers (201..299)")
+    return {layer: targets[i] for i, layer in enumerate(order)}
 
 
 def export_directions(ports, nets, stackup):
     """{port layer: direction} for the via ports whose signal layer is known (nets from connectivity.port_nets):
     'Z' if the signal metal is the upper end, '-Z' if it is the lower one. gds2palace hands 'Z' to Palace as +z, so
-    a via port's upper end is its positive terminal; with these directions the signal metal is always the positive
-    terminal, as a circuit wrapper connecting the EM model expects."""
+    all 'Z' via ports have the same orientation and '-Z' reverses one; with these directions every via port has its
+    signal metal on the same end, as a circuit wrapper connecting the EM model expects."""
     out = {}
     for layer, port in ports.items():
         s = port.settings
@@ -192,17 +196,26 @@ def export_directions(ports, nets, stackup):
     return out
 
 
+def export_port_numbers(numbering):
+    """{layout port layer: exported port number}: 1..N in the order of the exported layers (numbering from
+    export_numbering). Equal to layer - 200, unless a stackup layer in the port layer range (SUBGND on 210, ...) is
+    skipped: the port numbers stay without gaps, and gds2palace takes the port number and its layer separately."""
+    return {old: i + 1 for i, (old, new) in enumerate(sorted(numbering.items(), key=lambda item: item[1]))}
+
+
 def simcfg_ports(ports, numbering=None, directions=None):
     """setupEM port list of the complete ports (see is_complete), numbered by numbering (export_numbering) if
     given, else by their layout numbers; directions (export_directions) replace the ports' own."""
     out = []
+    numbers = export_port_numbers(numbering) if numbering else {}
     for layer in sorted(ports, key=lambda l: (numbering or {}).get(l, l)):
         if not is_complete(ports[layer]):
             continue
         s = ports[layer].settings
         new_layer = (numbering or {}).get(layer, layer)
         direction = (directions or {}).get(layer, s.direction)
-        out.append(port_entry(new_layer - 200, new_layer, direction, target_layername=s.target or None,
+        out.append(port_entry(numbers.get(layer, new_layer - 200), new_layer, direction,
+                              target_layername=s.target or None,
                               from_layername=s.from_layer or None, to_layername=s.to_layer or None,
                               port_Z0=s.z0, voltage=s.voltage))
     return out
@@ -226,9 +239,10 @@ def port_map(ports, numbering, devices=(), nets=None, directions=None):
     (connectivity.port_nets) the net and layer of each port's signal end, for a circuit wrapper, and with
     directions (export_directions) the direction exported for the ports it covers."""
     rows = []
+    numbers = export_port_numbers(numbering)
     for layer, new_layer in sorted(numbering.items(), key=lambda item: item[1]):
         port = ports[layer]
-        row = {"port": new_layer - 200, "layer": new_layer, "layout_port": port.number, "layout_layer": layer,
+        row = {"port": numbers[layer], "layer": new_layer, "layout_port": port.number, "layout_layer": layer,
                "in_simcfg": is_complete(port), "settings": str(port.settings) if port.settings else None}
         if port.settings and layer in (directions or {}):
             row["direction"] = directions[layer]
@@ -238,11 +252,11 @@ def port_map(ports, numbering, devices=(), nets=None, directions=None):
         if nets and layer in nets:
             row["net"], row["ground_net"], row["signal_layer"] = nets[layer]
         rows.append(row)
-    return {"note": "port = number in the exported GDS, .simcfg and .snp; layout_port = number in the layout "
-                    "(layer - 200). Ports not in the .simcfg are exported as shapes only. device/terminal: the "
-                    "port replaces that terminal of a PDK device (to be connected to the device model). "
-                    "direction: as exported, chosen so that the signal metal (signal_layer) is the port's positive "
-                    "terminal.",
+    return {"note": "port = number in the .simcfg and .snp, layer = its layer in the exported GDS; layout_port = "
+                    "number in the layout (layer - 200). Ports not in the .simcfg are exported as shapes only. "
+                    "device/terminal: the port replaces that terminal of a PDK device (to be connected to the "
+                    "device model). direction: as exported, chosen so that every via port has its signal metal "
+                    "(signal_layer) on the same end.",
             "ports": rows,
             "devices": {d.id: {"pcell": d.pcell, "params": {k: str(v) for k, v in d.params.items()}}
                         for d in devices if d.replaced}}

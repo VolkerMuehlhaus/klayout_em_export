@@ -2,7 +2,7 @@
 (via port) and the gap between two metals (in-plane port). Coordinates in dbu, in the given cell."""
 import pya
 
-from .export import PORT_LAYERS
+from .export import PORT_LAYERS, port_layer_numbers
 
 
 def drawn_metals(stackup):
@@ -95,11 +95,12 @@ def _facing_edges(region, point, direction):
     return pya.Box(lo, across(lower.p1), hi, across(upper.p1))
 
 
-def next_port_layer(layout, cell, datatype=0):
-    """Lowest port layer (201..299) with no shapes in cell, or None if all are used."""
+def next_port_layer(layout, cell, datatype=0, stackup=None):
+    """Lowest port layer (201..299, without the stackup's own layers, see export.port_layer_numbers) with no shapes
+    in cell, or None if all are used."""
     used = set()
     for li in layout.layer_indexes():
         info = layout.get_info(li)
         if info.layer in PORT_LAYERS and info.datatype == datatype and not cell.bbox_per_layer(li).empty():
             used.add(info.layer)
-    return next((layer for layer in PORT_LAYERS if layer not in used), None)
+    return next((layer for layer in port_layer_numbers(stackup) if layer not in used), None)

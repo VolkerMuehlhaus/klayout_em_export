@@ -4,6 +4,15 @@ import pya
 PORT_LAYERS = range(201, 300)   # gds2palace port polygons, layer numbers 201..299
 
 
+def port_layer_numbers(stackup=None):
+    """The port layer numbers: 201..299 without the stackup's own layers, which some stackups put in that range
+    (SUBGND on 210 or 250, BACKSIDEGND on 251)."""
+    if stackup is None:
+        return tuple(PORT_LAYERS)
+    used = {l.layer for l in stackup.layers} | set(stackup.gds_layers())
+    return tuple(l for l in PORT_LAYERS if l not in used)
+
+
 class ExportResult:
     def __init__(self, gds_path, cellname, box):
         self.gds_path = gds_path
@@ -49,9 +58,9 @@ def _copy_port_shapes(layout, cell, li, box, target, target_layout):
     return count
 
 
-def _is_kept(key, keep, purposes):
+def _is_kept(key, keep, purposes, ports):
     layer, datatype = key
-    return (layer in keep or layer in PORT_LAYERS) and datatype in purposes
+    return (layer in keep or layer in ports) and datatype in purposes
 
 
 def export_flat(layout, cell, stackup, gds_path, box=None, purposes=(0,), cellname=None, selection=None,
@@ -59,8 +68,8 @@ def export_flat(layout, cell, stackup, gds_path, box=None, purposes=(0,), cellna
     """Write cell, flattened and clipped to box (DBox in um, None = whole cell), to gds_path. With a selection
     (selection.Selection), only its shapes are written, uncut, and box is ignored.
 
-    Kept: the stackup's GDS layers (derived layers by their sources) and the port layers 201..299, only for the
-    given purposes (datatypes). Everything else is reported in result.dropped. Metal is merged per layer and cut
+    Kept: the stackup's GDS layers (derived layers by their sources) and the port layers (port_layer_numbers),
+    only for the given purposes (datatypes). Everything else is reported in result.dropped. Metal is merged per layer and cut
     at the box edge; port shapes are copied unchanged if they touch the box. port_layers {layout port layer:
     exported layer} renumbers the ports (ports.export_numbering). remove {GDS layer: Region} is cut out of those
     layers (the replaced devices' own shapes below Metal1, devices.device_shapes).
@@ -68,6 +77,7 @@ def export_flat(layout, cell, stackup, gds_path, box=None, purposes=(0,), cellna
     port_layers = port_layers or {}
     remove = remove or {}
     keep = set(stackup.gds_layers())
+    ports = set(port_layer_numbers(stackup))
     clip = None if box is None or selection is not None else box.to_itype(layout.dbu)
     result = ExportResult(gds_path, cellname or cell.name, None if selection is not None else box)
 
@@ -76,14 +86,14 @@ def export_flat(layout, cell, stackup, gds_path, box=None, purposes=(0,), cellna
     top = em.create_cell(result.cellname)
     if selection is not None:
         for key, region in selection.regions.items():
-            if not _is_kept(key, keep, purposes):
+            if not _is_kept(key, keep, purposes, ports):
                 result.dropped[key] = region.count()
                 continue
             merged = ((region - remove[key[0]]) if key[0] in remove else region).merged()
             top.shapes(em.layer(*key)).insert(merged)
             result.kept[key] = merged.count()
         for key, shape, trans in selection.ports:
-            if not _is_kept(key, keep, purposes):
+            if not _is_kept(key, keep, purposes, ports):
                 result.dropped[key] = result.dropped.get(key, 0) + 1
                 continue
             out = (port_layers.get(key[0], key[0]), key[1])
@@ -94,8 +104,8 @@ def export_flat(layout, cell, stackup, gds_path, box=None, purposes=(0,), cellna
     for li in layout.layer_indexes():
         info = layout.get_info(li)
         key = (info.layer, info.datatype)
-        is_port = info.layer in PORT_LAYERS
-        if not _is_kept(key, keep, purposes):
+        is_port = info.layer in ports
+        if not _is_kept(key, keep, purposes, ports):
             it = cell.begin_shapes_rec(li) if clip is None else cell.begin_shapes_rec_touching(li, clip)
             count = sum(1 for _ in it.each())
             if count:
