@@ -9,6 +9,7 @@ import subprocess
 import pya
 
 from . import gui
+from .tech import ihp_sg13g2_circuit as tech
 
 WRAPPER = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "tools",
                                         "spice_wrapper.py"))
@@ -75,8 +76,8 @@ class CircuitDialog(pya.QDialog):
         self.simulator.setCurrentIndex(min(int(self.settings.get("circuit_choice", 0)), len(CHOICES) - 1))
         self.simulator.currentIndexChanged += lambda index: self._update_output()
         form.addRow("Simulator", self.simulator)
-        self.pdk = self._file_row(form, "IHP PDK", self.settings.get("circuit_pdk", ""), self._browse_pdk)
-        form.addRow("", pya.QLabel("Optional: the ihp-sg13g2 folder of IHP-Open-PDK, for the model library paths."))
+        self.pdk = self._file_row(form, tech.PDK_LABEL, self.settings.get("circuit_pdk", ""), self._browse_pdk)
+        form.addRow("", pya.QLabel(tech.PDK_HINT))
         self.output = self._file_row(form, "Output", "", self._browse_output)
         self.output.textEdited += lambda text: setattr(self, "_output_edited", True)
         self._output_edited = False
@@ -122,7 +123,7 @@ class CircuitDialog(pya.QDialog):
             self._update_output()
 
     def _browse_pdk(self):
-        path = pya.FileDialog.ask_existing_dir("IHP-Open-PDK ihp-sg13g2 folder", self.pdk.text)
+        path = pya.FileDialog.ask_existing_dir(tech.PDK_BROWSE_TITLE, self.pdk.text)
         if path:
             self.pdk.setText(path)
 

@@ -14,6 +14,7 @@ from .boundary import find_crossings
 from .connectivity import check_ground, wiring
 from .export import marker_box
 from .ports import collect_ports, device_of, export_numbering, export_port_numbers, is_complete, port_problems
+from .tech import active as active_technology
 
 OK, WARN, ERROR = ("✓", "#1a8f1a"), ("⚠", "#c87800"), ("✗", "#c00000")
 COLUMNS = ("#", "Layer", "Port", "Export #", "Status")
@@ -292,9 +293,7 @@ class EMPanel(pya.QWidget):
             elif d.problems:
                 state = "cannot be replaced: " + "; ".join(d.problems)
             elif d.is_resistor:
-                low = "a few %" if d.pcell == "rsil" else "about 10 %"     # Palace, tests/resistor_palace
-                state = (f"not replaced: sheet resistor of the drawn size in the EM model, R {low} too low (no PDK "
-                         "width offset and contact end resistance)")
+                state = "not replaced: " + active_technology().resistor_note(d)
             else:
                 state = "not replaced: simulated as layout"
             lines.append(f"{d.pcell} {name} {d.params}: {state}")

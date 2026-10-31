@@ -2,7 +2,8 @@
 
 Lightweight on purpose: merged metal polygons per layer, grown through the vias between vertically adjacent metals
 (from the stackup's z positions) until nothing new is added. Only wiring is traced: conductor layers of the
-stackup above the device level. Activ (and every via that touches it, like Cont) is left out, because tracing
+stackup above the device level. The technology's device level (SG13G2: Activ), and every via that touches it
+(like Cont), is left out, because tracing
 through it merges source and drain, and so all nets, through the transistor diffusions; sheets (resistors,
 PEC reference sheets) are not wiring either. A transistor or resistor is an open circuit for this check.
 
@@ -13,15 +14,16 @@ do not count: their only traced end is the device terminal.
 import pya
 
 from .ports import device_of
+from .tech import active as active_technology
 
-DEVICE_LEVEL = {"Activ"}            # SG13G2: diffusion, below Metal1; see the module doc
 OTHER_NETS_LIMIT = 300              # count the separate other nets only up to this many polygons
 
 
 def wiring(stackup):
     """(metal layers {GDS layer: name}, connections [(via layer, layer below, layer above)]) that are traced."""
+    device_level = active_technology().DEVICE_LEVEL      # see the module doc
     metals = {l.layer: l.name for l in stackup.layers
-              if l.kind == "conductor" and l.layer not in stackup.derived and l.name not in DEVICE_LEVEL}
+              if l.kind == "conductor" and l.layer not in stackup.derived and l.name not in device_level}
     connections = []
     for via, (below, above) in stackup.via_neighbors().items():
         if len(below) == 1 and len(above) == 1 and below[0].layer in metals and above[0].layer in metals:

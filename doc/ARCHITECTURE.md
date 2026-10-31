@@ -52,7 +52,8 @@ modules only collect input and call the core.
 | `ports.py` | Port settings as a shape property (`PortSettings`), collecting ports, checks, export numbering, via port directions, the `.simcfg` port list, the port map. |
 | `connectivity.py` | Traces metal through vias: the ground net (`check_ground`), shorted via ports, the net of each port (`port_nets`). |
 | `boundary.py` | Where conductors cross the EM region box: proposed via ports on the cut. |
-| `devices.py` | Finds PDK devices and their terminals; replaces them by a REF patch and via ports; the device shapes the export removes. |
+| `devices.py` | Finds PDK devices (through the technology) and replaces them by a REF patch and via ports; the device shapes the export removes. |
+| `tech/` | The PDK specifics, one technology per fab: `ihp_sg13g2.py` (which cells are devices, their terminals, the device level for the ground check, the resistor note; needs pya) and `ihp_sg13g2_circuit.py` (device models, terminal order and model libraries for the circuit wrapper; plain Python, imported by `tools/spice_wrapper.py`). `tech.active()` returns the technology in use: for now always IHP SG13G2. |
 | `selection.py` | The selected shapes, flattened, completed with connecting vias and touching port shapes. |
 | `export.py` | Writes one flat cell with only the stackup's layers and the port layers, clipped and merged. |
 | `simcfg.py` | Writes or updates setupEM's `.simcfg`. |

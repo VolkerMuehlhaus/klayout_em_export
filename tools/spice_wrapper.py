@@ -42,16 +42,10 @@ import re
 import subprocess
 import sys
 
-# pcell -> (subcircuit or None for the pcell's 'model' parameter, kind)
-DEVICES = {
-    "npn13G2": ("npn13G2", "hbt"), "npn13G2L": ("npn13G2l", "hbt"), "npn13G2V": ("npn13G2v", "hbt"),
-    "nmos": (None, "mos"), "pmos": (None, "mos"), "nmosHV": (None, "moshv"), "pmosHV": (None, "moshv"),
-    "rfnmos": (None, "mos"), "rfpmos": (None, "mos"), "rfnmosHV": (None, "moshv"), "rfpmosHV": (None, "moshv"),
-    "rsil": ("rsil", "res"), "rppd": ("rppd", "res"), "rhigh": ("rhigh", "res"),
-}
-LIBRARIES = {"hbt": ("cornerHBT.lib", "hbt_typ"), "mos": ("cornerMOSlv.lib", "mos_tt"),
-             "moshv": ("cornerMOShv.lib", "mos_tt"), "res": ("cornerRES.lib", "res_typ")}
-PARAMS = {"hbt": ("Nx", "Ny", "le", "we"), "mos": ("w", "l", "ng"), "moshv": ("w", "l", "ng"), "res": ("w", "l", "b")}
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "python"))
+from klayout_em_export.tech import ihp_sg13g2_circuit as tech     # noqa: E402  (plain Python, no pya)
+
+
 EM_DEFAULT = {"ngspice": "fit", "vacask": "fit", "xyce": "snp", "spectre": "snp"}
 EM_ALLOWED = {"ngspice": ("fit",), "vacask": ("fit",), "xyce": ("snp", "fit"), "spectre": ("snp",)}
 EXTENSION = {"ngspice": ".cir", "vacask": ".inc", "xyce": ".cir", "spectre": ".scs"}
@@ -107,12 +101,6 @@ def xyce_compatible(path):
     open(path, "w").write(re.sub(r"\s+noisy=0\b", "", text, flags=re.I))
 
 
-def label_value(label):
-    """Resistance from a static resistor cell's label, e.g. 'rhigh r=2.997k' -> '2.997k'."""
-    m = re.search(r"r\s*=\s*([0-9.]+\s*[a-zA-Z]*)", label or "")
-    return m.group(1).replace(" ", "") if m else None
-
-
 class Circuit:
     """The wrapper independent of the simulator: pins, the EM model's pin nodes and the elements around it."""
 
@@ -145,40 +133,15 @@ def build(portmap, em_pins, dc_blocks, name):
 
     for k, (device_id, term) in enumerate(sorted(terminals.items()), start=1):
         info = portmap.get("devices", {}).get(device_id, {})
-        pcell = info.get("pcell") or device_id.split("@")[0].split("_CDNS_")[0].split("$")[0]
-        params = info.get("params", {})
-        subckt, kind = DEVICES.get(pcell, (None, None))
+        pcell = info.get("pcell") or tech.pcell_of(device_id)
         ports_of = ", ".join(f"{r['terminal']} port {n}" for n, r in sorted(ports.items())
                              if r.get("device") == device_id)
         c.items.append(("comment", f"{pcell} {device_id} ({ports_of})"))
-        if kind is None:
-            c.notes.append(f"{device_id}: unknown device type {pcell}, not instantiated")
-            c.items.append(("comment", "  not instantiated: unknown device type"))
-            continue
-        if kind == "res" and not any(p in params for p in ("w", "l")):
-            value = label_value(params.get("label"))
-            if value is None:
-                c.notes.append(f"{device_id}: no parameters and no value label, not instantiated")
-                c.items.append(("comment", "  not instantiated: no parameters, no value label"))
-                continue
-            # a static cell from Cadence has no pcell parameters: an ideal resistor of the labelled value
-            c.items.append(("comment", "  static cell without parameters: ideal resistor from its label "
-                                       f"'{params.get('label')}'"))
-            c.items.append(("R", f"R{k}", term["PLUS"], term["MINUS"], value))
-            c.notes.append(f"{device_id}: ideal resistor {value} (from its label; no temperature, no parasitics)")
-            continue
-        c.kinds.add(kind)
-        values = {p: params[p] for p in PARAMS[kind] if p in params and params[p] not in ("", "None")}
-        if kind == "hbt":
-            c.items.append(("device", f"X{k}", subckt, [term["C"], term["B"], term["E"], "0"], values))
-        elif kind in ("mos", "moshv"):
-            model = params.get("model") or ("sg13_lv_pmos" if "p" in pcell else "sg13_lv_nmos")
-            bulk = term.get("TIE") or (term["S"] if "pmos" in pcell else "0")
-            c.items.append(("device", f"X{k}", model, [term["D"], term["G"], term["S"], bulk], values))
-            if "TIE" not in term:
-                c.notes.append(f"{device_id}: bulk to {'its source' if 'pmos' in pcell else 'ground'} (no bulk port)")
-        else:
-            c.items.append(("device", f"X{k}", subckt, [term["PLUS"], term["MINUS"], "0"], values))
+        items, notes, kind = tech.instantiate(k, device_id, pcell, info.get("params", {}), term)
+        c.items += items
+        c.notes += notes
+        if kind is not None:
+            c.kinds.add(kind)
 
     # DC paths of the wiring: 1 mH between the ports of one net, to ground on the ground net
     nets = {}
@@ -201,12 +164,6 @@ def build(portmap, em_pins, dc_blocks, name):
     return c
 
 
-def _lib_path(pdk, simulator, lib):
-    if not pdk:
-        return f"<IHP-Open-PDK>/ihp-sg13g2/libs.tech/{simulator}/models/{lib}"
-    return os.path.join(pdk, "libs.tech", simulator, "models", lib).replace("\\", "/")
-
-
 def write_spice(c, simulator, em, em_file, em_name, pdk):
     """ngspice or Xyce netlist."""
     out = [f"* {c.name}: EM model with PDK devices for {simulator}, "
@@ -219,8 +176,8 @@ def write_spice(c, simulator, em, em_file, em_name, pdk):
                 f".model {c.name}_em LIN TSTONEFILE={em_file}"]
     out.append(f"* PDK model libraries ({simulator}):")
     for kind in sorted(c.kinds):
-        lib, section = LIBRARIES[kind]
-        out.append(("" if pdk else "* ") + f".lib {_lib_path(pdk, simulator, lib)} {section}")
+        lib, section = tech.LIBRARIES[kind]
+        out.append(("" if pdk else "* ") + f".lib {tech.lib_path(pdk, simulator, lib)} {section}")
     out += [f"* notes: {n}" for n in c.notes]
     out += ["", f".subckt {c.name} {' '.join(c.pins)}"]
     if em == "fit":
@@ -244,9 +201,9 @@ def write_spectre(c, em_file):
     out = ["simulator lang=spectre",
            f"// {c.name}: EM model with PDK devices for Spectre, generated by klayout_em_export tools/spice_wrapper.py",
            "// pins: " + ", ".join(f"{node} = export port {n} (layout port {lp})" for node, n, lp in c.header),
-           "// PDK model libraries: include those of your SG13G2 PDK installation, for example"]
+           f"// {tech.SPECTRE_NOTE}"]
     for kind in sorted(c.kinds):
-        lib, section = LIBRARIES[kind]
+        lib, section = tech.LIBRARIES[kind]
         out.append(f'// include "<your PDK>/{lib}" section={section}')
     out += [f"// notes: {n}" for n in c.notes]
     out += ["", f"subckt {c.name} ({' '.join(c.pins)})",
@@ -269,10 +226,9 @@ def write_vacask(c, em_file, em_name, primitives):
     """VACASK netlist: snp2le's VACASK model, the PDK's VACASK libraries (by name, through .vacaskrc.toml)."""
     out = [f"// {c.name}: EM model with PDK devices for VACASK, generated by klayout_em_export tools/spice_wrapper.py",
            "// pins: " + ", ".join(f"{node} = export port {n} (layout port {lp})" for node, n, lp in c.header),
-           "// needs the IHP PDK converted for VACASK and its .vacaskrc.toml (next to the testbench or in your home)",
-           'include "sg13g2_vacask_common.lib"']
+           f"// {tech.VACASK_HEADER[0]}", tech.VACASK_HEADER[1]]
     for kind in sorted(c.kinds):
-        lib, section = LIBRARIES[kind]
+        lib, section = tech.LIBRARIES[kind]
         out.append(f'include "{lib}" section={section}')
     out.append("// primitives of the EM model and of this wrapper, under names of their own")
     used = set(primitives) | {"resistor", "inductor", "capacitor"}
@@ -304,7 +260,7 @@ def main():
     parser.add_argument("-o", "--output", help="wrapper file (default: <snp name>_<simulator>.<ext> next to the .snp)")
     parser.add_argument("--simulator", choices=sorted(EM_DEFAULT), default="ngspice")
     parser.add_argument("--em", choices=("fit", "snp"), help="EM model: snp2le equivalent circuit or the .sNp file")
-    parser.add_argument("--pdk", help="IHP-Open-PDK ihp-sg13g2 folder: active .lib lines (ngspice, Xyce)")
+    parser.add_argument("--pdk", help=tech.PDK_HELP)
     args = parser.parse_args()
     sim = args.simulator
     em = args.em or EM_DEFAULT[sim]
