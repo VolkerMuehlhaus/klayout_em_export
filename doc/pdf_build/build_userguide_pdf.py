@@ -129,6 +129,7 @@ def main():
     ap.add_argument("--no-image-compression", action="store_true",
                     help="embed all images unchanged (lossless, much larger PDF)")
     ap.add_argument("--keep-typ", action="store_true", help="keep the intermediate .typ file for debugging")
+    ap.add_argument("--chapter-pagebreak", action="store_true", help="start each chapter (##) on a new page")
     ap.add_argument("--version", action="version", version=__version__)
     args = ap.parse_args()
 
@@ -168,6 +169,7 @@ def main():
         print(res.stderr.strip())
 
     header = "\n".join(f"#let doc-{k} = {typst_string(v)}" for k, v in meta.items())
+    header += f"\n#let doc-chapter-pagebreak = {'true' if args.chapter_pagebreak else 'false'}"
     template = TEMPLATE.read_text(encoding="utf-8")
     typ_source = template.replace("// @@METADATA@@", header).replace("// @@BODY@@", res.stdout)
 

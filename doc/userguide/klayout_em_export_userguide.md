@@ -46,10 +46,45 @@ The plug-in connects the two worlds:
 4. **Your circuit simulator** (ngspice, VACASK, Xyce or Spectre) then simulates bias, gain and everything else, with
    the real wiring included.
 
+### What the plug-in does for you
+
+Much of the work that makes an EM model tedious, and easy to get wrong, is done for you:
+
+- **A via port in one click.** Click a metal edge: the port is placed exactly along that edge, and the port dialog
+  offers only the metals that are really drawn there (chapter 6).
+- **An in-plane port in one click.** Shift+click into a gap: the plug-in finds the gap between two shapes of one
+  metal, draws the port across it and sets its direction and metal (chapter 6).
+- **Ground found and checked.** The plug-in traces your metal through the vias, finds the ground net by itself and
+  shows it in the layout. It warns you before the simulation if a port is shorted, does not reach ground, or if
+  your layout has no ground at all (chapter 7).
+- **Ports where the region cuts your wiring.** Simulate only part of the layout, and the plug-in proposes a port on
+  every signal wire that leaves the region, from the wire to the ground metal there. Ground wires get no port
+  (chapter 8).
+- **Transistors replaced by ports.** The plug-in recognises the SG13G2 transistors and resistors, finds their
+  terminals from the PDK cell (for a MOSFET it follows the gate to your contacts) and places one port per terminal,
+  over all fingers. The reference patch covers only the device's pins, so two devices side by side keep separate
+  references. The export removes the device's own metal below the pins, so nothing is counted twice: once in the
+  EM model and once in the PDK model (chapter 9).
+- **Connection checks for devices.** You are warned if a device terminal is not wired to anything in the region, or
+  if the reference patches of two devices touch (chapter 9).
+- **A clean export.** One flat cell, cut at the region, with only the layers the stackup needs, and a report of
+  everything left out. Ports are numbered 1, 2, 3, ... without gaps, and all via ports point the same way, with the
+  signal metal at the same end (chapter 10).
+- **Back to the circuit in one step.** The export records which port belongs to which pin of which device. Create
+  Circuit uses it to connect the PDK models again and writes the circuit for your simulator (chapter 12).
+- **Settings kept with the layout.** The stackup, the port settings and your ground marks are saved in the GDS
+  file. The EM panel shows with green, orange and red marks what is done and what is still missing (chapter 4).
+
 This guide follows one example from start to end: a cascode core with two npn13G2 transistors, a bias divider of
 three resistors, and two RF pads.
 
 ![The example: a cascode core](images/03_circuit.png)
+
+In the layout, the two transistors sit stacked in the middle, Q2 above Q1. The RF lines Cas_in and Cas_out leave at
+the bottom and top, the bias resistors are at the left edge, and a large ground plane surrounds everything. This is
+the layout you will prepare for the EM simulation in the following chapters.
+
+![The cascode layout (SG13G2), about 51 µm × 32 µm](images/03_layout.png)
 
 ## Installation
 

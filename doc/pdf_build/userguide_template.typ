@@ -41,8 +41,10 @@
 #show heading: set text(fill: accent, weight: "semibold")
 #show heading: set block(sticky: true)
 #show heading.where(level: 1): it => {
-  v(1.4em)
-  block(below: 0.9em, {
+  // a new page per chapter (build option --chapter-pagebreak), else some space; the chapter heading block is
+  // sticky like the others, so it never ends a page alone
+  if doc-chapter-pagebreak { pagebreak(weak: true) } else { v(1.4em) }
+  block(sticky: true, below: 0.9em, {
     set text(17pt)
     it
     v(-0.5em)

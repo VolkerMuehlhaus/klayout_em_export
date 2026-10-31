@@ -1,5 +1,5 @@
-# Give the GUI screenshots (panels, dialogs, menus) a resolution of 200 dpi, so the PDF shows them at a natural size
-# instead of the full page width. Layout images and full windows keep theirs. GitHub ignores the value.
+# Give the GUI screenshots (panels, dialogs, menus) a resolution entry of at least 200 dpi, and enough to keep them at
+# most 5.5 inches wide, so the PDF shows them at a natural size instead of the full page width. Layout images and full windows keep theirs. GitHub ignores the value.
 import glob
 import os
 
@@ -13,5 +13,6 @@ for path in sorted(glob.glob(os.path.join(IMAGES, "*.png"))):
     if name.startswith(SMALL):
         image = Image.open(path)
         image.load()
-        image.save(path, dpi=(200, 200))
-        print("200 dpi:", name)
+        dpi = max(200, round(image.width / 5.5))
+        image.save(path, dpi=(dpi, dpi))
+        print(f"{dpi} dpi:", name)

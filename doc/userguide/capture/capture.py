@@ -99,6 +99,17 @@ def view_image(name, box=None, width=1400, height=900, ports=True, refs=True):
     say(f"image {name}")
 
 
+def grab_panel(name, width=760):
+    """The EM panel, floating and as tall as its content needs (docked, Qt squeezes open details)."""
+    dock = gui._dock
+    dock.setFloating(True)
+    settle()
+    content = get(panel().sizeHint)
+    dock.resize(width, max(600, get(content.height) + 80))
+    settle(40)
+    grab(dock, name)
+
+
 def step(name, function):
     try:
         function()
@@ -165,10 +176,9 @@ def open_start():
     view.max_hier()
     view.zoom_fit()
     gui.show_panel()
-    gui._dock.resize(560, 900)
     expand(panel().stackup_step)
     grab(mw, "02_main_window_start")
-    grab(gui._dock, "05_panel_no_stackup")
+    grab_panel("05_panel_no_stackup")
 
 
 def em_menu():
@@ -186,7 +196,7 @@ def choose_stackup():
     gui.set_stackup(cv.layout(), STACKUP)
     panel().refresh()
     expand(panel().stackup_step)
-    grab(gui._dock, "05_panel_stackup")
+    grab_panel("05_panel_stackup")
 
 
 def pad_ports():
@@ -213,7 +223,7 @@ def pad_ports():
             cell.shapes(li).insert(box, layout.properties_id([[PROP_KEY, settings.encode()]]))
     panel().refresh()
     expand()
-    grab(gui._dock, "07_panel_two_ports")
+    grab_panel("07_panel_two_ports")
 
 
 def port_overview():
@@ -238,7 +248,7 @@ def port_overview():
 def ground():
     panel().refresh(run_checks=True)
     expand(panel().ground_step)
-    grab(gui._dock, "08_panel_ground")
+    grab_panel("08_panel_ground")
     panel()._show_ground(True)
     view_image("08_ground_in_layout")
     panel()._show_ground(False)
@@ -247,12 +257,12 @@ def ground():
 def devices():
     panel().refresh()
     expand(panel().devices_step)
-    grab(gui._dock, "10_panel_devices_before")
+    grab_panel("10_panel_devices_before")
     view_image("10_q1_before", pya.DBox(-12, -4, 11, 6))
     panel().include_resistors.setChecked(True)
     panel()._replace_devices()
     expand(panel().devices_step)
-    grab(gui._dock, "10_panel_devices_after")
+    grab_panel("10_panel_devices_after")
     view_image("10_q1_after", pya.DBox(-12, -4, 11, 6))
     view_image("10_resistors_after", pya.DBox(-30, -1, -22, 10))
 
@@ -274,11 +284,11 @@ def boundary():
         it.next()
     panel().refresh(run_checks=True)
     expand(panel().region_step)
-    grab(gui._dock, "09_panel_proposed")
+    grab_panel("09_panel_proposed")
     view_image("09_region_cut", pya.DBox(-31, 5, -20, 14))
     panel()._create_proposed()
     expand()
-    grab(gui._dock, "09_panel_created")
+    grab_panel("09_panel_created")
     view_image("09_boundary_port", pya.DBox(-31, 5, -20, 14))
     view_image("09_region_whole")
 
@@ -311,6 +321,8 @@ def export_dialog():
     say("exported: " + ", ".join(f for f in os.listdir(WORK) if f.startswith("cascode_em")))
     panel().refresh()
     expand()
+    gui._dock.setFloating(False)
+    settle(40)
     grab(mw, "11_main_window_ready")
 
 
