@@ -2,6 +2,9 @@
 # layer 250 in the SG13G2 stackups, 210 in the SG13CMOS5L ones). Environment: OUT (output folder).
 import os
 import sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from testpaths import GDS2PALACE
+
 import pya
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "python"))
 from klayout_em_export.export import export_flat, port_layer_numbers
@@ -12,7 +15,7 @@ from klayout_em_export.stackup import Stackup
 
 OUT = os.environ["OUT"]
 os.makedirs(OUT, exist_ok=True)
-XML = r"D:\github-claude\gds2palace_ihp_sg13g2\XML_stackup"
+XML = os.path.join(GDS2PALACE, "XML_stackup")
 cases = [(os.path.join(XML, "latest", "IHP", "SG13G2_FEM_200um.xml"), 250),
          (os.path.join(XML, "legacy", "SG13CMOS5L_200um.xml"), 210)]
 failed = []

@@ -1,16 +1,19 @@
 # Batch test (KLayout -z -nc -rx -r): replaced devices in three places that once went wrong. Cascode
-# (D:\Palace_testcases\klayout_export\guide\cascode.gds, made by the guide's capture script), its three resistors
-# replaced. Needs the PDK (klayout_em_export_tests/pdk_env.py), run like test_devices.py. Environment: OUT.
+# (Palace_testcases/klayout_export/guide/cascode.gds, see testpaths.py; made by the guide's capture script),
+# its three resistors replaced. Needs the PDK (klayout_em_export_tests/pdk_env.py), run like test_devices.py.
+# Environment: OUT.
 #  1. "Selected shapes only": the completed selection carries the REF patches of the replaced devices' ports.
 #  2. Ground from via ports: device ports alone do not pick a ground net (their only traced end is the terminal).
 #  3. A replaced device that is moved leaves its ports and patch behind: reported by orphaned_tags.
 import os
 import sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from testpaths import STACKUP, TESTS_DIR, palace_testcases, out_dir
 
 import pya
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(HERE, "..", "..", "klayout_em_export_tests"))
+sys.path.insert(0, TESTS_DIR)
 from pdk_env import load_pdk
 load_pdk()
 sys.path.insert(0, os.path.join(HERE, "..", "python"))
@@ -22,9 +25,8 @@ from klayout_em_export.ports import PROP_KEY, PortSettings, collect_ports
 from klayout_em_export.selection import Selection
 from klayout_em_export.stackup import Stackup
 
-OUT = os.environ.get("OUT", HERE)
-GDS = r"D:\Palace_testcases\klayout_export\guide\cascode.gds"
-STACKUP = os.path.join(HERE, "..", "..", "gds2palace_ihp_sg13g2", "XML_stackup", "latest", "IHP", "SG13G2_FEM_200um.xml")
+OUT = out_dir("replaced_devices")
+GDS = palace_testcases("klayout_export", "guide", "cascode.gds")
 failed = []
 
 

@@ -2,14 +2,17 @@
 #  1. OctaDiffTap demo: three feed ports Metal1 (ground) -> TopMetal2 (feeds LA, LB, LC).
 #  2. core_transistor_3port_bce: ports 1-2 Metal3 -> TopMetal2, ports 3-5 Metal2 -> REF_FOR_TRANSISTOR (a sheet,
 #     not traced), with the settings of the example's .simcfg.
-import json
 import os
+import sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from testpaths import GDS2PALACE, palace_testcases
+import json
 import pya
 from klayout_em_export.connectivity import check_ground
 from klayout_em_export.ports import PROP_KEY, PortSettings, collect_ports
 from klayout_em_export.stackup import Stackup
 
-IHP = r"D:\github-claude\gds2palace_ihp_sg13g2"
+IHP = GDS2PALACE
 
 
 def run(title, gds, stackup_file, settings, seeds=()):
@@ -25,7 +28,7 @@ def run(title, gds, stackup_file, settings, seeds=()):
     print(f"## {title}\n" + result.summary())
 
 
-run("OctaDiffTap, ground from the via ports", r"D:\Palace_testcases\demo_mcp\OctaDiffTap_0n50_ports3.gds",
+run("OctaDiffTap, ground from the via ports", palace_testcases("demo_mcp", "OctaDiffTap_0n50_ports3.gds"),
     os.path.join(IHP, r"XML_stackup\latest\IHP\SG13G2_FEM_200um.xml"),
     {l: PortSettings("Z", "Metal1", "TopMetal2") for l in (201, 202, 203)})
 
@@ -39,14 +42,14 @@ run("3-port BCE transistor, ground from the via ports", os.path.join(ex, "50_ghz
     os.path.join(ex, "SG13G2_100um_bce_ports.xml"), settings)
 
 run("OctaDiffTap, marked: the LA feed on TopMetal2 (ports would say Metal1)",
-    r"D:\Palace_testcases\demo_mcp\OctaDiffTap_0n50_ports3.gds",
+    palace_testcases("demo_mcp", "OctaDiffTap_0n50_ports3.gds"),
     os.path.join(IHP, r"XML_stackup\latest\IHP\SG13G2_FEM_200um.xml"),
     {l: PortSettings("Z", "Metal1", "TopMetal2") for l in (201, 202, 203)}, seeds=[(134, 33.7, -41.5)])
 
 # a shorted port: OctaDiffTap with a TopVia-free direct short is not available, so use a port whose both ends are
 # the inductor: TopMetal1 -> TopMetal2 at a TopVia2 crossing joins the same net
 st = Stackup(os.path.join(IHP, r"XML_stackup\latest\IHP\SG13G2_FEM_200um.xml"))
-ly = pya.Layout(); ly.read(r"D:\Palace_testcases\demo_mcp\OctaDiffTap_0n50_ports3.gds")
+ly = pya.Layout(); ly.read(palace_testcases("demo_mcp", "OctaDiffTap_0n50_ports3.gds"))
 cell = ly.top_cell()
 for layer in (201, 202, 203):
     for shape in cell.shapes(ly.find_layer(layer, 0)).each():

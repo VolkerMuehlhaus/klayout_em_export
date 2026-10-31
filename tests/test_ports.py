@@ -1,12 +1,16 @@
 # Batch test (KLayout -z -nc -rx -r, package installed in salt): port properties, collection, simcfg list, flat export, dialog.
-# Writes to the OUT folder below; adjust it.
-import sys, os, json
+# Output: OUT (default: a temp folder, see testpaths.py).
+import os
+import sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from testpaths import EXAMPLE_BCE, out_dir
+import json
 import pya
 from klayout_em_export.ports import PortSettings, collect_ports, check_ports, simcfg_ports, PROP_KEY
 from klayout_em_export.stackup import Stackup
 from klayout_em_export.export import export_flat
-EX = r"D:\github-claude\gds2palace_ihp_sg13g2\more_examples\core_transistor_3port_bce"
-OUT = r"C:/Users/volker/AppData/Local/Temp/claude/d--github-claude/87a3a291-8748-4bcb-85dc-b9bbb004dff7/scratchpad/kee"
+EX = EXAMPLE_BCE
+OUT = out_dir("kee")
 st = Stackup(os.path.join(EX, "SG13G2_100um_bce_ports.xml"))
 ly = pya.Layout(); ly.read(os.path.join(EX, "50_ghz_mpa_core_bce_ports.gds")); cell = ly.top_cell()
 # settings as in the example's .simcfg; port 5 left without settings, port 4 with a wrong layer name

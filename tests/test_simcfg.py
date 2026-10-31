@@ -1,13 +1,15 @@
 # Test (plain Python or KLayout batch): re-exporting keeps setupEM's own settings in an existing .simcfg.
-import json
 import os
 import sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from testpaths import STACKUP
+import json
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "python"))
 from klayout_em_export.simcfg import port_entry, write_simcfg
 
 out = sys.argv[1] if len(sys.argv) > 1 else os.environ["OUT"]
 path, gds = os.path.join(out, "keep_em.simcfg"), os.path.join(out, "e2e_em.gds")
-stackup = r"D:\github-claude\gds2palace_ihp_sg13g2\XML_stackup\latest\IHP\SG13G2_FEM_200um.xml"
+stackup = STACKUP
 if os.path.exists(path):
     os.remove(path)
 print("first export updated an existing file:", write_simcfg(path, gds, stackup, "TOP", [port_entry(1, 201, "Z", None, "Metal3", "TopMetal2")]))

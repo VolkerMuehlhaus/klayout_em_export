@@ -4,9 +4,12 @@
 # (klayout_em_export_tests/pdk_env.py); run with KLAYOUT_PATH/KLAYOUT_HOME pointing to an empty folder.
 import os
 import sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from testpaths import STACKUP, TESTS_DIR, tests_data, out_dir
+
 import pya
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(HERE, "..", "..", "klayout_em_export_tests"))
+sys.path.insert(0, TESTS_DIR)
 sys.path.insert(0, os.path.join(HERE, "..", "python"))   # not via salt here
 from pdk_env import load_pdk
 from klayout_em_export.devices import device_shapes, find_devices, mark_replaced, port_lines, replace
@@ -14,9 +17,9 @@ from klayout_em_export.ports import collect_ports
 from klayout_em_export.stackup import Stackup
 
 load_pdk()
-st = Stackup(r"D:\github-claude\gds2palace_ihp_sg13g2\XML_stackup\latest\IHP\SG13G2_FEM_200um.xml")
+st = Stackup(STACKUP)
 ly = pya.Layout(); ly.technology_name = "sg13g2"
-ly.read(os.path.join(HERE, "..", "..", "klayout_em_export_tests", "work", "t1_test.gds"))
+ly.read(tests_data("work", "t1_test.gds"))
 cell = ly.cell("TOP")
 dbu = ly.dbu
 devices, unknown = find_devices(ly, cell, st)
@@ -49,7 +52,7 @@ import json
 from klayout_em_export.export import export_flat
 from klayout_em_export.ports import export_numbering, port_map, simcfg_ports
 from klayout_em_export.simcfg import write_simcfg
-OUT = os.environ.get("OUT", r"C:/Users/volker/AppData/Local/Temp/claude/d--github-claude/87a3a291-8748-4bcb-85dc-b9bbb004dff7/scratchpad/mos")
+OUT = out_dir("mos")
 os.makedirs(OUT, exist_ok=True)
 gds = os.path.join(OUT, "t1_mos_em.gds")
 numbering = export_numbering(ports)

@@ -3,9 +3,12 @@
 # 1_St_Core_v1_forEM.gds (cascode): every terminal is wired. Needs the PDK, run like test_devices.py.
 import os
 import sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from testpaths import STACKUP, TESTS_DIR, palace_testcases, tests_data
+
 import pya
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(HERE, "..", "..", "klayout_em_export_tests"))
+sys.path.insert(0, TESTS_DIR)
 sys.path.insert(0, os.path.join(HERE, "..", "python"))   # not via salt here
 from pdk_env import load_pdk
 from klayout_em_export.connectivity import check_ground
@@ -13,9 +16,9 @@ from klayout_em_export.devices import find_devices, unconnected_terminals
 from klayout_em_export.stackup import Stackup
 
 load_pdk()
-st = Stackup(r"D:\github-claude\gds2palace_ihp_sg13g2\XML_stackup\latest\IHP\SG13G2_FEM_200um.xml")
-for path, prefix in ((os.path.join(HERE, "..", "..", "klayout_em_export_tests", "testcases", "50_ghz_mpa_core.gds"), ""),
-                     (r"D:\Palace_testcases\klayout_export\1_St_Core_v1_forEM.gds", "Cascode")):
+st = Stackup(STACKUP)
+for path, prefix in ((tests_data("testcases", "50_ghz_mpa_core.gds"), ""),
+                     (palace_testcases("klayout_export", "1_St_Core_v1_forEM.gds"), "Cascode")):
     ly = pya.Layout(); ly.technology_name = "sg13g2"
     ly.read(path)
     cell = next(c for c in ly.top_cells() if not c.name.startswith("$$$") and c.name.startswith(prefix))

@@ -2,11 +2,13 @@
 # patches followed the pins) is undone and redone with the resistors included. Ports numbered without gaps: pads,
 # transistors, resistors. Output folder: environment OUT. Needs the PDK (klayout_em_export_tests/pdk_env.py), run
 # like test_devices.py. Adds a port at the Cas_Bias pin.
-import json
 import os
 import sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from testpaths import STACKUP, TESTS_DIR, palace_testcases
+import json
 import pya
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "klayout_em_export_tests"))
+sys.path.insert(0, TESTS_DIR)
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "python"))
 from pdk_env import load_pdk
 from klayout_em_export.devices import device_shapes, find_devices, mark_replaced, replace, touching_patches, unreplace
@@ -18,9 +20,9 @@ from klayout_em_export.stackup import Stackup
 OUT = os.environ["OUT"]
 os.makedirs(OUT, exist_ok=True)
 load_pdk()
-st = Stackup(r"D:\github-claude\gds2palace_ihp_sg13g2\XML_stackup\latest\IHP\SG13G2_FEM_200um.xml")
+st = Stackup(STACKUP)
 ly = pya.Layout(); ly.technology_name = "sg13g2"
-ly.read(r"D:\Palace_testcases\klayout_export\1_St_Core_v1_forEM.gds")
+ly.read(palace_testcases("klayout_export", "1_St_Core_v1_forEM.gds"))
 cell = next(c for c in ly.top_cells() if c.name.startswith("Cascode"))
 
 

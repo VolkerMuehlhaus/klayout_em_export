@@ -2,15 +2,19 @@
 # OctaDiffTap demo, region box with its bottom edge at y = -35 um: it cuts the three TopMetal2 feeds (signal) and
 # the Metal1 ground, above the hand-drawn ports at y = -42 (outside the box). Ground: marked on Metal1.
 import os
+import sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from testpaths import STACKUP, palace_testcases, out_dir
+
 import pya
 from klayout_em_export.boundary import create_ports, find_crossings
 from klayout_em_export.connectivity import check_ground
 from klayout_em_export.ports import collect_ports
 from klayout_em_export.stackup import Stackup
 
-st = Stackup(r"D:\github-claude\gds2palace_ihp_sg13g2\XML_stackup\latest\IHP\SG13G2_FEM_200um.xml")
+st = Stackup(STACKUP)
 view = pya.LayoutView(True)
-idx = view.load_layout(r"D:\Palace_testcases\demo_mcp\OctaDiffTap_0n50_ports3.gds", True)
+idx = view.load_layout(palace_testcases("demo_mcp", "OctaDiffTap_0n50_ports3.gds"), True)
 ly = view.cellview(idx).layout()
 cell = ly.top_cell()
 um = lambda v: round(v / ly.dbu)
@@ -40,7 +44,7 @@ from klayout_em_export.boundary import moved_ports
 from klayout_em_export.export import export_flat
 from klayout_em_export.ports import simcfg_ports
 from klayout_em_export.simcfg import write_simcfg
-OUT = os.environ.get("OUT", r"C:/Users/volker/AppData/Local/Temp/claude/d--github-claude/87a3a291-8748-4bcb-85dc-b9bbb004dff7/scratchpad/boundary")
+OUT = out_dir("boundary")
 os.makedirs(OUT, exist_ok=True)
 gds = os.path.join(OUT, "octa_cut_em.gds")
 dbox = box.to_dtype(ly.dbu)

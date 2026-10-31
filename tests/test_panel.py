@@ -2,6 +2,10 @@
 # BM_Ardavan_Rahimian_with_ports_partial.gds (ports 1-8, EM region box on 800/0 that keeps port 1 and cuts five
 # conductors). In batch mode there is no main window: the panel gets the view through a stand-in for _view().
 import os
+import sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from testpaths import STACKUP, palace_testcases
+
 import pya
 from klayout_em_export import gui
 from klayout_em_export.boundary import create_ports
@@ -9,9 +13,8 @@ from klayout_em_export.gui import META_STACKUP
 from klayout_em_export.panel import EMPanel
 from klayout_em_export.stackup import Stackup
 
-STACKUP = r"D:\github-claude\gds2palace_ihp_sg13g2\XML_stackup\latest\IHP\SG13G2_FEM_200um.xml"
 view = pya.LayoutView(True)   # editable, as in the GUI edit mode
-idx = view.load_layout(r"D:\Palace_testcases\klayout_export\BM_Ardavan_Rahimian_with_ports_partial.gds", True)
+idx = view.load_layout(palace_testcases("klayout_export", "BM_Ardavan_Rahimian_with_ports_partial.gds"), True)
 cv = view.cellview(idx)
 ly = cv.layout()
 ly.add_meta_info(pya.LayoutMetaInfo(META_STACKUP, STACKUP, "", True))   # not set_stackup: keeps ~/.klayout_em_export.json

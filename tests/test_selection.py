@@ -2,6 +2,10 @@
 # Selecting all metals of core_transistor_3port_bce but no vias and no ports must give the same layout as the
 # whole-cell export, after the selection is completed with the connecting vias and the touching port shapes.
 import os
+import sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from testpaths import EXAMPLE_BCE, out_dir
+
 import pya
 from klayout_em_export.export import export_flat
 from klayout_em_export.locate import drawn_metals
@@ -9,8 +13,8 @@ from klayout_em_export.ports import ports_of
 from klayout_em_export.selection import Selection
 from klayout_em_export.stackup import Stackup
 
-EX = r"D:\github-claude\gds2palace_ihp_sg13g2\more_examples\core_transistor_3port_bce"
-OUT = os.environ.get("OUT", r"C:/Users/volker/AppData/Local/Temp/claude/d--github-claude/87a3a291-8748-4bcb-85dc-b9bbb004dff7/scratchpad/kee")
+EX = EXAMPLE_BCE
+OUT = out_dir("kee")
 os.makedirs(OUT, exist_ok=True)
 st = Stackup(os.path.join(EX, "SG13G2_100um_bce_ports.xml"))
 ly = pya.Layout(); ly.read(os.path.join(EX, "50_ghz_mpa_core_bce_ports.gds")); cell = ly.top_cell()

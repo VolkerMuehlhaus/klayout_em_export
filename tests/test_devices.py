@@ -3,8 +3,11 @@
 # its setup_pdk.sh); run with KLAYOUT_PATH/KLAYOUT_HOME pointing to an empty folder, as its run_all.sh does.
 import os
 import sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from testpaths import STACKUP, TESTS_DIR, palace_testcases, tests_data, out_dir
+
 import pya
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "klayout_em_export_tests"))
+sys.path.insert(0, TESTS_DIR)
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "python"))   # not via salt here
 from pdk_env import load_pdk
 from klayout_em_export.devices import device_level_layers, device_shapes, find_devices, mark_replaced, port_lines, replace
@@ -12,10 +15,10 @@ from klayout_em_export.ports import collect_ports
 from klayout_em_export.stackup import Stackup
 
 load_pdk()
-st = Stackup(r"D:\github-claude\gds2palace_ihp_sg13g2\XML_stackup\latest\IHP\SG13G2_FEM_200um.xml")
+st = Stackup(STACKUP)
 ly = pya.Layout()
 ly.technology_name = "sg13g2"
-ly.read(r"D:\github-claude\klayout_em_export_tests\testcases\50_ghz_mpa_core.gds")
+ly.read(tests_data("testcases", "50_ghz_mpa_core.gds"))
 cell = next(c for c in ly.top_cells() if not c.name.startswith("$$$"))
 dbu = ly.dbu
 
@@ -50,7 +53,7 @@ from klayout_em_export.devices import device_shapes as _ds
 from klayout_em_export.export import export_flat
 from klayout_em_export.ports import export_numbering, port_map, simcfg_ports
 from klayout_em_export.simcfg import write_simcfg
-OUT = os.environ.get("OUT", r"C:/Users/volker/AppData/Local/Temp/claude/d--github-claude/87a3a291-8748-4bcb-85dc-b9bbb004dff7/scratchpad/npn")
+OUT = out_dir("npn")
 os.makedirs(OUT, exist_ok=True)
 gds = os.path.join(OUT, "mpa_core_npn_em.gds")
 ports = collect_ports(ly, cell, stackup=st)
@@ -75,7 +78,7 @@ from klayout_em_export.devices import replace as _replace
 from klayout_em_export.gui import META_STACKUP
 from klayout_em_export.panel import EMPanel
 view = pya.LayoutView(True)
-idx = view.load_layout(r"D:\github-claude\klayout_em_export_tests\testcases\50_ghz_mpa_core.gds", "sg13g2", True)
+idx = view.load_layout(tests_data("testcases", "50_ghz_mpa_core.gds"), "sg13g2", True)
 vly = view.cellview(idx).layout()
 vly.add_meta_info(pya.LayoutMetaInfo(META_STACKUP, st.path, "", True))
 view.cellview(idx).cell = next(c for c in vly.top_cells() if not c.name.startswith("$$$"))
@@ -91,7 +94,7 @@ print("port rows:", [panel.table.item(r, 2).text.encode("ascii", "replace").deco
 # pins and must stay separate (also in the export, which merges each layer)
 from klayout_em_export.devices import touching_patches
 cas = pya.Layout(); cas.technology_name = "sg13g2"
-cas.read(r"D:\Palace_testcases\klayout_export\1_St_Core_v1.gds")
+cas.read(palace_testcases("klayout_export", "1_St_Core_v1.gds"))
 ccell = next(c for c in cas.top_cells() if c.name.startswith("Cascode"))
 cdev = find_devices(cas, ccell, st)[0]
 replace(NoUndo(), ccell, st, cdev)

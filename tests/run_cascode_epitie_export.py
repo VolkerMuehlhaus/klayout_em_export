@@ -1,11 +1,13 @@
 # Variant of the cascode test (run_cascode_export.py): the devices' reference patches on SUBGND, the PEC sheet on the
 # EPI, instead of REF_FOR_TRANSISTOR, so each gets a DC potential through the substrate (the EPI is tied to ground by
 # the ptap guard ring). Output folder: environment OUT. Needs the PDK (klayout_em_export_tests/pdk_env.py), run like test_devices.py.
-import json
 import os
 import sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from testpaths import STACKUP, TESTS_DIR, palace_testcases
+import json
 import pya
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "klayout_em_export_tests"))
+sys.path.insert(0, TESTS_DIR)
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "python"))
 from pdk_env import load_pdk
 from klayout_em_export.connectivity import check_ground, port_nets
@@ -21,9 +23,9 @@ from klayout_em_export.stackup import Stackup
 OUT = os.environ["OUT"]
 os.makedirs(OUT, exist_ok=True)
 load_pdk()
-st = Stackup(r"D:\github-claude\gds2palace_ihp_sg13g2\XML_stackup\latest\IHP\SG13G2_FEM_200um.xml")
+st = Stackup(STACKUP)
 ly = pya.Layout(); ly.technology_name = "sg13g2"
-ly.read(r"D:\Palace_testcases\klayout_export\1_St_Core_v1_forEM.gds")
+ly.read(palace_testcases("klayout_export", "1_St_Core_v1_forEM.gds"))
 cell = next(c for c in ly.top_cells() if c.name.startswith("Cascode"))
 
 

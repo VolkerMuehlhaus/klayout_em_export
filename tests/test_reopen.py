@@ -2,11 +2,15 @@
 # without saving (no meta info in the file) through the settings file. Uses its own settings file; the layout's
 # file name, found through the main window in the GUI, is given by a stand-in.
 import os
+import sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from testpaths import tests_data, out_dir
+
 import pya
 from klayout_em_export import gui
 
-OUT = os.environ.get("OUT", r"C:/Users/volker/AppData/Local/Temp/claude/d--github-claude/87a3a291-8748-4bcb-85dc-b9bbb004dff7/scratchpad/kee")
-GDS = r"D:\github-claude\klayout_em_export_tests\testcases\50_ghz_mpa_core.gds"
+OUT = out_dir("kee")
+GDS = tests_data("testcases", "50_ghz_mpa_core.gds")
 gui.SETTINGS_FILE = os.path.join(OUT, "settings_test.json")
 if os.path.exists(gui.SETTINGS_FILE):
     os.remove(gui.SETTINGS_FILE)

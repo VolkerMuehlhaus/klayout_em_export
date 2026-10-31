@@ -228,9 +228,9 @@ everything else from setupEM.
 ## 8. Tests
 
 There is no test runner: each test is a KLayout batch script (`klayout_app.exe -z -nc -rx -r tests/<test>.py`),
-most with inputs and outputs from environment variables or fixed paths named in the script's header. Several read
-layouts outside the repo (`D:\Palace_testcases\...`, `klayout_em_export_tests\testcases`), and the device tests
-need the PDK through `klayout_em_export_tests/pdk_env.py`.
+with inputs and outputs from environment variables. Several read layouts outside the repo; `tests/testpaths.py`
+finds them on Windows and Linux (`KLAYOUT_EM_EXPORT_TESTDATA`, `GDS2PALACE`, `OUT`). The device tests need the PDK
+through `klayout_em_export_tests/pdk_env.py`.
 
 | Area | Tests |
 | --- | --- |

@@ -42,8 +42,11 @@ OUT=/d/tmp/out /d/KLayout/klayout_app.exe -z -nc -rx -r tests/test_export.py
     KLayout home. With an empty home they fail with `No module named 'klayout_em_export'`.
   - The tests print `ok`/`FAIL` lines or plain results; there are few asserts. Compare the output with an earlier
     run rather than relying on the exit code.
-- Several tests read layouts outside the repo (`D:\Palace_testcases\...`, `klayout_em_export_tests\testcases`).
-  The script header names them.
+- Several tests read layouts outside the repo. `tests/testpaths.py` finds them: `KLAYOUT_EM_EXPORT_TESTDATA` names a
+  folder with `Palace_testcases/` and `klayout_em_export_tests/` (on hpz2: `~/klayout_em_export_testdata`), unset
+  it is `D:\Palace_testcases` and the `klayout_em_export_tests` folder next to this repo. `GDS2PALACE` names the
+  gds2palace repo (default: next to this repo), `OUT` the output folder (default: a temp folder). New tests use
+  these helpers, never a fixed path.
 - Anything with mouse, dialogs or the panel in the real window: run the guide capture
   (`klayout_app.exe -r doc/userguide/capture/capture.py`, without `-z`/`-rx`) and look at the screenshots, or
   write a small GUI script that sends Qt events to the canvas (`pya.QApplication.widgetAt` finds it). Batch mode

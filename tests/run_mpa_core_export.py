@@ -1,11 +1,13 @@
 # Export 50_ghz_mpa_core.gds for a Palace comparison with gds2palace's core_transistor_3port_bce example: pad ports
 # 1-2 (Metal3 -> TopMetal2, as in the example), the npn13G2 replaced by ports (B, C, E). Stackup and settings as the
 # example. Output folder: environment OUT. Needs the PDK (klayout_em_export_tests/pdk_env.py), run like test_devices.py.
-import json
 import os
 import sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from testpaths import EXAMPLE_BCE, TESTS_DIR, tests_data
+import json
 import pya
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "klayout_em_export_tests"))
+sys.path.insert(0, TESTS_DIR)
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "python"))
 from pdk_env import load_pdk
 from klayout_em_export.devices import device_shapes, find_devices, mark_replaced, replace
@@ -14,13 +16,13 @@ from klayout_em_export.ports import PROP_KEY, PortSettings, collect_ports, expor
 from klayout_em_export.simcfg import write_simcfg
 from klayout_em_export.stackup import Stackup
 
-EX = r"D:\github-claude\gds2palace_ihp_sg13g2\more_examples\core_transistor_3port_bce"
+EX = EXAMPLE_BCE
 OUT = os.environ["OUT"]
 os.makedirs(OUT, exist_ok=True)
 load_pdk()
 st = Stackup(os.path.join(EX, "SG13G2_100um_bce_ports.xml"))
 ly = pya.Layout(); ly.technology_name = "sg13g2"
-ly.read(r"D:\github-claude\klayout_em_export_tests\testcases\50_ghz_mpa_core.gds")
+ly.read(tests_data("testcases", "50_ghz_mpa_core.gds"))
 cell = next(c for c in ly.top_cells() if not c.name.startswith("$$$"))
 for layer in (201, 202):        # pad ports as in the example
     for shape in cell.shapes(ly.find_layer(layer, 0)).each():
