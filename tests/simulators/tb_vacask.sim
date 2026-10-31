@@ -1,0 +1,34 @@
+cascode testbench (VACASK)
+include "cascode_vacask.inc"
+load "resistor.osdi"
+load "capacitor.osdi"
+load "inductor.osdi"
+model v vsource
+model l inductor
+model c capacitor
+model r resistor
+vcc (vcc 0) v dc=2.5
+lc (vcc port1) l l=1u
+cout (port1 out) c c=10p
+rl (out 0) r r=50
+vb (vb 0) v dc=0.9
+lb (vb port2) l l=1u
+vin (src 0) v dc=0 mag=1
+rs (src in) r r=50
+cin (in port2) c c=10p
+vbias (port15 0) v dc=1.9
+x1 (port1 port2 port15) cascode_vacask
+control
+  analysis op1 op
+  analysis ac1 ac from=1e9 to=200e9 mode="lin" points=199
+  postprocess(PYTHON, "result.py")
+endc
+embed "result.py" <<<FILE
+from vacask.rawfile import rawread
+import numpy as np
+op = rawread('op1.raw').get()
+print("RESULT vacask Icc %.2f mA Ibias %.1f uA" % (-op['vcc:flow(br)'][0] * 1e3, -op['vbias:flow(br)'][0] * 1e6))
+ac = rawread('ac1.raw').get()
+f = np.real(ac['frequency']); s21 = 20 * np.log10(np.abs(2 * ac['out']))
+print("RESULT vacask S21 10 GHz %.2f dB, 100 GHz %.2f dB" % tuple(np.interp([10e9, 100e9], f, s21)))
+>>>FILE

@@ -728,6 +728,11 @@ def _with_refresh(handler):
     return run
 
 
+def _create_circuit():
+    from .circuit import create_circuit
+    create_circuit()
+
+
 def install_menu():
     from .tool import PortToolFactory
     _actions.append(PortToolFactory())     # registers the EM Port tool in the toolbar
@@ -744,7 +749,8 @@ def install_menu():
                None,
                ("mark_region", "Mark EM Region from Selection", mark_region),
                ("export_region", "Export for EM...", export_region),
-               ("open_setupem", "Open Last Export in setupEM", open_last_in_setupem))
+               ("open_setupem", "Open Last Export in setupEM", open_last_in_setupem),
+               ("create_circuit", "Create Circuit (EM Result with Devices)...", _create_circuit))
     for n, entry in enumerate(entries):
         if entry is None:
             menu.insert_separator("em_menu.end", f"separator{n}")

@@ -1,0 +1,23 @@
+* cascode testbench (ngspice)
+.include cascode_ngspice.cir
+Vcc vcc 0 2.5
+Lc vcc port1 1u
+Cout port1 out 10p
+Rl out 0 50
+Vb vb 0 0.9
+Lb vb port2 1u
+Vin src 0 dc 0 ac 1
+Rs src in 50
+Cin in port2 10p
+Vbias port15 0 1.9
+X1 port1 port2 port15 cascode_ngspice
+.control
+op
+print -i(Vcc)
+print -i(Vbias)
+ac lin 200 1g 200g
+let s21db = db(2*v(out))
+meas ac s21_10 find s21db at=10g
+meas ac s21_100 find s21db at=100g
+.endc
+.end
