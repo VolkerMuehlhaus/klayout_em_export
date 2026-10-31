@@ -1,10 +1,11 @@
 # Batch test (KLayout -z -nc -rx -r, imports gui.py, so it needs pya): opening an export in setupEM or EMStudio.
 # The command line per program, the remembered choice, and which stale model scripts are still reported when the
-# export opens EMStudio (which updates <name>.py next to the .simcfg on import). Reads and writes no settings file.
+# export opens EMStudio (which updates <name>.py next to the .simcfg on import), and native_path for the output path
+# shown in the export dialog. Reads and writes no settings file.
 import os
 import sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "python"))
-from klayout_em_export.gui import TOOLS, launch_command, open_with, updated_on_open
+from klayout_em_export.gui import TOOLS, launch_command, native_path, open_with, updated_on_open
 
 failed = []
 
@@ -36,6 +37,15 @@ check(updated_on_open(stale, simcfg, "EMStudio") == [other],
       "opened in EMStudio: <name>.py is updated on import, only the other script is reported")
 check(updated_on_open(stale, simcfg, "setupEM") == stale, "opened in setupEM: both reported")
 check(updated_on_open(stale, simcfg, None) == stale, "not opened: both reported")
+
+# KLayout's Python joins with "/" also on Windows: D:\\...\\guide/cascode_em.gds
+check(native_path("D:\\work\\guide/cascode_em.gds") == "D:\\work\\guide\\cascode_em.gds", "mixed Windows path")
+check(native_path("D:/work/guide/cascode_em.gds") == "D:\\work\\guide\\cascode_em.gds", "Windows path with /")
+check(native_path("\\\\server\\share/x_em.gds") == "\\\\server\\share\\x_em.gds", "UNC path")
+check(native_path("/home/user/guide/cascode_em.gds") == "/home/user/guide/cascode_em.gds", "Linux path unchanged")
+check(native_path("/home/user/odd\\name/x_em.gds") == "/home/user/odd\\name/x_em.gds",
+      "Linux path with a backslash in a name unchanged")
+check(native_path("") == "", "empty")
 
 print("all ok" if not failed else f"FAILED: {'; '.join(failed)}")
 sys.exit(1 if failed else 0)

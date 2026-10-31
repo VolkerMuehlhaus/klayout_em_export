@@ -73,6 +73,16 @@ def _layout_file(layout):
     return ""
 
 
+def native_path(path):
+    """path with one kind of separator. KLayout's Python joins with "/" also on Windows (os.sep is "/" there), so a
+    Windows path can come out as D:\\work\\guide/cascode_em.gds; decided by the path itself, not by os.sep: one with a
+    drive letter or a UNC path (\\\\server\\share) gets backslashes throughout, any other path stays as it is (on Linux
+    a backslash can be part of a file name)."""
+    if path and (len(path) > 1 and path[1] == ":" and path[0].isalpha() or path.startswith("\\\\")):
+        return path.replace("/", "\\")
+    return path
+
+
 def _file_key(path):
     return os.path.normcase(os.path.abspath(path))
 
@@ -411,14 +421,14 @@ class ExportDialog(pya.QDialog):
     def _default_output(self, cv):
         remembered = layout_value(self.em_layout, META_OUTPUT)
         if remembered:
-            return remembered
+            return native_path(remembered)
         base = os.path.splitext(cv.filename())[0] if cv.filename() else os.path.join(os.path.expanduser("~"), self.cell.name)
-        return base + "_em.gds"
+        return native_path(base + "_em.gds")
 
     def _browse(self):
         path = pya.FileDialog.ask_save_file_name("Export EM layout", self.output.text, "GDSII (*.gds)")
         if path:
-            self.output.setText(path)
+            self.output.setText(native_path(path))
 
     def _change_stackup(self):
         if ask_stackup(self.em_layout):
@@ -499,14 +509,14 @@ def export_region():
     while True:
         if not dialog.exec_():
             return
-        gds_path = dialog.output.text.strip()
+        gds_path = native_path(dialog.output.text.strip())
         problem = None
         if not gds_path.lower().endswith(".gds"):
             problem = "The output file must end with .gds."
         elif cv.filename() and os.path.normcase(os.path.abspath(gds_path)) == os.path.normcase(os.path.abspath(cv.filename())):
             problem = "The output file is the layout itself. Choose another file."
         if problem is None:
-            if (os.path.exists(gds_path) and gds_path != layout_value(layout, META_OUTPUT) and
+            if (os.path.exists(gds_path) and gds_path != native_path(layout_value(layout, META_OUTPUT)) and
                     pya.MessageBox.question("EM Export", f"{gds_path} exists. Overwrite it?",
                                             pya.MessageBox.Yes | pya.MessageBox.No) != pya.MessageBox.Yes):
                 continue
