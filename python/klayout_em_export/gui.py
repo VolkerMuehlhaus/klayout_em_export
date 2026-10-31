@@ -576,19 +576,28 @@ def _warn_stale_scripts(gds_path, simcfg_path, port_list, opened_in=None):
     stale = updated_on_open(stale_scripts(gds_path, port_list, folders), simcfg_path, opened_in)
     if not stale:
         return
-    lines = []
-    for path, diff in stale:
-        lines.append(os.path.basename(path) + ":\n  " + "\n  ".join(diff[:6]) + ("\n  ..." if len(diff) > 6 else ""))
-    pya.MessageBox.warning(
-        "EM Export",
-        "These model scripts read the exported GDS but have other ports than this export. Run as they are, their "
-        "S-parameters do not match the new port map:\n\n" + "\n\n".join(lines) +
-        "\n\nCreate the model again in setupEM. If you edited a script by hand, open it in setupEM with "
-        "File > \"Edit *.py model in place\" and set its ports to the new ones in the Ports tab (only the "
-        "changed values are written, your code stays), or change its ports yourself. An EMStudio model "
-        "<name>.py next to the .simcfg is updated by opening the .simcfg in EMStudio (File > Import setupEM "
-        "Config): its ports, layout file, stackup and cell follow the export, its other settings stay.",
-        pya.MessageBox.Ok)
+    # short message, the port list and the how-to behind "Show Details..."
+    names = [os.path.basename(path) for path, _ in stale]
+    details = [os.path.basename(path) + ":\n  " + "\n  ".join(diff) for path, diff in stale]
+    details.append(
+        "Run as they are, these scripts simulate the new layout with their old ports, so their S-parameters do "
+        "not match the new port map.\n\n"
+        "setupEM: \"Continue with the script\" opens the script for editing in place and takes the ports, GDSII "
+        "file, stackup and cell from the export. Your other settings (frequencies, mesh, ...) and your own code "
+        "stay. Create Model writes the script.\n\n"
+        "EMStudio: File > Import setupEM Config with the .simcfg; <name>.py next to it takes the new ports.")
+    box = pya.QMessageBox(pya.Application.instance().main_window())
+    box.setWindowTitle("EM Export")
+    box.setIcon(pya.QMessageBox.Warning)
+    if len(stale) == 1:
+        box.setText(f"The model script {names[0]} has other ports than this export ({len(stale[0][1])} differ).")
+    else:
+        box.setText(f"{len(stale)} model scripts have other ports than this export: {', '.join(names)}.")
+    box.setInformativeText("Before you simulate: open this export in setupEM, choose \"Continue with the script\" "
+                           "and press Create Model. In EMStudio: import the .simcfg.")
+    box.setDetailedText("\n\n".join(details))
+    box.setStandardButtons(pya.QMessageBox.Ok)
+    box.exec_()
 
 
 # ---------- ports ----------

@@ -462,10 +462,10 @@ Good to know:
 The script reads the new layout under the same file name, with its old port list. Port numbers can shift when a
 port is added or removed, so the old script's port 3 may now be another port, and the S-parameters no longer
 belong to the port map. The export checks the model scripts next to the layout (and in setupEM's output folder)
-and warns about each one whose ports differ. Then create the model again in setupEM. A script you edited by hand:
-open it with setupEM's **File > Edit *.py model in place**, set the ports in the Ports tab, and Create Model writes
-only the changed values into it. An EMStudio model next to the layout is updated by EMStudio itself when the export
-opens it there, see below.
+and warns about each one whose ports differ. Then open the export in setupEM: it asks whether to **Continue with
+the script**. Choose that, and setupEM takes the ports, layout file, stackup and cell from the export and keeps your
+other settings (frequencies, mesh, ...) and any code you added to the script. Create Model writes the script. An
+EMStudio model next to the layout is updated by EMStudio itself when the export opens it there, see below.
 
 ## setupEM and the Palace run
 

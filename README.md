@@ -142,8 +142,10 @@ The same steps are in the **EM** menu in the menu bar, top to bottom in workflow
      layout, where they are defined.
    - After the export, model scripts (`*.py` next to the GDS and in setupEM's `sim_path`) that read this GDS but
      have other ports are reported (port number, layer, direction, from/to/target; not excitation or Z0): run as
-     they are, their S-parameters would not match the new port map. Create the model again, or update a
-     hand-edited script with setupEM's Edit *.py model in place. When the export opens EMStudio, the EMStudio
+     they are, their S-parameters would not match the new port map. The warning is short (script name, number of
+     differing ports, what to do), the port list is under Show Details. Update the script by opening the export in
+     setupEM and choosing Continue with the script (setupEM fork branch simcfg-update-in-place, not yet released):
+     ports and layout come from the export, everything else stays. When the export opens EMStudio, the EMStudio
      model `<name>.py` next to the `.simcfg` is not reported: EMStudio updates its ports on that import.
 7. **Create Circuit (EM Result with Devices)...**: after the Palace run, the EM result with the PDK devices put
    back, for ngspice, VACASK, Xyce or Spectre; see [Circuit wrapper](#circuit-wrapper-ngspice-vacask-xyce-spectre).
