@@ -119,7 +119,7 @@ def stackup_path(layout):
 
 
 def set_stackup(layout, path):
-    set_layout_value(layout, META_STACKUP, path, "gds2palace stackup for EM export")
+    set_layout_value(layout, META_STACKUP, path, "stackup for EM export")
     settings = _load_settings()
     settings["stackup"] = path
     _save_settings(settings)

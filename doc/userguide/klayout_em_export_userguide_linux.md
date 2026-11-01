@@ -693,6 +693,36 @@ ground, which adds a few fF. In the cascode that lowers S21 by 0.06 dB at 10 GHz
 | 300 | REF_FOR_TRANSISTOR: the transistors' and resistors' REF patches |
 | 800/0 | the EM region box |
 
+### Stored in the layout
+
+Saving the layout keeps its EM setup. The export copies none of this into `<name>_em.gds`.
+
+| What | Where |
+| --- | --- |
+| Port settings (metals, direction, Z0) | GDS property 200 on each port shape |
+| Boundary port mark | GDS property 201 on ports made by Create Proposed Ports |
+| Replaced device | GDS property 202 on the device's REF patch and ports |
+| Stackup, last export, ground marks | layout meta info `klayout_em_export.stackup`, `.output`, `.ground` |
+
+KLayout saves meta info in an extra cell `$$$CONTEXT_INFO$$$` in the GDS file. KLayout hides it, but other GDS
+tools may show it as an empty top cell. (KLayout writes this cell anyway for a layout with PCells.)
+
+**Before you pass the layout on**, e.g. for tape-out, remove the EM setup:
+
+1. Delete the shapes on the port layers, on layer 300 and on 800/0 (see the layer table above).
+2. Remove the meta info in the Python console of the macro editor (**Macros > Macro Development**, F5), then
+   save:
+
+   ```python
+   import pya
+   ly = pya.CellView.active().layout()
+   for key in ("klayout_em_export.stackup", "klayout_em_export.output", "klayout_em_export.ground"):
+       ly.remove_meta_info(key)
+   ```
+
+The plug-in also keeps a copy of the stackup, the last export and the ground marks in `~/.klayout_em_export.json`.
+It uses that copy only when the layout has none of its own.
+
 ### Files
 
 | File | Written by | Content |

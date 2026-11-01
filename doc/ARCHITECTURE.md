@@ -79,6 +79,10 @@ All of it survives a GDS round trip, so a saved layout keeps its EM setup.
 | EM region box | layer 800/0 | one box; Mark EM Region from Selection replaces it. |
 | Stackup, last output, ground marks | layout meta info `klayout_em_export.stackup`, `.output`, `.ground` (JSON `[[layer, x, y], ...]` in dbu) | persisted meta info. |
 
+KLayout writes persisted meta info into a hidden `$$$CONTEXT_INFO$$$` cell of the GDS file (other tools may list it as
+an empty top cell); the export's `_em.gds` has no meta info and no such cell. The user's guide (Reference) tells
+designers how to remove the EM setup before passing a layout on.
+
 GDS keeps only integer property keys, so all keys are integers. Persisted meta info does not mark the layout as
 modified, so KLayout does not offer to save it. `gui.set_layout_value` therefore mirrors each value into
 `~/.klayout_em_export.json`, keyed by the layout file, and `gui.layout_value` reads the layout first, then that
