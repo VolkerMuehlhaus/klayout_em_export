@@ -1,7 +1,9 @@
 # Screenshots for the user's guide: KLayout with its window and the plug-in (autorun), driven through the guide's
 # steps on the cascode example. Run (not with -z, not with -rx):
 #   klayout_app.exe -r doc/userguide/capture/capture.py
-# Environment (optional): SHOTS (output folder, default doc/userguide/images), WORK (scratch folder).
+# Environment (optional): SHOTS (output folder, default doc/userguide/images), WORK (scratch folder), SOURCE (the
+# cascode layout), STACKUP, TESTS_DIR (klayout_em_export_tests, with pdk_env.py), PYTHON (a Python with snp2le).
+# Defaults are the Windows development machine's paths.
 # The plug-in settings (~/.klayout_em_export.json) are backed up and restored. Errors go to capture.log; KLayout
 # always quits at the end (and after 10 minutes at the latest).
 import json
@@ -15,8 +17,10 @@ import pya
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.environ.get("SHOTS", os.path.join(HERE, "..", "images"))
 WORK = os.environ.get("WORK", r"D:\Palace_testcases\klayout_export\guide")
-SOURCE = r"D:\Palace_testcases\klayout_export\1_St_Core_v1_forEM.gds"
-STACKUP = r"D:\github-claude\gds2palace_ihp_sg13g2\XML_stackup\latest\IHP\SG13G2_FEM_200um.xml"
+SOURCE = os.environ.get("SOURCE", r"D:\Palace_testcases\klayout_export\1_St_Core_v1_forEM.gds")
+STACKUP = os.environ.get("STACKUP", r"D:\github-claude\gds2palace_ihp_sg13g2\XML_stackup\latest\IHP\SG13G2_FEM_200um.xml")
+TESTS_DIR = os.environ.get("TESTS_DIR", r"D:\github-claude\klayout_em_export_tests")
+PYTHON = os.environ.get("PYTHON", r"D:\venv\palace\Scripts\python.exe")
 PORTMAP = os.environ.get("PORTMAP", "")
 SNP = os.environ.get("SNP", "")
 SETTINGS = os.path.join(os.path.expanduser("~"), ".klayout_em_export.json")
@@ -105,10 +109,13 @@ def dock_below_layers():
     and back can tab it too; so place it explicitly before a main window shot."""
     dock = gui._dock
     dock.setFloating(False)
-    layers = next((w for w in mw.findChildren() if isinstance(w, pya.QDockWidget) and w is not dock
-                   and get(w.windowTitle) == "Layers"), None)
-    if layers is not None:
-        mw.splitDockWidget(layers, dock, pya.Qt.Vertical)
+    # KLayout's own docks may come as QDockWidget_Native, which is no pya.QDockWidget instance (0.30 on Linux)
+    docks = {get(w.windowTitle): w for w in mw.findChildren()
+             if type(w).__name__.startswith("QDockWidget") and w is not dock}
+    if "Layers" in docks:
+        mw.splitDockWidget(docks["Layers"], dock, pya.Qt.Vertical)
+    if "Layer Toolbox" in docks:             # shown by default on Linux; it would squeeze the panel
+        docks["Layer Toolbox"].hide()
     dock.show()
     settle(40)
 
@@ -132,7 +139,7 @@ def step(name, function):
 
 
 # ---------- clean copy of the example ----------
-sys.path.insert(0, r"D:\github-claude\klayout_em_export_tests")
+sys.path.insert(0, TESTS_DIR)
 from pdk_env import load_pdk
 load_pdk()
 from klayout_em_export import gui
@@ -347,7 +354,7 @@ def circuit_dialog():
         shutil.copyfile(SNP, snp)
     dialog = CircuitDialog(portmap)
     dialog.snp.setText(snp)
-    dialog.python.setText(r"D:\venv\palace\Scripts\python.exe")
+    dialog.python.setText(PYTHON)
     dialog._update_output()
     dialog.show()
     grab(dialog, "13_circuit_dialog")

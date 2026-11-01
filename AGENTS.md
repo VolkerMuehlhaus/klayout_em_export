@@ -106,11 +106,16 @@ cascode test (`tests/run_cascode_export.py`, `tests/simulators/`).
   ```bash
   /d/KLayout/klayout_app.exe -r doc/userguide/capture/capture.py      # writes doc/userguide/images
   /d/venv/palace/Scripts/python doc/userguide/capture/set_dpi.py
-  cd doc/pdf_build && /d/venv/openems/Scripts/python build_userguide_pdf.py \
-      ../userguide/klayout_em_export_userguide.md -o ../userguide/klayout_em_export_userguide.pdf --chapter-pagebreak
+  /d/venv/openems/Scripts/python doc/userguide/capture/build_pdf.py   # the PDF, with this repo's figure sizes
   ```
 
-  Check the result as rendered pages, not only the Markdown.
+  Check the result as rendered pages, not only the Markdown. `build_pdf.py` runs the shared
+  `doc/pdf_build/build_userguide_pdf.py` on a copy of the Markdown with explicit figure widths: 70% of the builder's
+  size, except the layout views and the first main window shot. Don't call the builder directly.
+- Linux edition (`klayout_em_export_userguide_linux.md`/`.pdf`): generated from the main guide by
+  `doc/userguide/capture/linux_guide.py --pdf`, with the screenshots in `images_linux/` (capture.py and
+  capture_setupem.py run on Linux with `SHOTS`/output folder `images_linux`, paths from the environment, see the
+  header of capture.py). Never edit the Linux .md by hand; rerun the script after editing the main guide.
 - Layout screenshots for docs: `gds_viewer --screenshot` (sibling repo), not ad-hoc matplotlib.
 - Never invent a number or a physical property: trace it to the PDK, a simulation or a citation, or leave it out.
 - No results from commercial EM tools (e.g. ADS) in this repo, its docs or commit messages.
