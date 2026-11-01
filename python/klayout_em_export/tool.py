@@ -8,7 +8,7 @@ import os
 import pya
 
 from . import gui
-from .locate import edge_at, gap_at, next_port_layer
+from .locate import edge_at, gap_at, metals_at, next_port_layer, via_layers
 from .ports import PortSettings
 from .stackup import Stackup
 
@@ -142,8 +142,10 @@ class PortTool(pya.Plugin):
         finally:
             self.layout_view.commit()
         self.layout_view.add_missing_layers()
-        current = (PortSettings("Z") if found[0] == "via"
-                   else PortSettings(found[3], target=found[1]))
+        if found[0] == "via":   # from the clicked metal down to the next metal at the port (hidden ones count)
+            current = PortSettings("Z", *via_layers(metals_at(layout, cell, self.stackup(), found[2]), found[1]))
+        else:
+            current = PortSettings(found[3], target=found[1])
         if not gui.edit_ports(self.layout_view, cv, [(shape, pya.ICplxTrans())], current):
             self.layout_view.transaction("Remove cancelled port")
             try:

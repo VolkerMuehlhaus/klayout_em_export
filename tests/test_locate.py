@@ -6,7 +6,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from testpaths import STACKUP, palace_testcases
 
 import pya
-from klayout_em_export.locate import edge_at, gap_at, metals_at, next_port_layer
+from klayout_em_export.locate import edge_at, gap_at, metals_at, next_port_layer, via_layers
 from klayout_em_export.stackup import Stackup
 
 gds = os.environ.get("GDS", palace_testcases("demo_mcp", "OctaDiffTap_0n50_ports3.gds"))
@@ -36,3 +36,13 @@ print("ok  " if hidden is None or hidden[0] != found[0] else "FAIL",
 print("ok  " if edge_at(ly, cell, st, p, tol, set()) is None else "FAIL", "edge with nothing visible: none")
 print("ok  " if gap_at(ly, cell, st, um(39.0, -41.0), round(20 / ly.dbu), set()) is None else "FAIL",
       "gap with nothing visible: none")
+
+# A new via port goes from the clicked metal down to the next metal at the port
+here = ["TopMetal2", "Metal5", "Metal4", "Metal3"]
+for clicked, expected in [("Metal4", ("Metal4", "Metal3")), ("TopMetal2", ("TopMetal2", "Metal5")),
+                          ("Metal3", ("Metal3", "Metal4")), ("Metal1", ("", ""))]:
+    got = via_layers(here, clicked)
+    print("ok  " if got == expected else "FAIL", f"via port on a {clicked} edge with {here}: from/to {got}")
+print("ok  " if via_layers(["Metal3"], "Metal3") == ("Metal3", "") else "FAIL", "only the clicked metal: no other end")
+e = edge_at(ly, cell, st, um(33.7, -42.2), tol)
+print("via port at the TopMetal2 feed:", via_layers(metals_at(ly, cell, st, e[1].bbox()), e[0]))

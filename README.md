@@ -119,7 +119,8 @@ The same steps are in the **EM** menu in the menu bar, top to bottom in workflow
    drawn with KLayout's own tools): direction, from/to layer (via port, Z/-Z) or target layer (in-plane port), Z0
    and excitation.
    - Shows which stackup metals are drawn at the port and offers only those, unless "offer all stackup metals" is
-     ticked. New via ports default to from = lowest, to = highest metal at the port.
+     ticked. A via port made with the EM Port tool starts with from = the clicked metal, to = the next metal below
+     it at the port (a via port must not pass through a metal); without one below, the next metal above.
    - The settings are stored on the shape as GDS property 200, e.g. `port:dir=-Z;from=Metal3;to=TopMetal2;z0=50;v=1`,
      so they are saved with the layout.
 4. **Port Overview**: all ports of the current cell with their settings and problems.

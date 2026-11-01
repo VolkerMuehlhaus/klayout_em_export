@@ -243,7 +243,8 @@ In the cascode, the two RF pads get a via port each, at the outer edge of the pa
 - **Direction**: `Z` for a via port, `X` or `Y` for an in-plane port. You do not need `-Z`: the export chooses the
   sign of each via port itself (chapter 10).
 - **From layer / To layer** (via port): the signal metal and the reference metal. For the pad: from TopMetal2 (pad)
-  to Metal5 (ground plane). New via ports start with the lowest and highest metal at the port.
+  to Metal5 (ground plane). A new via port starts from the metal you clicked, down to the next metal below it at
+  the port: a via port stops at the first metal it touches. If nothing is below, it goes to the next metal above.
 - **Target layer** (in-plane port): the metal with the gap.
 - **Z0**: the port impedance, usually 50 Ohm.
 - **excited**: whether the simulation feeds signal into this port. Leave it ticked.

@@ -23,6 +23,19 @@ def metals_at(layout, cell, stackup, box):
     return [name for name, layer in drawn_metals(stackup) if not _region(layout, cell, layer, box).is_empty()]
 
 
+def via_layers(metals_here, clicked):
+    """(from, to) metals of a new via port on an edge of the clicked metal. metals_here: the metals at the port, top
+    to bottom (metals_at). A via port goes from the clicked metal down to the first metal it touches, never through
+    one: from = the clicked metal (the signal, as in the user's guide), to = the next metal below. Without a metal
+    below: to = the next metal above. ("", "") if the clicked metal is not at the port."""
+    if clicked not in metals_here:
+        return "", ""
+    i = metals_here.index(clicked)
+    if i + 1 < len(metals_here):
+        return clicked, metals_here[i + 1]
+    return clicked, metals_here[i - 1] if i > 0 else ""
+
+
 def _manhattan(edge):
     return edge.p1.x == edge.p2.x or edge.p1.y == edge.p2.y
 
