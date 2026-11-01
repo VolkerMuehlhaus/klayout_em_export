@@ -10,10 +10,10 @@ import pya
 sys.path.insert(0, TESTS_DIR)
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "python"))
 from pdk_env import load_pdk
-from klayout_em_export.devices import device_shapes, find_devices, mark_replaced, replace
-from klayout_em_export.export import export_flat
-from klayout_em_export.ports import PROP_KEY, PortSettings, collect_ports, export_numbering, port_map, simcfg_ports
-from klayout_em_export.simcfg import write_simcfg
+from klayout_em_export import tech
+from klayout_em_export.devices import find_devices, mark_replaced, replace
+from klayout_em_export.pipeline import NoUndo, export_em
+from klayout_em_export.ports import PROP_KEY, PortSettings, collect_ports
 from klayout_em_export.stackup import Stackup
 
 EX = EXAMPLE_BCE
@@ -29,21 +29,11 @@ for layer in (201, 202):        # pad ports as in the example
         shape.set_property(PROP_KEY, PortSettings("Z", "Metal3", "TopMetal2").encode())
 
 
-class NoUndo:
-    def transaction(self, text): pass
-    def commit(self): pass
-    def add_missing_layers(self): pass
-
-
 replace(NoUndo(), cell, st, find_devices(ly, cell, st)[0])
 devices = mark_replaced(ly, cell, find_devices(ly, cell, st)[0])
 ports = collect_ports(ly, cell, stackup=st)
-numbering = export_numbering(ports)
 gds = os.path.join(OUT, "mpa_core_npn_em.gds")
-export_flat(ly, cell, st, gds, port_layers=numbering, remove=device_shapes(ly, devices, st))
-write_simcfg(gds.replace(".gds", ".simcfg"), gds, st.path, cell.name, ports=simcfg_ports(ports, numbering))
-pm = port_map(ports, numbering, devices)
-json.dump(pm, open(gds.replace(".gds", "_portmap.json"), "w"), indent=2)
+pm = json.load(open(export_em(ly, cell, st, gds, tech.for_layout(ly)[0])["portmap"]))     # as the GUI's export
 for row in pm["ports"]:
     print(row["port"], "<- layout", row["layout_port"], row.get("terminal", ""), "simulated" if row["in_simcfg"] else "shape only",
           row["settings"])

@@ -10,20 +10,14 @@ import subprocess
 
 import pya
 
-from .export import PORT_LAYERS, export_flat, marker_box
+from .export import PORT_LAYERS, marker_box
 from .locate import drawn_metals, metals_at
-from .ports import (DIRECTIONS, PROP_KEY, PortSettings, check_ports, collect_ports, export_directions,
-                    export_numbering, export_port_numbers, is_complete, port_map, ports_of, settings_of,
-                    simcfg_ports)
+from .pipeline import EM_REGION, META_GROUND, META_OUTPUT, META_STACKUP, export_checks, export_em
+from .ports import DIRECTIONS, PROP_KEY, PortSettings, check_ports, collect_ports, ports_of, settings_of
 from .selection import Selection
-from .simcfg import write_simcfg
 from .stackup import Stackup
 
-EM_REGION = (800, 0)      # marker layer: a box on it keeps the export region in the layout
 SETTINGS_FILE = os.path.join(os.path.expanduser("~"), ".klayout_em_export.json")
-META_STACKUP = "klayout_em_export.stackup"
-META_OUTPUT = "klayout_em_export.output"
-META_GROUND = "klayout_em_export.ground"    # JSON [[GDS layer, x, y], ...] in dbu: points in marked ground shapes
 PORT_ICON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icons", "em_port.png")
 
 
@@ -471,18 +465,10 @@ class ExportDialog(pya.QDialog):
         else:
             clip = None if self.box is None else self.box.to_itype(self.em_layout.dbu)
             ports = collect_ports(self.em_layout, self.cell, clip, stackup=self.stackup)
-        problems = check_ports(ports, self.stackup)
-        from .connectivity import check_ground
-        clip = None if self.box is None else self.box.to_itype(self.em_layout.dbu)
-        check = check_ground(self.em_layout, self.cell, self.stackup, clip, ground_seeds(self.em_layout), ports)
-        problems += [f"port {n}: both ends are on the same net (short circuit)" for n in check.shorted]
-        from .devices import orphaned_tags, unconnected_terminals
         devices = find_layout_devices(self.em_layout, self.cell, self.stackup)[0]
-        problems += [f"{t} of {d.pcell} {d.id.split('@')[0]} is not connected to any wiring"
-                     for d, t in unconnected_terminals(self.em_layout, devices, check)]
-        problems += [f"ports of {i.split('@')[0]}: that device is no longer there (moved or deleted); Undo Replace, "
-                     "then Replace All" for i in sorted(orphaned_tags(self.em_layout, self.cell, devices))]
-        left_out =[ports[layer].number for layer in sorted(ports) if not is_complete(ports[layer])]
+        checks = export_checks(self.em_layout, self.cell, self.stackup, ports, devices,
+                               ground_seeds(self.em_layout), self.box)
+        problems, left_out = checks["problems"], checks["left_out"]
         if not ports:
             text = "no ports in the region (add them with the EM Port tool)"
         else:
@@ -493,17 +479,13 @@ class ExportDialog(pya.QDialog):
                          "Settings first.")
             if problems:
                 text += "\n" + "\n".join(problems)
-            try:
-                numbering = export_numbering(ports, self.stackup)
-            except ValueError as e:
-                text += f"\n{e}: the export is not possible"
+            if checks["numbering_error"]:
+                text += f"\n{checks['numbering_error']}: the export is not possible"
                 self.export_button.setEnabled(False)
-            else:
-                numbers = export_port_numbers(numbering)
-                pairs = sorted((numbers[old], ports[old].number) for old in numbering)
-                if any(new != old for new, old in pairs):
-                    text += ("\nnumbered without gaps for the export (exported/.snp port <- layout port): " +
-                             ", ".join(f"{new} <- {old}" for new, old in pairs) + "; written to the port map file")
+            elif checks["renumbered"]:
+                text += ("\nnumbered without gaps for the export (exported/.snp port <- layout port): " +
+                         ", ".join(f"{new} <- {old}" for new, old in checks["renumbered"]) +
+                         "; written to the port map file")
         self.ports.setText(text)
 
 
@@ -532,30 +514,9 @@ def export_region():
             break
         pya.MessageBox.warning("EM Export", problem, pya.MessageBox.Ok)
 
-    stackup = dialog.stackup
-    if dialog.shapes_only():
-        ports = ports_of(layout, cell, dialog.completed.ports, stackup=stackup)
-    else:
-        ports = collect_ports(layout, cell, None if box is None else box.to_itype(layout.dbu), stackup=stackup)
-    numbering = export_numbering(ports, stackup)     # ports 1..N without gaps, see export_numbering
-    from .devices import device_shapes
-    devices = find_layout_devices(layout, cell, stackup)[0]
-    remove = device_shapes(layout, devices, stackup)    # replaced devices: their shapes below the pins
-    if dialog.shapes_only():
-        result = export_flat(layout, cell, stackup, gds_path, selection=dialog.completed, port_layers=numbering,
-                             remove=remove)
-    else:
-        result = export_flat(layout, cell, stackup, gds_path, box=box, port_layers=numbering, remove=remove)
-    from .connectivity import check_ground, port_nets
-    clip = None if box is None else box.to_itype(layout.dbu)
-    nets = port_nets(ports, check_ground(layout, cell, stackup, clip, ground_seeds(layout), ports))
-    directions = export_directions(ports, nets, stackup)    # every via port: signal metal on the same end
-    simcfg_path = os.path.splitext(gds_path)[0] + ".simcfg"
-    port_list = simcfg_ports(ports, numbering, directions)
-    kept = write_simcfg(simcfg_path, gds_path, stackup.path, result.cellname, ports=port_list)
-    with open(os.path.splitext(gds_path)[0] + "_portmap.json", "w") as f:
-        json.dump(port_map(ports, numbering, devices, nets, directions, layout_technology(layout)[0].NAME), f,
-                  indent=2)
+    result = export_em(layout, cell, dialog.stackup, gds_path, layout_technology(layout)[0], box=box,
+                       selection=dialog.completed if dialog.shapes_only() else None, seeds=ground_seeds(layout))
+    simcfg_path, port_list, kept = result["simcfg"], result["port_list"], result["kept_settings"]
     set_layout_value(layout, META_OUTPUT, gds_path, "EM export output file")
     settings = _load_settings()
     open_after = dialog.open_after.isChecked()
@@ -564,7 +525,7 @@ def export_region():
     settings["open_with"] = tool
     settings.pop("export_mode", None)      # no longer remembered: a selection always starts as "selected shapes"
     _save_settings(settings)
-    _status(f"Exported {gds_path} and {os.path.basename(simcfg_path)} ({len(port_list)} of {len(ports)} port(s) "
+    _status(f"Exported {gds_path} and {os.path.basename(simcfg_path)} ({len(port_list)} of {result['ports']} port(s) "
             "in the .simcfg" + ("; setupEM's other settings kept" if kept else "") + ")", 10)
     _warn_stale_scripts(gds_path, simcfg_path, port_list, tool if open_after else None)
     if open_after:

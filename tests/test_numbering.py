@@ -8,6 +8,7 @@ from testpaths import STACKUP, palace_testcases, out_dir
 import json
 import pya
 from klayout_em_export.boundary import create_ports, find_crossings
+from klayout_em_export.pipeline import NoUndo   # a standalone layout in batch mode has no undo manager
 from klayout_em_export.connectivity import check_ground
 from klayout_em_export.export import export_flat, marker_box
 from klayout_em_export.ports import collect_ports, export_numbering, port_map, simcfg_ports
@@ -19,12 +20,6 @@ st = Stackup(STACKUP)
 ly = pya.Layout(); ly.read(palace_testcases("klayout_export", "BM_Ardavan_Rahimian_with_ports_partial.gds"))
 cell = ly.top_cell()
 dbox = marker_box(ly, cell, (800, 0)); box = dbox.to_itype(ly.dbu)
-
-
-class NoUndo:   # a standalone view in batch mode has no undo manager
-    def transaction(self, text): pass
-    def commit(self): pass
-    def add_missing_layers(self): pass
 
 
 ground = check_ground(ly, cell, st, box, ports=collect_ports(ly, cell, box, stackup=st))

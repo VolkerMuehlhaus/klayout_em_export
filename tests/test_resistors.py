@@ -12,6 +12,7 @@ sys.path.insert(0, TESTS_DIR)
 sys.path.insert(0, os.path.join(HERE, "..", "python"))   # not via salt here
 from pdk_env import load_pdk
 from klayout_em_export.devices import device_shapes, find_devices, mark_replaced, port_lines, replace
+from klayout_em_export.pipeline import NoUndo   # a standalone layout in batch mode has no undo manager
 from klayout_em_export.ports import collect_ports, device_of
 from klayout_em_export.stackup import Stackup
 
@@ -21,12 +22,6 @@ ly = pya.Layout(); ly.technology_name = "sg13g2"
 ly.read(palace_testcases("klayout_export", "1_St_Core_v1.gds"))
 cell = next(c for c in ly.top_cells() if c.name.startswith("Cascode"))
 dbu = ly.dbu
-
-
-class NoUndo:
-    def transaction(self, text): pass
-    def commit(self): pass
-    def add_missing_layers(self): pass
 
 
 devices, unknown = find_devices(ly, cell, st)

@@ -18,6 +18,7 @@ from pdk_env import load_pdk
 load_pdk()
 sys.path.insert(0, os.path.join(HERE, "..", "python"))
 from klayout_em_export.connectivity import check_ground
+from klayout_em_export.pipeline import NoUndo   # a standalone layout in batch mode has no undo manager
 from klayout_em_export.devices import device_shapes, find_devices, mark_replaced, orphaned_tags, replace
 from klayout_em_export.export import export_flat
 from klayout_em_export.locate import drawn_metals
@@ -34,12 +35,6 @@ def check(ok, text):
     print(("ok    " if ok else "FAIL  ") + text)
     if not ok:
         failed.append(text)
-
-
-class NoUndo:
-    def transaction(self, text): pass
-    def commit(self): pass
-    def add_missing_layers(self): pass
 
 
 st = Stackup(STACKUP)

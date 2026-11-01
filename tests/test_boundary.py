@@ -8,6 +8,7 @@ from testpaths import STACKUP, palace_testcases, out_dir
 
 import pya
 from klayout_em_export.boundary import create_ports, find_crossings
+from klayout_em_export.pipeline import NoUndo   # a standalone layout in batch mode has no undo manager
 from klayout_em_export.connectivity import check_ground
 from klayout_em_export.ports import collect_ports
 from klayout_em_export.stackup import Stackup
@@ -27,10 +28,6 @@ print(ground.summary().replace("\n", " | "))
 crossings = find_crossings(ly, cell, st, box, ground)
 for c in crossings:
     print(f"  {c.side:6s} {c.name:10s} {str(c.edge.to_dtype(ly.dbu)):32s} {c.status()}")
-class NoUndo:   # a standalone LayoutView in batch mode has no undo manager: view.transaction() crashes there
-    def transaction(self, text): pass
-    def commit(self): pass
-    def add_missing_layers(self): pass
 numbers = create_ports(NoUndo(), cell, st, crossings)
 print("new ports:", numbers)
 for layer in sorted(collect_ports(ly, cell, box, stackup=st).items()):

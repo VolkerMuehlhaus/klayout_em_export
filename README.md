@@ -211,6 +211,48 @@ N-port), and VACASK cannot yet (Touchstone import is planned).
   end; the port map records it with each port's net and signal layer. Export again if the port map lacks them.
 - Test report: [doc/test_cascode_wrapper](doc/test_cascode_wrapper/README.md).
 
+## Headless use (scripts, AI agents)
+
+The workflow also runs without the KLayout window, through a JSON command-line interface:
+`python/klayout_em_export/cli.py`, run by KLayout in batch mode. `tools/em_cli.py` starts it from any Python
+(no KLayout package needed) and prints the result as JSON:
+
+```bash
+python tools/em_cli.py status gds=core.gds cell=Core stackup=SG13G2_FEM_200um.xml pdk=~/IHP-Open-PDK/ihp-sg13g2
+python tools/em_cli.py add_via_port gds=core.gds cell=Core stackup=... x=12.5 y=-40 output=core_ports.gds
+python tools/em_cli.py devices action=replace gds=core_ports.gds cell=Core output=core_ports.gds overwrite=true
+python tools/em_cli.py export gds=core_ports.gds cell=Core out=core_em.gds
+```
+
+Arguments are `key=value` (values in JSON where they parse: numbers, `true`, lists), or a whole request as a JSON
+file or on stdin: `{"command": "status", "gds": "core.gds", ...}`. Coordinates are in µm. The result is
+`{"ok": true, ...}` or `{"ok": false, "error": "..."}`; the exit code is 0 or 1.
+
+| Command | Does |
+| --- | --- |
+| `status` | What the EM panel shows: stackup and metals, technology, region, ground, ports with their problems, devices, and the export checks (problems, ports left out, renumbering). |
+| `add_via_port` | A via port on the metal edge nearest to `x`, `y` (within `tol`, default 0.5 µm), from that metal down to the next metal at the port, as the EM Port tool does. `metal` limits the search, `to`, `z0`, `excited` override. |
+| `add_inplane_port` | An in-plane port across the narrowest gap around `x`, `y` (within `reach`, default 20 µm). |
+| `set_port`, `remove_port` | Change (`direction`, `from`, `to`, `target`, `z0`, `excited`) or remove port `port`. |
+| `set_region` | The EM region box: `box` [x1, y1, x2, y2], or `null` to remove it. |
+| `boundary_ports` | Metals crossing the region's edge; with `create: true`, ports on those that need one (Create Proposed Ports). |
+| `mark_ground` | Ground marks: `points` [[metal, x, y], ...]; `clear: true` removes the earlier ones. |
+| `devices` | `action`: `list`, `replace` (`resistors`, default true) or `unreplace`. |
+| `export` | The EM layout `out` (.gds) with its .simcfg and port map, from `box`, else the EM region, else the whole cell (`whole: true` ignores the region). Same result as the export dialog. |
+
+Every command takes `gds`, `cell` (needed when the file has several top cells), `stackup` (default: the layout's
+own), `technology` (default: from the layout) and `pdk`. Commands that change the layout write it to `output`;
+the input is replaced only with `overwrite: true`. The written layout keeps the stackup and the ground marks as meta
+info, so the plug-in in KLayout opens it as if the steps were done by hand. The settings file
+(`~/.klayout_em_export.json`) is not used.
+
+- **KLayout:** the `KLAYOUT` environment variable, else `klayout` / `klayout_app` on the PATH, else the usual
+  Windows install folders. It runs with `-zz -nc -rx`: no window, no configuration, no autorun macros.
+- **IHP PDK devices:** the device cells of the IHP PDK library (npn13G2, MOSFETs, ...) are only recognized with
+  `pdk` (the `ihp-sg13g2` folder of IHP-Open-PDK, or set `KLAYOUT_EM_EXPORT_PDK`). The library needs KLayout's own
+  Python with Qt, which is why the interface runs in KLayout and not in the `klayout` pip package.
+- **Create Circuit:** `tools/spice_wrapper.py` is already a command-line program (see above).
+
 ## Modules and tests
 
 The module map, the data the plug-in stores in the layout and the export formats are in

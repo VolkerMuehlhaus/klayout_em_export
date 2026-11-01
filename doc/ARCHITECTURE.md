@@ -59,6 +59,9 @@ modules only collect input and call the core.
 | `export.py` | Writes one flat cell with only the stackup's layers and the port layers, clipped and merged. |
 | `simcfg.py` | Writes or updates setupEM's `.simcfg`. |
 | `modelcheck.py` | Finds model scripts that read an exported GDS but have other ports (stale after a re-export). |
+| `pipeline.py` | The workflow without the GUI, as data: `export_em` (the whole export), `export_checks` (what the export dialog reports), `layout_devices`, `region_ports`, the `NoUndo` view stand-in, the meta info keys. Reads no settings file: the caller passes stackup, ground marks and technology. Used by `gui.py`, the batch tests and `cli.py`. |
+| `cli.py` | Headless JSON interface, run by KLayout in batch mode (`-zz`); one command per request (status, ports, region, ground, devices, export). Writes changed layouts to an explicit output file, never the settings file. |
+| `tools/em_cli.py` | Plain-Python launcher for `cli.py`: finds KLayout, passes the request, prints the result. |
 | `gui.py` | Menu, dialogs (export, port settings), persistence (layout meta info and settings file), setupEM / EMStudio launch (`open_simcfg`, `launch_command`). |
 | `panel.py` | The docked EM panel: the workflow as a checklist (Stackup, Region, Ground, Devices, Ports). |
 | `tool.py` | The EM Port tool (`pya.Plugin`): hover preview, click for a via port, Shift+click for an in-plane port. |
@@ -127,7 +130,8 @@ settings).
 
 ## 5. From layout to export
 
-`gui.export_region` is the whole flow:
+`pipeline.export_em` is the whole flow; `gui.export_region` adds the dialog (region, output file, stackup), the
+settings file and opening setupEM / EMStudio, and `cli.py` the request handling. The steps:
 
 1. **Region** (`gui.region_source`): the selection, else the EM region box, else the whole cell. With a selection,
    the default is "selected shapes only": `selection.Selection.completed()` adds the vias that land on two selected
@@ -308,7 +312,8 @@ through `klayout_em_export_tests/pdk_env.py`.
 | Technologies | `test_technology.py` (choice and generic fallback, SG13CMOS5L stackup, wrapper per port map technology) (PDK needed) |
 | Create Circuit | `test_circuit.py` (needs a Python with snp2le), `tests/simulators/` (Docker, Linux) |
 | Physics checks | `tests/resistor_palace/` (Palace), `doc/test_cascode_wrapper`, `doc/test_cascode_epi_tie` |
-| Example exports | `run_cascode_export.py`, `run_cascode_epitie_export.py`, `run_mpa_core_export.py` |
+| Example exports | `run_cascode_export.py`, `run_cascode_epitie_export.py`, `run_mpa_core_export.py` (through `pipeline.export_em`, as the GUI) |
+| Headless interface | `test_cli.py`: every command of `cli.py`; the cascode exported through the CLI equals `export_em` called directly (PDK needed) |
 
 The GUI itself (EM Port tool, dialogs) is checked with the user's guide capture
 (`doc/userguide/capture/capture.py`, run in KLayout with a window), which drives the real plug-in through the

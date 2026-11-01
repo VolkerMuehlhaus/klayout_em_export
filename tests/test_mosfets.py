@@ -13,6 +13,7 @@ sys.path.insert(0, TESTS_DIR)
 sys.path.insert(0, os.path.join(HERE, "..", "python"))   # not via salt here
 from pdk_env import load_pdk
 from klayout_em_export.devices import device_shapes, find_devices, mark_replaced, port_lines, replace
+from klayout_em_export.pipeline import NoUndo   # a standalone layout in batch mode has no undo manager
 from klayout_em_export.ports import collect_ports
 from klayout_em_export.stackup import Stackup
 
@@ -30,12 +31,6 @@ for d in sorted(devices, key=lambda d: (d.trans.disp.y, d.trans.disp.x)):
         print(f"   {t:3s} layer {layer}: {len(boxes)} pin(s) -> lines {[str(l.to_dtype(dbu)) for l in port_lines(d, t)]}")
     if d.gate_trace:
         print("   gate trace:", {l: r.count() for l, r in d.gate_trace.items()})
-
-
-class NoUndo:
-    def transaction(self, text): pass
-    def commit(self): pass
-    def add_missing_layers(self): pass
 
 
 print("replace:", replace(NoUndo(), cell, st, devices))

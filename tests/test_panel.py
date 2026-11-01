@@ -8,6 +8,7 @@ from testpaths import STACKUP, palace_testcases
 
 import pya
 from klayout_em_export import gui
+from klayout_em_export.pipeline import NoUndo   # a standalone layout in batch mode has no undo manager
 from klayout_em_export.boundary import create_ports
 from klayout_em_export.gui import META_STACKUP
 from klayout_em_export.panel import EMPanel
@@ -18,12 +19,6 @@ idx = view.load_layout(palace_testcases("klayout_export", "BM_Ardavan_Rahimian_w
 cv = view.cellview(idx)
 ly = cv.layout()
 ly.add_meta_info(pya.LayoutMetaInfo(META_STACKUP, STACKUP, "", True))   # not set_stackup: keeps ~/.klayout_em_export.json
-
-
-class NoUndo:   # a standalone view in batch mode has no undo manager: view.transaction() crashes there
-    def transaction(self, text): pass
-    def commit(self): pass
-    def add_missing_layers(self): pass
 
 
 gui.create_boundary_ports = lambda v, c, crossings: create_ports(NoUndo(), c.cell, Stackup(STACKUP), crossings)

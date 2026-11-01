@@ -34,7 +34,7 @@ OUT=/d/tmp/out /d/KLayout/klayout_app.exe -z -nc -rx -r tests/test_export.py
 
 - Two kinds of tests, run differently:
   - Tests that add the repo's `python/` to `sys.path` (all that need the PDK, plus `test_export`, `test_simcfg`,
-    `test_portlayers`, `test_circuit`, `test_open_with`): run them with `KLAYOUT_PATH` and `KLAYOUT_HOME` pointing to an empty
+    `test_portlayers`, `test_circuit`, `test_open_with`, `test_cli`): run them with `KLAYOUT_PATH` and `KLAYOUT_HOME` pointing to an empty
     folder, so a user-installed sg13g2 technology does not collide (see `klayout_em_export_tests/run_all.sh`). The
     PDK comes from `../klayout_em_export_tests/pdk_env.py`, a sparse checkout made by its `setup_pdk.sh`.
   - The others (`test_boundary`, `test_ground`, `test_locate`, `test_numbering`, `test_panel`, `test_ports`,
@@ -47,6 +47,10 @@ OUT=/d/tmp/out /d/KLayout/klayout_app.exe -z -nc -rx -r tests/test_export.py
   it is `D:\Palace_testcases` and the `klayout_em_export_tests` folder next to this repo. `GDS2PALACE` names the
   gds2palace repo (default: next to this repo), `OUT` the output folder (default: a temp folder). New tests use
   these helpers, never a fixed path.
+- The headless interface (`cli.py`, `tools/em_cli.py`): `test_cli.py` drives every command in batch mode. After a
+  change to the export, the ports or the devices, also run one command end to end through the launcher
+  (`python tools/em_cli.py status gds=... stackup=...`), which starts KLayout with `-zz -nc -rx`. New workflow logic
+  goes into `pipeline.py` or the core modules, not into `gui.py`, so the GUI and the CLI stay the same.
 - Anything with mouse, dialogs or the panel in the real window: run the guide capture
   (`klayout_app.exe -r doc/userguide/capture/capture.py`, without `-z`/`-rx`) and look at the screenshots, or
   write a small GUI script that sends Qt events to the canvas (`pya.QApplication.widgetAt` finds it). Batch mode
