@@ -210,10 +210,17 @@ def create_boundary_ports(view, cv, crossings):
 
 # ---------- region ----------
 
+def layout_technology(layout):
+    """(technology module, reason) of the layout: the settings file's "technology" if set, else from the layout
+    (tech.for_layout)."""
+    from .tech import for_layout
+    return for_layout(layout, _load_settings().get("technology"))
+
+
 def find_layout_devices(layout, cell, stackup):
     """(devices, unknown) of cell, with the replaced ones marked (devices.find_devices, mark_replaced)."""
     from .devices import find_devices, mark_replaced
-    devices, unknown = find_devices(layout, cell, stackup)
+    devices, unknown = find_devices(layout, cell, stackup, layout_technology(layout)[0])
     return mark_replaced(layout, cell, devices), unknown
 
 
@@ -547,7 +554,8 @@ def export_region():
     port_list = simcfg_ports(ports, numbering, directions)
     kept = write_simcfg(simcfg_path, gds_path, stackup.path, result.cellname, ports=port_list)
     with open(os.path.splitext(gds_path)[0] + "_portmap.json", "w") as f:
-        json.dump(port_map(ports, numbering, devices, nets, directions), f, indent=2)
+        json.dump(port_map(ports, numbering, devices, nets, directions, layout_technology(layout)[0].NAME), f,
+                  indent=2)
     set_layout_value(layout, META_OUTPUT, gds_path, "EM export output file")
     settings = _load_settings()
     open_after = dialog.open_after.isChecked()

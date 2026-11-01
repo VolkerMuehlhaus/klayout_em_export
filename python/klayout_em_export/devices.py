@@ -1,7 +1,7 @@
 """Replace PDK devices by ports: the device model is simulated in the circuit simulator, the EM model gets ports
 at the device's terminals instead (reference plane at the device's pins).
 
-Which cells are devices and where their terminals are is the technology's part (tech/, e.g. tech/ihp_sg13g2.py);
+Which cells are devices and where their terminals are is the technology's part (tech/, e.g. tech/ihp_sg13.py);
 the rest is generic. Replace adds, in the layout and tagged (GDS property 202):
   - one REF_FOR_TRANSISTOR patch under the device's pins (their bounding box + 0.2 um), shared by all its ports.
     Not the cell's bounding box: it includes implant and buried layers, and the boxes of devices placed side by side
@@ -17,7 +17,7 @@ import pya
 from .connectivity import wiring
 from .locate import next_port_layer
 from .ports import DEVICE_KEY, PROP_KEY, PortSettings
-from .tech import active as active_technology
+from .tech import for_layout
 
 REF_NAME = "REF_FOR_TRANSISTOR"
 REF_MARGIN_UM = 0.2
@@ -74,10 +74,10 @@ def device_level_layers(stackup):
     return out
 
 
-def find_devices(layout, cell, stackup):
+def find_devices(layout, cell, stackup, technology=None):
     """(devices, unknown): the supported devices in cell (recursively) and [(qualified name, count)] of PDK library
-    cells that cannot be evaluated (PDK library not loaded)."""
-    tech = active_technology()
+    cells that cannot be evaluated (PDK library not loaded). technology: a tech module, else found from the layout."""
+    tech = technology or for_layout(layout)[0]
     m1, _ = _lowest_wiring_metal(stackup)
     m1_li = layout.find_layer(m1, 0)
     ctx = tech.context(layout, stackup)

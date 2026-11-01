@@ -4,6 +4,10 @@ KLayout plug-in that exports part of a layout for EM simulation with
 [gds2palace](https://github.com/VolkerMuehlhaus/gds2palace_ihp_sg13g2) and hands it to setupEM or
 [EMStudio](https://github.com/IHP-GmbH/EMStudio). Work in progress.
 
+Made for the IHP SG13G2 PDK; SG13CMOS5L works the same way. Ports, the export and the checks work with any
+gds2palace stackup; replacing devices by ports needs a technology module for the PDK (see
+[Technologies](doc/ARCHITECTURE.md#technologies)).
+
 **User's guide** for RFIC designers, step by step with screenshots: [doc/userguide](doc/userguide/klayout_em_export_userguide.md) ([PDF](doc/userguide/klayout_em_export_userguide.pdf)).
 
 Developing the plug-in: [AGENTS.md](AGENTS.md) (working rules, tests, KLayout pitfalls) and
@@ -81,7 +85,8 @@ summary; the arrow shows its details and buttons.
   - A terminal whose net (traced through the vias from its pin) holds only the device's own metal is reported as
     not connected to any wiring, in the Devices step and in the export dialog: it floats in the EM model, e.g. when
     the wiring to the device was cut.
-  - Recognition needs the SG13G2 PDK library loaded in KLayout.
+  - Recognition needs the IHP PDK library (SG13G2 or SG13CMOS5L) loaded in KLayout. A layout without IHP devices
+    or KLayout technology gets the generic technology: no device support (tooltip of the Devices line).
 - **Ports**: one table with the ports of the cell and the ports proposed where the EM region box cuts conductors.
   - Columns: number and layer in the layout, the port, its number in the export (and the `.snp`; "outside" if it
     is not in the region), and its status: ok, its problems (incomplete, layers not drawn at the port, short

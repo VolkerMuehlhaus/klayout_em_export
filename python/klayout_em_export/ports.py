@@ -233,7 +233,7 @@ def device_of(port):
     return None
 
 
-def port_map(ports, numbering, devices=(), nets=None, directions=None):
+def port_map(ports, numbering, devices=(), nets=None, directions=None, technology=None):
     """The port map file's content: per exported port its layout number and layer, and whether it is simulated;
     with devices (devices.Device), also the replaced devices' pcell and parameters, with nets
     (connectivity.port_nets) the net and layer of each port's signal end, for a circuit wrapper, and with
@@ -252,7 +252,7 @@ def port_map(ports, numbering, devices=(), nets=None, directions=None):
         if nets and layer in nets:
             row["net"], row["ground_net"], row["signal_layer"] = nets[layer]
         rows.append(row)
-    return {"note": "port = number in the .simcfg and .snp, layer = its layer in the exported GDS; layout_port = "
+    out = {"note": "port = number in the .simcfg and .snp, layer = its layer in the exported GDS; layout_port = "
                     "number in the layout (layer - 200). Ports not in the .simcfg are exported as shapes only. "
                     "device/terminal: the port replaces that terminal of a PDK device (to be connected to the "
                     "device model). direction: as exported, chosen so that every via port has its signal metal "
@@ -260,3 +260,6 @@ def port_map(ports, numbering, devices=(), nets=None, directions=None):
             "ports": rows,
             "devices": {d.id: {"pcell": d.pcell, "params": {k: str(v) for k, v in d.params.items()}}
                         for d in devices if d.replaced}}
+    if technology is not None:
+        out["technology"] = technology      # the circuit wrapper's device models (tech/<technology>_circuit.py)
+    return out

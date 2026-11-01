@@ -14,7 +14,6 @@ from .boundary import find_crossings
 from .connectivity import check_ground, wiring
 from .export import marker_box
 from .ports import collect_ports, device_of, export_numbering, export_port_numbers, is_complete, port_problems
-from .tech import active as active_technology
 
 OK, WARN, ERROR = ("✓", "#1a8f1a"), ("⚠", "#c87800"), ("✗", "#c00000")
 COLUMNS = ("#", "Layer", "Port", "Export #", "Status")
@@ -282,6 +281,8 @@ class EMPanel(pya.QWidget):
         if stackup is None:
             self.devices_step.set(ERROR, "needs a stackup")
             return
+        technology, reason = gui.layout_technology(layout)
+        self.devices_step.summary.setToolTip(f"technology: {technology.LABEL} ({reason})")
         devices, unknown = gui.find_layout_devices(layout, cell, stackup)
         transistors = [d for d in devices if not d.is_resistor]
         resistors = [d for d in devices if d.is_resistor]
@@ -293,7 +294,7 @@ class EMPanel(pya.QWidget):
             elif d.problems:
                 state = "cannot be replaced: " + "; ".join(d.problems)
             elif d.is_resistor:
-                state = "not replaced: " + active_technology().resistor_note(d)
+                state = "not replaced: " + technology.resistor_note(d)
             else:
                 state = "not replaced: simulated as layout"
             lines.append(f"{d.pcell} {name} {d.params}: {state}")
@@ -315,9 +316,9 @@ class EMPanel(pya.QWidget):
         lines += [f"ports {', '.join(str(n) for _, n in sorted(p.items())) or '(none)'} and the REF patch of "
                   f"{i.split('@')[0]} at {i.split('@')[1]} dbu: that device is no longer there (moved or deleted); "
                   "Undo Replace, then Replace All" for i, p in sorted(orphans.items())]
-        self.devices_detail.setText("\n".join(lines) or "no PDK devices (SG13_dev pcells) in the cell")
+        self.devices_detail.setText("\n".join(lines) or technology.NO_DEVICES)
         if not devices and not unknown and not orphans:
-            self.devices_step.set(OK, "none")
+            self.devices_step.set(OK, "none" if technology.KLAYOUT_TECHNOLOGIES else "no device support")
             return
         parts = []
         if transistors:

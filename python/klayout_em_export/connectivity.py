@@ -14,14 +14,14 @@ do not count: their only traced end is the device terminal.
 import pya
 
 from .ports import device_of
-from .tech import active as active_technology
+from .tech import device_level_names
 
 OTHER_NETS_LIMIT = 300              # count the separate other nets only up to this many polygons
 
 
 def wiring(stackup):
     """(metal layers {GDS layer: name}, connections [(via layer, layer below, layer above)]) that are traced."""
-    device_level = active_technology().DEVICE_LEVEL      # see the module doc
+    device_level = device_level_names()      # see the module doc
     metals = {l.layer: l.name for l in stackup.layers
               if l.kind == "conductor" and l.layer not in stackup.derived and l.name not in device_level}
     connections = []

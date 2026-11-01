@@ -1,14 +1,13 @@
-"""IHP SG13G2 in the circuit wrapper (tools/spice_wrapper.py): the PDK model of each device, its terminals' order
+"""IHP SG13G2 and SG13CMOS5L in the circuit wrapper (tools/spice_wrapper.py): the PDK model of each device, its terminals' order
 and the model libraries of IHP-Open-PDK. Plain Python: the wrapper runs outside KLayout.
 """
 import os
 import re
 
-NAME = "ihp_sg13g2"
+NAME = "ihp_sg13"
 PDK_LABEL = "IHP PDK"
-PDK_HINT = "Optional: the ihp-sg13g2 folder of IHP-Open-PDK, for the model library paths."
-PDK_BROWSE_TITLE = "IHP-Open-PDK ihp-sg13g2 folder"
-PDK_HELP = "IHP-Open-PDK ihp-sg13g2 folder: active .lib lines (ngspice, Xyce)"
+PDK_HINT = "Optional: the ihp-sg13g2 or ihp-sg13cmos5l folder of IHP-Open-PDK, for the model library paths."
+PDK_BROWSE_TITLE = "IHP-Open-PDK folder (ihp-sg13g2 or ihp-sg13cmos5l)"
 STATIC_SUFFIX = "_CDNS_"            # a device cell exported from Cadence: <pcell name>_CDNS_<number>
 
 # pcell -> (subcircuit or None for the pcell's 'model' parameter, kind)
@@ -21,7 +20,7 @@ DEVICES = {
 LIBRARIES = {"hbt": ("cornerHBT.lib", "hbt_typ"), "mos": ("cornerMOSlv.lib", "mos_tt"),
              "moshv": ("cornerMOShv.lib", "mos_tt"), "res": ("cornerRES.lib", "res_typ")}
 PARAMS = {"hbt": ("Nx", "Ny", "le", "we"), "mos": ("w", "l", "ng"), "moshv": ("w", "l", "ng"), "res": ("w", "l", "b")}
-SPECTRE_NOTE = "PDK model libraries: include those of your SG13G2 PDK installation, for example"
+SPECTRE_NOTE = "PDK model libraries: include those of your IHP PDK installation, for example"
 VACASK_HEADER = ("needs the IHP PDK converted for VACASK and its .vacaskrc.toml (next to the testbench or in your home)",
                  'include "sg13g2_vacask_common.lib"')
 

@@ -3,13 +3,14 @@
 Runs tools/spice_wrapper.py with a Python that has snp2le (KLayout's own Python has not): by default the one next
 to setupEM, which runs in the same environment.
 """
+import json
 import os
 import subprocess
 
 import pya
 
 from . import gui
-from .tech import ihp_sg13g2_circuit as tech
+from . import tech
 
 WRAPPER = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "tools",
                                         "spice_wrapper.py"))
@@ -41,6 +42,16 @@ def default_output(snp, simulator, em):
     base = os.path.splitext(snp)[0]
     suffix = f"_{simulator}" + ("_snp" if simulator == "xyce" and em == "snp" else "")
     return base + suffix + EXTENSION[simulator]
+
+
+def portmap_technology(path):
+    """The circuit module of the port map's technology (tech/<technology>_circuit.py); IHP for old port maps."""
+    try:
+        with open(path) as f:
+            name = json.load(f).get("technology")
+        return tech.load_circuit(name or tech.PORTMAP_DEFAULT)
+    except (OSError, ValueError):
+        return tech.load_circuit(tech.PORTMAP_DEFAULT)
 
 
 def run_wrapper(python, portmap, snp, output, simulator, em, pdk):
@@ -76,8 +87,10 @@ class CircuitDialog(pya.QDialog):
         self.simulator.setCurrentIndex(min(int(self.settings.get("circuit_choice", 0)), len(CHOICES) - 1))
         self.simulator.currentIndexChanged += lambda index: self._update_output()
         form.addRow("Simulator", self.simulator)
-        self.pdk = self._file_row(form, tech.PDK_LABEL, self.settings.get("circuit_pdk", ""), self._browse_pdk)
-        form.addRow("", pya.QLabel(tech.PDK_HINT))
+        self.pdk_label, self.pdk_hint = pya.QLabel(), pya.QLabel()
+        self.pdk = self._file_row(form, self.pdk_label, self.settings.get("circuit_pdk", ""), self._browse_pdk)
+        form.addRow("", self.pdk_hint)
+        self._update_pdk_labels()
         self.output = self._file_row(form, "Output", "", self._browse_output)
         self.output.textEdited += lambda text: setattr(self, "_output_edited", True)
         self._output_edited = False
@@ -113,6 +126,7 @@ class CircuitDialog(pya.QDialog):
                                                  "Port map (*_portmap.json)")
         if path:
             self.portmap.setText(path)
+            self._update_pdk_labels()
 
     def _browse_snp(self):
         start = self.snp.text or self.settings.get("circuit_snp_dir", "")
@@ -122,8 +136,13 @@ class CircuitDialog(pya.QDialog):
             self.snp.setText(path)
             self._update_output()
 
+    def _update_pdk_labels(self):
+        circuit_tech = portmap_technology(self.portmap.text)
+        self.pdk_label.setText(circuit_tech.PDK_LABEL)
+        self.pdk_hint.setText(circuit_tech.PDK_HINT)
+
     def _browse_pdk(self):
-        path = pya.FileDialog.ask_existing_dir(tech.PDK_BROWSE_TITLE, self.pdk.text)
+        path = pya.FileDialog.ask_existing_dir(portmap_technology(self.portmap.text).PDK_BROWSE_TITLE, self.pdk.text)
         if path:
             self.pdk.setText(path)
 

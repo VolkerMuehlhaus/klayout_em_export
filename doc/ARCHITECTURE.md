@@ -6,7 +6,8 @@ How the plug-in is built and why. For agents and developers changing it. The use
 
 ## 1. What it is
 
-A KLayout plug-in for the IHP SG13G2 PDK. It prepares part of a layout for an EM simulation with gds2palace and
+A KLayout plug-in made for the IHP SG13G2 PDK (SG13CMOS5L too; other processes through a technology module, see
+[Technologies](#technologies)). It prepares part of a layout for an EM simulation with gds2palace and
 AWS Palace, and afterwards puts the PDK devices back around the EM result for a circuit simulator.
 
 ```text
@@ -53,7 +54,7 @@ modules only collect input and call the core.
 | `connectivity.py` | Traces metal through vias: the ground net (`check_ground`), shorted via ports, the net of each port (`port_nets`). |
 | `boundary.py` | Where conductors cross the EM region box: proposed via ports on the cut. |
 | `devices.py` | Finds PDK devices (through the technology) and replaces them by a REF patch and via ports; the device shapes the export removes. |
-| `tech/` | The PDK specifics, one technology per fab: `ihp_sg13g2.py` (which cells are devices, their terminals, the device level for the ground check, the resistor note; needs pya) and `ihp_sg13g2_circuit.py` (device models, terminal order and model libraries for the circuit wrapper; plain Python, imported by `tools/spice_wrapper.py`). `tech.active()` returns the technology in use: for now always IHP SG13G2. |
+| `tech/` | The PDK specifics, one module per technology (see [Technologies](#technologies)): `ihp_sg13.py` (which cells are devices, their terminals, the device level for the ground check, panel texts; needs pya), `ihp_sg13_circuit.py` (device models, terminal order and model libraries for the circuit wrapper; plain Python, imported by `tools/spice_wrapper.py`), `generic.py` / `generic_circuit.py` (no device support). `tech.for_layout` chooses the technology. |
 | `selection.py` | The selected shapes, flattened, completed with connecting vias and touching port shapes. |
 | `export.py` | Writes one flat cell with only the stackup's layers and the port layers, clipped and merged. |
 | `simcfg.py` | Writes or updates setupEM's `.simcfg`. |
@@ -64,6 +65,41 @@ modules only collect input and call the core.
 | `circuit.py` | Create Circuit dialog; runs `tools/spice_wrapper.py`. |
 | `tools/spice_wrapper.py` | Port map + `.sNp` -> netlist with the PDK devices, per simulator. |
 | `tools/make_icon.py` | Draws the EM Port tool icon. |
+
+### Technologies
+
+Everything that knows a PDK, apart from the stackup, is in `tech/`. The rest of the plug-in works with any
+gds2palace stackup.
+
+- **Choosing one** (`tech.for_layout`, `gui.layout_technology`): the `technology` entry of the settings file, if
+  set; else the first technology whose devices are in the layout (`devices_in`: IHP: a cell of the `SG13_dev`
+  library, also when the library is not loaded, or a Cadence cell `<device>_CDNS_<n>`); else the first whose
+  KLayout technology name the layout has (`KLAYOUT_TECHNOLOGIES`); else `generic`. The Devices line's tooltip shows
+  the technology and why. Devices decide before the KLayout technology name because a GDS is often opened without
+  choosing a technology, and the stackup is not used because nothing in it names the process.
+- **generic**: no devices; they stay in the EM model as drawn layout. Its ground check leaves out only the known
+  technologies' device levels.
+- **IHP SG13G2 and SG13CMOS5L share `ihp_sg13`**: the same library `SG13_dev`, the same pcells (no npn in
+  SG13CMOS5L), the same layer numbers and model libraries (IHP-Open-PDK `dev` branch, November 2026). They differ
+  in the stackup only. A process with a library of its own (e.g. a future SG13Cu) is a technology of its own; it can
+  import `ihp_sg13`'s terminal finders where its pcells draw the same pins.
+- **Port map**: the export writes `technology`; `tools/spice_wrapper.py` loads `tech/<technology>_circuit.py`. A
+  port map without it is from an older export and counts as `ihp_sg13`.
+
+#### Adding a technology
+
+1. `tech/<name>.py` with the interface of `ihp_sg13.py` / `generic.py`: `NAME`, `LABEL`, `KLAYOUT_TECHNOLOGIES`,
+   `DEVICE_LEVEL` (stackup names of the diffusion and every other layer below the wiring that would join nets),
+   `NO_DEVICES`, `devices_in(layout)`, `context`, `identify`, `is_device`, `is_resistor`, `terminals` (fill
+   `device.terminals` as `{name: (GDS layer of the pin metal, [pin boxes])}`), `resistor_note`.
+2. `tech/<name>_circuit.py`, plain Python: `NAME`, `PDK_LABEL`, `PDK_HINT`, `PDK_BROWSE_TITLE`, `LIBRARIES`,
+   `SPECTRE_NOTE`, `VACASK_HEADER`, `pcell_of`, `lib_path`, `instantiate` (the subcircuit or model per device with
+   its terminal order).
+3. Add the name to `tech.TECHNOLOGIES`.
+4. A gds2palace stackup for the process, with a `REF_FOR_TRANSISTOR` sheet (layer 300) if devices are to be
+   replaced.
+5. Tests: copy `test_devices.py` / `test_resistors.py` for its devices, and add its cases to
+   `test_technology.py`.
 
 ## 4. What the plug-in stores in the layout
 
@@ -220,6 +256,11 @@ ground is chosen and the panel asks for a pad port or a marked ground. The user 
 level, through the vias between vertically adjacent metals. Activ and every via touching it are left out, because
 tracing through diffusion merges source and drain and so all nets. A device is an open circuit for this check.
 
+The device level is a list of layer names per technology (`DEVICE_LEVEL`), and the check leaves out the names of
+all known technologies (`tech.device_level_names`), so it needs no layout. A rule by z position does not work: the
+lowest conductor is the diffusion in a stackup with front end, but Metal1 in a stackup without it, and nothing in
+the stackup tells the two apart.
+
 ### Resistors replaced by default
 
 The PDK computes R = Rsh·l/(w + Δw) + 2·rz/w. The gds2palace sheet has the drawn size and the nominal Rsh: no width
@@ -264,6 +305,7 @@ through `klayout_em_export_tests/pdk_env.py`.
 | Ground and nets | `test_ground.py`, `test_unconnected.py` |
 | Devices | `test_devices.py`, `test_mosfets.py`, `test_resistors.py`, `test_replaced_devices.py` (selection patches, ground voting, moved devices) (PDK needed) |
 | GUI pieces in batch | `test_panel.py`, `test_reopen.py` (stand-in view, own settings file), `test_open_with.py` (setupEM / EMStudio command line, which stale scripts are reported) |
+| Technologies | `test_technology.py` (choice and generic fallback, SG13CMOS5L stackup, wrapper per port map technology) (PDK needed) |
 | Create Circuit | `test_circuit.py` (needs a Python with snp2le), `tests/simulators/` (Docker, Linux) |
 | Physics checks | `tests/resistor_palace/` (Palace), `doc/test_cascode_wrapper`, `doc/test_cascode_epi_tie` |
 | Example exports | `run_cascode_export.py`, `run_cascode_epitie_export.py`, `run_mpa_core_export.py` |

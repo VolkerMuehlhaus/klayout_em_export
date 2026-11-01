@@ -1,4 +1,8 @@
-"""IHP SG13G2: the PDK devices that can be replaced by ports, and where their terminals are.
+"""IHP SG13G2 and SG13CMOS5L: the PDK devices that can be replaced by ports, and where their terminals are.
+
+Both processes share the device library (SG13_dev), its pcells (SG13CMOS5L has no npn), the layer numbers used here
+and the model libraries, so one technology covers both; KLayout's technology name tells them apart (sg13g2,
+sg13cmos5l), which only matters for the stackup.
 
 Supported: SG13_dev pcells with named pins, i.e. pin shapes (datatype 2 on a metal layer) and a TEXT label with the
 terminal name inside each: npn13G2, npn13G2L, npn13G2V (C, B on Metal1; E on Metal2) and the rf MOSFETs (S, D, G,
@@ -7,7 +11,9 @@ Metal1 pins). Static device cells exported from Cadence (<pcell name>_CDNS_<numb
 """
 import pya
 
-NAME = "ihp_sg13g2"
+NAME = "ihp_sg13"
+LABEL = "IHP SG13G2 / SG13CMOS5L"
+KLAYOUT_TECHNOLOGIES = ("sg13g2", "sg13cmos5l")
 DEVICE_PCELLS = {"npn13G2", "npn13G2L", "npn13G2V", "rfnmos", "rfpmos", "rfnmosHV", "rfpmosHV"}   # named pins
 MOSFET_PCELLS = {"nmos", "pmos", "nmosHV", "pmosHV"}    # unnamed (nmos) or no (pmos) pins: terminals from geometry
 RESISTOR_PCELLS = {"rsil", "rppd", "rhigh"}             # two unnamed Metal1 pins (PLUS, MINUS); replaced on request
@@ -19,6 +25,18 @@ LIBRARY = "SG13_dev"
 PIN_DATATYPE = 2                    # SG13G2 pin purpose, e.g. Metal1.pin = 8/2
 TEXT_LAYER = (63, 0)                # SG13G2 TEXT.drawing: the pin names
 DEVICE_LEVEL = {"Activ"}            # diffusion, below Metal1: not traced as wiring (see connectivity.py)
+NO_DEVICES = "no PDK devices (SG13_dev pcells) in the cell"
+
+
+def devices_in(layout):
+    """Why the layout is of this technology, from its devices (anywhere in the layout), or None: a cell of the
+    SG13_dev library (also when the library is not loaded) or a static device cell from Cadence."""
+    for c in layout.each_cell():
+        if c.qname().startswith(LIBRARY + "."):
+            return f"{LIBRARY} cells in the layout"
+        if STATIC_SUFFIX in c.name and is_device(c.name.split(STATIC_SUFFIX)[0]):
+            return f"device cells from Cadence ({c.name.split(STATIC_SUFFIX)[0]}{STATIC_SUFFIX}...) in the layout"
+    return None
 
 
 def context(layout, stackup):
