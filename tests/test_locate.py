@@ -22,3 +22,17 @@ for x, y in [(33.7, -42.2), (33.7, -41.8), (39.0, -41.0), (0, 0)]:
     if e:
         print("   metals at that edge:", metals_at(ly, cell, st, e[1].bbox()))
 print("next port layer:", next_port_layer(ly, cell))
+
+# Only the given layers are searched (the EM Port tool passes the visible ones)
+p = um(33.7, -42.2)
+found = edge_at(ly, cell, st, p, tol)
+top = dict((l.name, l.layer) for l in st.layers)[found[0]]
+others = {l.layer for l in st.layers if l.is_metal} - {top}
+print("ok  " if edge_at(ly, cell, st, p, tol, {top}) == found else "FAIL",
+      f"edge with only {found[0]} searched: the same edge")
+hidden = edge_at(ly, cell, st, p, tol, others)
+print("ok  " if hidden is None or hidden[0] != found[0] else "FAIL",
+      f"edge with {found[0]} hidden: {hidden and hidden[0]}")
+print("ok  " if edge_at(ly, cell, st, p, tol, set()) is None else "FAIL", "edge with nothing visible: none")
+print("ok  " if gap_at(ly, cell, st, um(39.0, -41.0), round(20 / ly.dbu), set()) is None else "FAIL",
+      "gap with nothing visible: none")

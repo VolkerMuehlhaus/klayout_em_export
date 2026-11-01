@@ -111,8 +111,10 @@ The same steps are in the **EM** menu in the menu bar, top to bottom in workflow
    export dialog show it and can change it too.
 2. **EM Port Tool** (also in the toolbar as "EM Port"): click a metal edge to create a via port, a zero-width line
    along that edge; Shift+click into the gap between two shapes of one metal to create an in-plane port, a box that
-   bridges the gap. The edge or gap under the cursor is highlighted first. The shape goes on the next free port
-   layer (port number = layer - 200), then the port dialog opens; Cancel removes the shape again.
+   bridges the gap. The edge or gap under the cursor is highlighted first. Only metals visible in the layer panel
+   are picked (a hidden group hides its layers); when the only edge or gap under the cursor is on a hidden layer,
+   the status bar says so. The port dialog still offers every metal drawn at the port. The shape goes on the next
+   free port layer (port number = layer - 200), then the port dialog opens; Cancel removes the shape again.
 3. **Port Settings...**: the same dialog for selected port shapes (layers 201..299, datatype 0; from the tool or
    drawn with KLayout's own tools): direction, from/to layer (via port, Z/-Z) or target layer (in-plane port), Z0
    and excitation.

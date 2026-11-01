@@ -17,7 +17,12 @@ def _status(text, seconds):
     pya.Application.instance().main_window().message(text, seconds * 1000)
 
 
-HINT = "EM Port: click a metal edge for a via port, Shift+click into a gap between metals for an in-plane port"
+def _get(value, *args):
+    """KLayout exposes some getters as properties, others as methods, depending on the version; accept both."""
+    return value(*args) if callable(value) else value
+
+
+HINT = "EM Port: click a metal edge for a via port, Shift+click into a gap between metals for an in-plane port (visible layers only)"
 
 
 class PortTool(pya.Plugin):
@@ -49,21 +54,49 @@ class PortTool(pya.Plugin):
             self.marker._destroy()
             self.marker = None
 
-    def _candidate(self, p, buttons):
-        """('via', metal, Box) or ('plane', metal, Box, direction) at DPoint p, or None."""
+    def _candidate(self, p, buttons, layers="visible"):
+        """('via', metal, Box) or ('plane', metal, Box, direction) at DPoint p, or None. Searches the visible
+        layers; layers=None searches all drawn metals."""
         cv = self.layout_view.active_cellview()
         stackup = self.stackup()
         if cv is None or cv.layout() is None or stackup is None:
             return None
         layout, cell = cv.layout(), cv.cell
+        if layers == "visible":
+            layers = self._visible_layers()
         point = pya.Point(round(p.x / layout.dbu), round(p.y / layout.dbu))
-        visible = self.layout_view.box()
-        tol = max(1, round(max(visible.width(), visible.height()) / 150 / layout.dbu))
+        shown = self.layout_view.box()
+        tol = max(1, round(max(shown.width(), shown.height()) / 150 / layout.dbu))
         if buttons & pya.ButtonState.ShiftKey:
-            found = gap_at(layout, cell, stackup, point, 20 * tol)
+            found = gap_at(layout, cell, stackup, point, 20 * tol, layers)
             return None if found is None else ("plane",) + tuple(found)
-        found = edge_at(layout, cell, stackup, point, tol)
+        found = edge_at(layout, cell, stackup, point, tol, layers)
         return None if found is None else ("via", found[0], found[1].bbox())
+
+    def _visible_layers(self):
+        """GDS layer numbers (datatype 0) shown in the layer panel for the current layout: a click picks only what
+        the designer sees. A hidden group hides its members (visible is the effective visibility, visible?(true))."""
+        index = _get(self.layout_view.active_cellview_index)
+        layout = self.layout_view.active_cellview().layout()
+        layers = set()
+        it = self.layout_view.begin_layers()
+        while not it.at_end():
+            node = it.current()
+            li = _get(node.layer_index)
+            if not _get(node.has_children) and _get(node.cellview) == index and _get(node.visible, True) and li >= 0:
+                info = layout.get_info(li)
+                if info.datatype == 0:
+                    layers.add(info.layer)
+            it.next()
+        return layers
+
+    def _hidden_hint(self, p, buttons):
+        """Status text when the only candidate under the cursor is on a hidden layer, else None."""
+        found = self._candidate(p, buttons, layers=None)
+        if found is None:
+            return None
+        kind = "gap" if found[0] == "plane" else "edge"
+        return f"{found[1]} {kind} here, but {found[1]} is hidden: show the layer to place a port on it"
 
     def mouse_moved_event(self, p, buttons, prio):
         if not prio:
@@ -77,6 +110,10 @@ class PortTool(pya.Plugin):
             self.marker.color = 0xff00ff
             self.marker.line_width = 3
             _status(f"{'via port on' if found[0] == 'via' else 'in-plane port across a gap in'} {found[1]}", 2)
+        else:
+            hint = self._hidden_hint(p, buttons)
+            if hint:
+                _status(hint, 2)
         return False
 
     def mouse_click_event(self, p, buttons, prio):
@@ -89,8 +126,9 @@ class PortTool(pya.Plugin):
         found = self._candidate(p, buttons)
         self._clear()
         if found is None:
-            _status("No metal edge here" if not buttons & pya.ButtonState.ShiftKey
-                              else "No gap between two shapes of one metal here", 5)
+            _status(self._hidden_hint(p, buttons)
+                    or ("No metal edge here" if not buttons & pya.ButtonState.ShiftKey
+                        else "No gap between two shapes of one metal here"), 5)
             return True
         cv = self.layout_view.active_cellview()
         layout, cell = cv.layout(), cv.cell

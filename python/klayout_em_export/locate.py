@@ -27,12 +27,20 @@ def _manhattan(edge):
     return edge.p1.x == edge.p2.x or edge.p1.y == edge.p2.y
 
 
-def edge_at(layout, cell, stackup, point, tol):
+def _searched(stackup, layers):
+    """(rank, name, GDS layer) of the drawn metals to search: all, or only those whose GDS layer is in layers (the
+    EM Port tool passes the visible ones). The rank stays the metal's place in the stackup, top first."""
+    return [(rank, name, layer) for rank, (name, layer) in enumerate(drawn_metals(stackup))
+            if layers is None or layer in layers]
+
+
+def edge_at(layout, cell, stackup, point, tol, layers=None):
     """(metal name, Edge) of the horizontal or vertical metal edge nearest to point within tol, preferring the
-    upper metal when edges of several metals are equally close. None if there is none."""
+    upper metal when edges of several metals are equally close. None if there is none.
+    layers: GDS layer numbers to search (None: all drawn metals)."""
     search = pya.Box(point, point).enlarged(tol, tol)
     best = None
-    for rank, (name, layer) in enumerate(drawn_metals(stackup)):
+    for rank, name, layer in _searched(stackup, layers):
         for edge in _region(layout, cell, layer, search).edges().each():
             if not _manhattan(edge) or not _projects(edge, point):
                 continue
@@ -51,13 +59,14 @@ def _projects(edge, point):
     return min(edge.p1.x, edge.p2.x) <= point.x <= max(edge.p1.x, edge.p2.x)
 
 
-def gap_at(layout, cell, stackup, point, reach):
+def gap_at(layout, cell, stackup, point, reach, layers=None):
     """(metal name, Box, direction) of the narrowest gap around point between two shapes of one metal, looking up
     to reach in each direction: the box bridges the gap over the length both facing edges share. Direction X for
-    a gap between left and right metal, Y for below and above. None if the point is on metal or no gap is found."""
+    a gap between left and right metal, Y for below and above. None if the point is on metal or no gap is found.
+    layers: GDS layer numbers to search (None: all drawn metals)."""
     search = pya.Box(point, point).enlarged(reach, reach)
     best = None
-    for rank, (name, layer) in enumerate(drawn_metals(stackup)):
+    for rank, name, layer in _searched(stackup, layers):
         region = _region(layout, cell, layer, search)
         if region.is_empty() or not region.interacting(pya.Region(pya.Box(point, point).enlarged(1, 1))).is_empty():
             continue

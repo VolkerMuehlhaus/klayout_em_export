@@ -227,6 +227,11 @@ layers, impedance) are stored on the shape, so they are saved with your layout.
 
 For an in-plane port, hold **Shift** and click into the gap between two shapes of one metal.
 
+The tool picks only metals you can see. Hide a layer in the layer panel, and its edges are ignored, so you can reach a
+metal edge below a larger shape. If the only edge under the cursor is on a hidden layer, the status bar tells you.
+Hiding a layer does not limit the port itself: the port dialog still offers every metal drawn there, e.g. the ground
+plane you hid to see the pad.
+
 In the cascode, the two RF pads get a via port each, at the outer edge of the pad (port 1 at the Cas_out pad):
 
 ![Port 1 at the edge of the Cas_out pad (cyan line)](images_linux/07_pad_port_top.png)
