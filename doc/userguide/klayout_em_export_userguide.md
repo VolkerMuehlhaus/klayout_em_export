@@ -514,11 +514,17 @@ EMStudio does the same job in one window: model settings, the simulation run and
 next to **Open after the export in**. EMStudio then reads the export the way setupEM does, and asks whether the model
 is for **Palace** or **OpenEMS**.
 
-- **The first time**, EMStudio makes a new Palace model from the export: layout, cell, stackup and ports. Set the
-  frequencies there, starting at **0 GHz** as above, and save. The model is saved as `<name>.py` next to the
+- **The first time**, EMStudio makes a new model for the simulator you chose: layout, cell, stackup and ports. Set
+  the frequencies there, starting at **0 GHz** as above, and save. The model is saved as `<name>.py` next to the
   layout, e.g. `cascode_em.py`.
 - **After a layout change**, export again. EMStudio finds `cascode_em.py` and updates only its ports, layout,
   stackup and cell. Your frequencies and mesh stay. Save to keep the update.
+- **The stackup always comes from the export.** A stackup you picked in EMStudio is replaced on the next export, so
+  choose it in the export dialog.
+- **The first import fixes the simulator.** EMStudio asks only once. For the other simulator, rename or delete
+  `cascode_em.py` and export again; you get a new model and set its frequencies again.
+- **Keep the model where EMStudio put it.** If you save it elsewhere or under another name, the next export does not
+  find it and makes a new model.
 - The port directions arrive as exported, `-Z` included, so the circuit wrapper fits.
 
 **For OpenEMS**, prepare the export differently:
@@ -530,8 +536,9 @@ is for **Palace** or **OpenEMS**.
 
 Nothing stops you from mixing these up, so check both before the export.
 
-You need an EMStudio with **File > Import setupEM Config**. If the plug-in cannot find EMStudio, it asks once
-where the program is.
+You need an EMStudio whose **File > Import setupEM Config** asks for Palace or OpenEMS (IHP-GmbH/EMStudio PR #53).
+An older build has the menu too, but imports every export as a Palace model. If the plug-in cannot find EMStudio,
+it asks once where the program is.
 
 ## Back to the circuit: Create Circuit
 

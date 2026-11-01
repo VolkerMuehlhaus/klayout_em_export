@@ -134,7 +134,10 @@ The same steps are in the **EM** menu in the menu bar, top to bottom in workflow
      don't replace devices: device replacement (ports to `REF_FOR_TRANSISTOR`) is for Palace only. Neither the
      plug-in nor EMStudio checks this;
      when `<name>.py` exists next to the `.simcfg`, EMStudio updates only that model's ports, layout file, stackup,
-     cell and purpose, and keeps its frequencies, mesh, boundaries and code.
+     cell and purpose, and keeps its frequencies, mesh, boundaries and code. The stackup comes from the export, also
+     when another one was chosen in EMStudio: choose the stackup here. The first import fixes the simulator; for the
+     other one, rename or delete `<name>.py` and export again. A model saved elsewhere or under another name is not
+     found: the import then makes a new one.
    - Ports are numbered without gaps in the export: the complete ports 1..N in layout order, then the incomplete
      ones. The `.simcfg` and so the `.snp` use these numbers, the exported GDS the port layers 201.. in that order
      (without the stackup's own layers in that range, e.g. SUBGND on 210 or 250); `<name>_portmap.json` maps them
