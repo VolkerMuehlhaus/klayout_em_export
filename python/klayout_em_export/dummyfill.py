@@ -142,6 +142,12 @@ def find_fill(layout, cell, stackup, mincount=MINCOUNT):
     return out
 
 
+def _key(polygon):
+    """A polygon as a dict key. Not str() alone: in KLayout 0.30.12, Region.each() yields
+    PolygonWithProperties, whose str() adds " props={}", so no placed polygon matched its shape."""
+    return str(polygon).split(" props=")[0]
+
+
 def _fill_cell_shapes(layout, c, fill):
     """[(layer, datatype, Polygon)] of a cell that holds only fill candidates (shapes on fill layers, no properties,
     no texts, no subcells), else None."""
@@ -186,12 +192,12 @@ def _remove_fill_placements(layout, cell, owners, fill):
                     placed[(layer, datatype)].merged_semantics = False
                 moved = polygon.transformed(inst.cplx_trans)
                 placed[(layer, datatype)].insert(moved)
-                mine.append(str(moved))
+                mine.append(_key(moved))
             keys.append(mine)
         hits = {}
         for key, region in placed.items():
             for polygon in region.interacting(fill[key]).each():
-                hits[str(polygon)] = hits.get(str(polygon), 0) + 1
+                hits[_key(polygon)] = hits.get(_key(polygon), 0) + 1
         doomed = []
         for inst, mine in zip(instances, keys):
             if all(hits.get(k, 0) > 0 for k in mine):
@@ -228,7 +234,7 @@ def remove_dummy_fill(layout, cell, stackup):
                 if shape.prop_id != 0 or shape.is_text() or not (shape.is_box() or shape.is_polygon() or
                                                                    shape.is_path() or shape.is_simple_polygon()):
                     continue
-                copies = [str(shape.polygon.transformed(trans)) for trans in placements]
+                copies = [_key(shape.polygon.transformed(trans)) for trans in placements]
                 candidates.append((shape, copies))
                 for trans in placements:
                     placed.insert(shape.polygon.transformed(trans))
@@ -236,7 +242,7 @@ def remove_dummy_fill(layout, cell, stackup):
                 continue
             hit = {}
             for polygon in placed.interacting(fill[(info.layer, info.datatype)]).each():
-                hit[str(polygon)] = hit.get(str(polygon), 0) + 1
+                hit[_key(polygon)] = hit.get(_key(polygon), 0) + 1
             doomed = []
             for shape, copies in candidates:
                 if all(hit.get(k, 0) > 0 for k in copies):

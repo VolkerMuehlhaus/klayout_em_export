@@ -86,6 +86,9 @@ These crash KLayout without a Python error, or behave differently in the GUI:
   (0.30.5 kept it): rows vanished and a combo box covered the whole Export dialog. Add form rows with
   `gui.add_form_row(dialog, form, ...)`, which keeps them in the dialog. `addWidget` / `addLayout` of box layouts
   keep their arguments (the panel is fine).
+- KLayout 0.30.12's `Region.each()` yields `PolygonWithProperties`, whose `str()` ends in ` props={}`: a
+  `str(polygon)` key never matches the plain `Polygon` it came from (Remove Dummy Fill removed nothing). Use
+  `dummyfill._key`.
 
 ## Rules that protect design decisions
 
