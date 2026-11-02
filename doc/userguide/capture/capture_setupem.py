@@ -5,7 +5,7 @@ import os
 import sys
 
 from PySide6.QtCore import QTimer
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QMessageBox
 
 from setupEM import setupEM
 
@@ -16,6 +16,10 @@ app = QApplication(sys.argv)
 win = setupEM.MainWindow()
 win.resize(1100, 900)
 win.show()
+# loading may show a modal "Config loaded" message box, which would block the script: close it
+closer = QTimer()
+closer.timeout.connect(lambda: isinstance(app.activeModalWidget(), QMessageBox) and app.activeModalWidget().accept())
+closer.start(500)
 win.load_configuration_from_file(simcfg)
 win.setPalaceMode()
 # the cascode's sweep: from 0 Hz (gds2palace then simulates 10 and 20 MHz and adds a 0 Hz point), 1 GHz steps
