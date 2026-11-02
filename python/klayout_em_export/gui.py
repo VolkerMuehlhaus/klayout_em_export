@@ -835,8 +835,13 @@ def show_panel():
         from .panel import EMPanel
         _dock = pya.QDockWidget("EM Export", main_window)
         _dock.setObjectName("klayout_em_export_panel")
-        _panel = EMPanel(_dock)
-        _dock.setWidget(_panel)
+        # in a scroll area: a dock shorter than the open details gets a scrollbar instead of squeezed buttons
+        _dock._scroll = pya.QScrollArea(_dock)
+        _dock._scroll.setWidgetResizable(True)
+        _dock._scroll.setFrameShape(pya.QFrame.NoFrame)
+        _panel = EMPanel(_dock._scroll)
+        _dock._scroll.setWidget(_panel)
+        _dock.setWidget(_dock._scroll)
         main_window.addDockWidget(pya.Qt.RightDockWidgetArea, _dock)
     _dock.show()
     _panel.refresh()

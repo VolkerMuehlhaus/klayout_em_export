@@ -151,6 +151,7 @@ class EMPanel(pya.QWidget):
         self.devices_table.cellDoubleClicked += lambda row, col: self._zoom_to_device(row)
         self.device_rows = []       # the Device of each row of devices_table
         self.device_numbers = {}    # {device id: its # in devices_table}, for the port table
+        self.device_types = {}      # {device id: its type, e.g. rhigh}, for the port table
         self.devices_detail = _label()
         self.include_resistors = pya.QCheckBox("include resistors")
         self.include_resistors.setChecked(True)
@@ -232,7 +233,7 @@ class EMPanel(pya.QWidget):
                 step.set(ERROR, "no layout loaded")
             self.table.setRowCount(0)
             self.devices_table.setRowCount(0)
-            self.device_rows, self.device_numbers = [], {}
+            self.device_rows, self.device_numbers, self.device_types = [], {}, {}
             return
         self._bind(view)
         layout, cell = cv.layout(), cv.cell
@@ -364,6 +365,7 @@ class EMPanel(pya.QWidget):
         self.devices_table.setRowCount(len(self.device_rows))
         number = {i: k for k, i in enumerate(sorted(d.id for d in devices if d.replaced), start=1)}
         self.device_numbers = number
+        self.device_types = {d.id: d.pcell for d in devices}
         dbu = layout.dbu
         for row, d in enumerate(self.device_rows):
             if d.replaced:
@@ -441,7 +443,8 @@ class EMPanel(pya.QWidget):
             device = device_of(port)
             if device is not None:
                 k = self.device_numbers.get(device[0])      # the device's # in the Devices table
-                text += f"  [{device[1]} of {'#' + str(k) + ' ' if k else ''}{device[0].split('@')[0]}]"
+                name = self.device_types.get(device[0]) or device[0].split("@")[0]    # the type, not a cell name
+                text += f"  [{device[1]} of {'#' + str(k) + ' ' if k else ''}{name}]"
             self._add_row(("port", port), (str(port.number), str(layer), text, "", "; ".join(problems) or "ok"))
         proposed = [c for c in crossings if c.needs_port]
         unground = [c for c in crossings if not c.ground and c.port is None and c.ground_layer is None]
