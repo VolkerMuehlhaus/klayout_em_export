@@ -1,1 +1,2 @@
-*.sh text eol=lf
+# PDFs are mostly ASCII, so git would merge them line by line and write conflict markers into them
+*.pdf binary
