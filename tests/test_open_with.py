@@ -5,7 +5,7 @@
 import os
 import sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "python"))
-from klayout_em_export.gui import TOOLS, launch_command, native_path, open_with, updated_on_open
+from klayout_em_export.gui import TOOLS, launch_command, native_path, open_with, quick_exit_text, updated_on_open
 
 failed = []
 
@@ -46,6 +46,12 @@ check(native_path("/home/user/guide/cascode_em.gds") == "/home/user/guide/cascod
 check(native_path("/home/user/odd\\name/x_em.gds") == "/home/user/odd\\name/x_em.gds",
       "Linux path with a backslash in a name unchanged")
 check(native_path("") == "", "empty")
+
+# a program that ends at once with an error code is reported; one still running, or ended without error, is not
+check(quick_exit_text("EMStudio", 1) == "EMStudio ended at once (exit code 1): this EMStudio cannot open a .simcfg",
+      f"ended at once: {quick_exit_text('EMStudio', 1)}")
+check(quick_exit_text("EMStudio", None) is None and quick_exit_text("setupEM", 0) is None,
+      "still running, or ended without error: no message")
 
 print("all ok" if not failed else f"FAILED: {'; '.join(failed)}")
 sys.exit(1 if failed else 0)

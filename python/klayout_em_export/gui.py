@@ -383,9 +383,34 @@ def open_simcfg(simcfg_path, tool=None):
     env.pop("PYTHONHOME", None)      # KLayout's own Python must not leak into the Pythons these programs run
     env.pop("PYTHONPATH", None)
     try:
-        subprocess.Popen(launch_command(tool, exe, simcfg_path), env=env)
+        process = subprocess.Popen(launch_command(tool, exe, simcfg_path), env=env)
     except OSError as e:
         pya.MessageBox.critical("EM Export", f"Failed to start {tool}:\n{e}", pya.MessageBox.Ok)
+        return
+    # a program that cannot open the file ends at once with an error code (an EMStudio without the .simcfg
+    # import exits with 1), which would go unnoticed: look again after QUICK_EXIT_MS, without blocking KLayout
+    timer = pya.QTimer()
+    timer.setSingleShot(True)
+
+    def check():
+        _timers.remove(timer)
+        text = quick_exit_text(tool, process.poll())
+        if text:
+            pya.MessageBox.warning("EM Export", text, pya.MessageBox.Ok)
+    timer.timeout += check
+    _timers.append(timer)               # kept alive until it fires
+    timer.start(QUICK_EXIT_MS)
+
+
+QUICK_EXIT_MS = 2000
+_timers = []
+
+
+def quick_exit_text(tool, returncode):
+    """The message for a program that ended at once (returncode from poll(): None while it runs), else None."""
+    if returncode is None or returncode == 0:
+        return None
+    return f"{tool} ended at once (exit code {returncode}): this {tool} cannot open a .simcfg"
 
 
 def last_simcfg(layout):

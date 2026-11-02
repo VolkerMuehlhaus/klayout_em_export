@@ -731,6 +731,7 @@ ground, which adds a few fF. In the cascode that lowers S21 by 0.06 dB at 10 GHz
 | ... is not drawn at the port | the port's from/to layer has no metal at the port | check the port position and layers |
 | All port layers 201..299 are used | no free port layer left | remove unused ports |
 | This layout has not been exported yet | Open in setupEM or EMStudio needs an export first | press Export for EM... |
+| EMStudio ended at once (exit code 1): this EMStudio cannot open a .simcfg | your EMStudio has no .simcfg import yet (it ends on a .simcfg on its command line) | open the export with setupEM, or use an EMStudio with File > Import setupEM Config |
 | no 0 Hz point in the .sNp | the EM result has no DC point | start the sweep at 0 Hz (chapter 11) |
 
 ## Reference
