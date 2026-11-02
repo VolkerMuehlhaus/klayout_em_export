@@ -47,11 +47,13 @@ def layer_regions(layout, cell, layers, box=None, datatype=0):
     return out
 
 
-def flood(metals, vias, connections, seed):
-    """Net grown from seed {layer: Region}: {layer: Region of the metal polygons in the net}."""
+def flood(metals, vias, connections, seed, stop=None):
+    """Net grown from seed {layer: Region}: {layer: Region of the metal polygons in the net}. stop(net): checked
+    after each growth step; True returns the net grown so far (a yes/no question needs no full net: each pass tests
+    every via against the net, slow in a layout with many vias)."""
     empty = pya.Region()
     net = {layer: metals[layer].interacting(region) for layer, region in seed.items() if layer in metals}
-    changed = True
+    changed = stop is None or not stop(net)
     while changed:
         changed = False
         for via, below, above in connections:
@@ -67,6 +69,8 @@ def flood(metals, vias, connections, seed):
                 if grown.count() > net.get(layer, empty).count():
                     net[layer] = grown
                     changed = True
+                    if stop is not None and stop(net):
+                        return {layer: region for layer, region in net.items() if not region.is_empty()}
     return {layer: region for layer, region in net.items() if not region.is_empty()}
 
 

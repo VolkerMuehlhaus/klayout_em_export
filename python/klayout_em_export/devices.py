@@ -246,8 +246,9 @@ def unconnected_terminals(layout, devices, check):
                 seed += check.metals[pin_layer].interacting(pya.Region(pin))
             if seed.is_empty():
                 continue                # pin outside the checked region: not checked
-            net = flood(check.metals, check.vias, check.connections, {pin_layer: seed})
-            if all((region - own.get(layer, pya.Region())).is_empty() for layer, region in net.items()):
+            def foreign(net):           # the net holds metal that is not the device's own: connected
+                return any(not (region - own.get(layer, pya.Region())).is_empty() for layer, region in net.items())
+            if not foreign(flood(check.metals, check.vias, check.connections, {pin_layer: seed}, stop=foreign)):
                 out.append((device, terminal))
     return out
 
