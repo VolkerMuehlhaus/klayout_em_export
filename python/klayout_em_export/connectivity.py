@@ -47,31 +47,51 @@ def layer_regions(layout, cell, layers, box=None, datatype=0):
     return out
 
 
+def _touching(small, large):
+    """The polygons of small (merged, e.g. vias) that touch large: small.interacting(large), but a boolean AND first,
+    which is much faster for many small polygons against a large one with many holes (77k vias against a cheesed
+    plane: 0.7 s instead of 3.5 s). large is grown by 1 dbu so that touching, not only overlapping, counts."""
+    return small.interacting(small & large.sized(1))
+
+
 def flood(metals, vias, connections, seed, stop=None):
-    """Net grown from seed {layer: Region}: {layer: Region of the metal polygons in the net}. stop(net): checked
-    after each growth step; True returns the net grown so far (a yes/no question needs no full net: each pass tests
-    every via against the net, slow in a layout with many vias)."""
-    empty = pya.Region()
+    """Net grown from seed {layer: Region}: {layer: Region of the metal polygons in the net}: the metal polygons
+    reached through vias, and those touching a net polygon on its own layer. stop(net): checked after each step;
+    True returns the net grown so far (a yes/no question needs no full net).
+    Grown from the frontier: each step tests only the polygons added in the step before, against the vias and metal
+    not yet in the net. Testing many vias against a large polygon is slow (77k vias against a cheesed plane with
+    1000 holes: seconds), so each such test is done once, not in every step."""
     net = {layer: metals[layer].interacting(region) for layer, region in seed.items() if layer in metals}
-    changed = stop is None or not stop(net)
-    while changed:
-        changed = False
+    net = {layer: region for layer, region in net.items() if not region.is_empty()}
+    # copies: they shrink in place below (-=), and metals and vias are the caller's, used by every other flood
+    pool = {layer: region - net[layer] if layer in net else region.dup() for layer, region in metals.items()}
+    left = {via: vias[via].dup() for via, _, _ in connections if via in vias}
+    new = dict(net)
+    while new and (stop is None or not stop(net)):
+        probes = {layer: region.dup() for layer, region in new.items()}     # same layer: touching polygons
         for via, below, above in connections:
-            if via not in vias:
+            if via not in left:
                 continue
-            touching = vias[via].interacting(net.get(below, empty)) + vias[via].interacting(net.get(above, empty))
-            if touching.is_empty():
-                continue
+            hit = pya.Region()
             for layer in (below, above):
-                if layer not in metals:
-                    continue
-                grown = metals[layer].interacting(touching + net.get(layer, empty))
-                if grown.count() > net.get(layer, empty).count():
-                    net[layer] = grown
-                    changed = True
-                    if stop is not None and stop(net):
-                        return {layer: region for layer, region in net.items() if not region.is_empty()}
-    return {layer: region for layer, region in net.items() if not region.is_empty()}
+                if layer in new:
+                    hit += _touching(left[via], new[layer])
+            if hit.is_empty():
+                continue
+            left[via] -= hit
+            for layer in (below, above):
+                probes[layer] = probes[layer] + hit if layer in probes else hit
+        new = {}
+        for layer, probe in probes.items():
+            if layer not in pool:
+                continue
+            fresh = pool[layer].interacting(probe)
+            if fresh.is_empty():
+                continue
+            pool[layer] -= fresh
+            net[layer] = net[layer] + fresh if layer in net else fresh
+            new[layer] = fresh
+    return net
 
 
 def _area(net):
