@@ -53,6 +53,7 @@ modules only collect input and call the core.
 | `locate.py` | Finds metals at a point or port shape: `edge_at` (via port), `gap_at` (in-plane port), `metals_at`, `next_port_layer`. |
 | `ports.py` | Port settings as a shape property (`PortSettings`), collecting ports, checks, export numbering, via port directions, the `.simcfg` port list, the port map. |
 | `connectivity.py` | Traces metal through vias: the ground net (`check_ground`), shorted via ports, the net of each port (`port_nets`). Vias are traced as blocks (`via_blocks`). |
+| `dummyfill.py` | EM > Remove Dummy Fill: floating, repeated shapes on the stackup's conductor and sheet layers (any datatype), never on via layers; deleted where they are, tile cell placements one by one, empty or unplaced cells deleted. |
 | `density.py` | EM > Fill Density Holes and Merge Metal: density holes (cheesing) filled with gds_prepare_for_EM's hole rule, then each metal layer of the cell merged, with the metal of plain subcells placed twice or more or holding filled holes (`plain_cells`). |
 | `boundary.py` | Where conductors cross the EM region box: proposed via ports on the cut. |
 | `devices.py` | Finds PDK devices (through the technology) and replaces them by a REF patch and via ports; the device shapes the export removes. |
@@ -277,6 +278,19 @@ polygons that hold it, and each overlap area lies in one polygon of each, so the
 connect (checked from every metal polygon of four layouts), with one polygon per via array: 1.8 s instead. Only
 for the checks: the export writes every via, and gds2palace corrects via arrays itself.
 
+### Dummy fill told by what it is
+
+Fill tools differ: IHP's put tiles on a fill datatype (22) as cells placed tens of thousands of times, others draw on
+the drawing datatype or flat. So fill is not found by datatype or cell name, but by its nature: it floats (touches
+no via of the stackup's via layers above or below its metal, no label, no port, no device or PDK cell) and repeats
+(each drawn shape's size is found 20 times or more among the floating shapes; judged per drawn shape, because
+abutting tiles merge into large blocks, and a floating structure with one shape of its own size stays). Via layers
+are never searched: a via array is repeated and isolated on its own layer too, which is what a purely geometric rule
+such as gds_prepare_for_EM's gds_removefill (with its IHP via list and 1 um minimum size) has to work around. A tile
+cell placed thousands of times usually has a few placements touching a via or a label: such a cell keeps those
+placements and loses the others (arrays are split into single placements). Layers that are not stackup metals
+(GatPoly) are left alone: the stackup does not say what connects to them.
+
 ### Holes filled and metal merged in the layout, on request
 
 Cheesed metal (density rule openings) and metal drawn in many pieces are solid to the EM fields but add edges to
@@ -331,7 +345,7 @@ through `klayout_em_export_tests/pdk_env.py`.
 | Export, selection, simcfg | `test_export.py`, `test_selection.py`, `test_simcfg.py`, `test_modelcheck.py` (the last two also plain Python) |
 | Stackup parser | `test_stackup_drift.py` (plain Python): z positions against gds2palace's `util_stackup_reader.py` for every stackup in the sibling repos `gds2palace_ihp_sg13g2` and `EMStudio` |
 | Ports | `test_ports.py`, `test_locate.py`, `test_numbering.py`, `test_portlayers.py`, `test_boundary.py` |
-| Ground and nets | `test_ground.py`, `test_unconnected.py`, `test_density.py` (Fill Density Holes and Merge Metal: the rule, what is merged and what stays, exact geometry on the FMD layouts if present) |
+| Ground and nets | `test_ground.py`, `test_unconnected.py`, `test_density.py` (Fill Density Holes and Merge Metal: the rule, what is merged and what stays, exact geometry on the FMD layouts if present), `test_dummyfill.py` (Remove Dummy Fill: what is fill and what stays, vias and devices unchanged on the FMD layouts) |
 | Devices | `test_devices.py`, `test_mosfets.py`, `test_resistors.py`, `test_replaced_devices.py` (selection patches, ground voting, moved devices) (PDK needed) |
 | GUI pieces in batch | `test_panel.py`, `test_reopen.py` (stand-in view, own settings file), `test_open_with.py` (setupEM / EMStudio command line, which stale scripts are reported) |
 | Technologies | `test_technology.py` (choice and generic fallback, SG13CMOS5L stackup, wrapper per port map technology) (PDK needed) |

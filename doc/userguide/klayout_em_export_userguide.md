@@ -195,6 +195,23 @@ The stackup is stored with your layout, and used as the default for the next lay
 **What can go wrong:** use a stackup made for gds2palace (Palace). The openEMS stackups look similar but contain
 different modelling assumptions.
 
+### Dummy metal fill
+
+A layout ready for tape-out is full of dummy metal fill: tens of thousands of small tiles that clutter the view and
+are hard to hide. **EM > Remove Dummy Fill** removes them from the current cell, in one undo step (**Edit > Undo**).
+
+- **What counts as fill:** a shape on a metal of the stackup, on any datatype, that floats and repeats. It floats
+  when nothing connects to it: no via of the stackup, no label, no port, and it is not part of a device. It repeats
+  when its size is found at least 20 times among the floating shapes. This works for any fill tool, whether the fill
+  is drawn on its own datatype or on the drawing datatype, flat or as a cell placed many times.
+- **What stays:** all vias and via arrays (via layers are not searched at all), every shape that a via, a label or a
+  port touches, a single floating shape (a shield, a test structure), devices, and the layers that are not metals of
+  the stackup (e.g. GatPoly fill stays).
+- A fill tile cell loses the placements that are fill. If none is left, the cell is deleted.
+- Fill on the drawing datatype is floating metal in the EM model: removing it removes its coupling capacitance. Fill
+  on its own datatype is not exported anyway; removing it only cleans up the view.
+- Large layouts take a while: about 50 s for 600,000 fill shapes.
+
 ### Cheesed metal and many small shapes
 
 Density rules put many small openings into wide metal ("cheesing"), and a layout is often drawn from many

@@ -110,7 +110,8 @@ def plain_cells(layout, cell, stackup):
     out = {}
     for ci in owned:
         c = layout.cell(ci)
-        if not c.is_proxy() and tech.identify(c, ctx)[0] is None:
+        name = tech.identify(c, ctx)[0]
+        if not c.is_proxy() and not (name and tech.is_device(name)):
             out[ci] = placements[ci]
     return out
 

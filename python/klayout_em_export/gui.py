@@ -197,6 +197,36 @@ def clear_ground():
         _set_ground_seeds(cv.layout(), [])
 
 
+def remove_dummy_fill():
+    """Remove the dummy metal fill of the current cell, in one undo step (dummyfill.py)."""
+    view, cv = _current()
+    if view is None:
+        return
+    layout = cv.layout()
+    stackup = read_stackup(stackup_path(layout))[0] if stackup_path(layout) else None
+    if stackup is None:
+        pya.MessageBox.warning("EM Export", "Choose a stackup first.", pya.MessageBox.Ok)
+        return
+    from .dummyfill import MINCOUNT, remove_dummy_fill as remove
+    names = {l.layer: l.name for l in stackup.layers}
+    _status("Removing dummy fill...", 0)
+    view.transaction("Remove dummy fill")
+    try:
+        removed, cells = remove(layout, cv.cell, stackup)
+    finally:
+        view.commit()
+    if not removed:
+        pya.MessageBox.info("EM Export", f"No dummy fill found in {cv.cell.name}: no floating shapes on a stackup "
+                            f"metal that repeat {MINCOUNT} times or more.", pya.MessageBox.Ok)
+        return
+    lines = [f"{names.get(l, l)} ({l}/{d}): {n}" for (l, d), n in sorted(removed.items())]
+    pya.MessageBox.info("EM Export", f"Removed {sum(removed.values())} dummy fill shapes from {cv.cell.name}" +
+                        (f" ({cells} empty fill cells deleted)" if cells else "") + ":\n" + "\n".join(lines) +
+                        "\n\nFill is a floating shape on a stackup metal (no via, label, port or device touching "
+                        f"it) whose size repeats {MINCOUNT} times or more; vias are never removed. Edit > Undo takes "
+                        "it back.", pya.MessageBox.Ok)
+
+
 def fill_and_merge():
     """Fill the density holes and merge the metal of the current cell, in one undo step (density.py)."""
     view, cv = _current()
@@ -895,6 +925,7 @@ def install_menu():
     entries = (("show_panel", "EM Panel", show_panel),
                None,
                ("choose_stackup", "Choose Stackup...", choose_stackup),
+               ("remove_dummy_fill", "Remove Dummy Fill", remove_dummy_fill),
                ("fill_and_merge", "Fill Density Holes and Merge Metal", fill_and_merge),
                None,
                ("port_tool", "EM Port Tool (click edge: via port, Shift+click gap: in-plane port)", port_tool),
