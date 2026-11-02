@@ -12,7 +12,7 @@ import subprocess
 import pya
 
 from .export import PORT_LAYERS, marker_box
-from .locate import drawn_metals, metals_at
+from .locate import drawn_metals, metals_at, via_layers
 from .pipeline import EM_REGION, META_GROUND, META_OUTPUT, META_STACKUP, export_checks, export_em
 from .ports import DIRECTIONS, PROP_KEY, PortSettings, check_ports, collect_ports, ports_of, settings_of
 from .selection import Selection
@@ -686,11 +686,20 @@ class PortDialog(pya.QDialog):
         if self.stackup is None:
             names = []
         else:
-            names = self.stackup.metal_names() if self.show_all.isChecked() or not available else available
-        # keep the user's choice; else the stored settings if possible; else from = lowest, to = highest metal
-        for box, stored, default in ((self.from_layer, self.current.from_layer, available[-1] if available else ""),
-                                     (self.to_layer, self.current.to_layer, available[0] if available else ""),
-                                     (self.target, self.current.target, available[0] if available else "")):
+            # a via port needs two metals: with fewer at the port, offer them all
+            names = self.stackup.metal_names() if self.show_all.isChecked() or len(available) < 2 else available
+        # keep the user's choice; else the stored from and to if both are offered and differ; else as the EM Port
+        # tool: from the top metal at the port down to the next metal below (at the port, else in the stackup)
+        top = available[0] if available else ""
+        start, end = via_layers(available, top) if top else ("", "")
+        if top and not end and self.stackup is not None:
+            start, end = via_layers(self.stackup.metal_names(), top)
+        stored_from, stored_to = self.current.from_layer, self.current.to_layer
+        if stored_from == stored_to or stored_from not in names or stored_to not in names:
+            stored_from = stored_to = ""
+        for box, stored, default in ((self.from_layer, stored_from, start),
+                                     (self.to_layer, stored_to, end),
+                                     (self.target, self.current.target, top)):
             chosen = "" if initial else box.currentText
             wanted = next((n for n in (chosen, stored, default) if n and n in names), names[0] if names else "")
             box.clear()
@@ -739,7 +748,10 @@ def edit_ports(view, cv, shapes, current=None):
         return common or []
 
     settings = _load_settings()
-    current = current or settings_of(shapes[0][0]) or PortSettings.decode(settings.get("last_port")) or PortSettings()
+    current = current or settings_of(shapes[0][0])
+    if current is None:     # the last port's direction, Z0 and excitation; its layers belong to another place
+        last = PortSettings.decode(settings.get("last_port")) or PortSettings()
+        current = PortSettings(last.direction, z0=last.z0, voltage=last.voltage)
     dialog = PortDialog(layout, available, current, len(shapes))
     if not dialog.exec_():
         return False

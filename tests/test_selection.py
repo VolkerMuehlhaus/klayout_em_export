@@ -63,4 +63,4 @@ d = ExportDialog(CellView(ly, cell), sel.bbox().to_dtype(ly.dbu), "bounding box 
 for mode in (d.mode_shapes, d.mode_box):
     mode.setChecked(True)
     print(f"mode shapes_only={d.shapes_only()}: region", d.region.text.replace(chr(10), " "))
-    print("   ", d.ports.text.replace(chr(10), " | "))
+    print("   ", ascii(d.ports.text.replace(chr(10), " | ")))   # ascii: the marks (⚠) fail in a cp1252 console

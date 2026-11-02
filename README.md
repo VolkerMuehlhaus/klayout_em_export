@@ -164,7 +164,8 @@ The same steps are in the **EM** menu in the menu bar, top to bottom in workflow
 7. **Create Circuit (EM Result with Devices)...**: after the Palace run, the EM result with the PDK devices put
    back, for ngspice, VACASK, Xyce or Spectre; see [Circuit wrapper](#circuit-wrapper-ngspice-vacask-xyce-spectre).
 
-Remembered in `~/.klayout_em_export.json`: the last stackup, the last port settings, the setupEM and EMStudio
+Remembered in `~/.klayout_em_export.json`: the last stackup, the last port settings (a port without settings of
+its own takes their direction, Z0 and excitation, not their layers), the setupEM and EMStudio
 programs, whether and where to open the export (`open_setupem`, `open_with`), the Create Circuit choices (Python with snp2le, PDK folder, simulator); and per layout file its stackup, last export and ground marks. These are also stored in the layout
 itself (saved with it), but storing them does not mark the layout as modified, so the settings file keeps them
 when the layout is closed without saving. If `setupEM` or `EMStudio` is not on the `PATH` that KLayout sees, the plug-in asks once for the program (e.g.

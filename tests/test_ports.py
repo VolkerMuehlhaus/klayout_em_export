@@ -36,6 +36,17 @@ try:
     print("dialog:", d.result_settings().encode())
     d.direction.setCurrentText("X"); d.target.setCurrentText("Metal3"); d._update()
     print("dialog X:", d.result_settings().encode(), "from enabled:", d.from_layer.isEnabled())
+    # default layers: from the top metal at the port down to the next one; a stored from = to is not kept, nor a
+    # pair with a layer that is not offered; with one metal at the port all stackup metals are offered
+    for available, current, expected in ((["TopMetal2", "Metal5"], PortSettings("Z"), ("TopMetal2", "Metal5")),
+                                         (["TopMetal2", "Metal5"], PortSettings("Z", "Metal5", "Metal5"),
+                                          ("TopMetal2", "Metal5")),
+                                         (["Metal3", "Metal2"], spec[203], ("Metal3", "Metal2")),
+                                         (["Metal5"], PortSettings("Z"), ("Metal5", "Metal4"))):
+        d = PortDialog(ly, lambda s, a=available: a, current, 1)
+        got = (d.from_layer.currentText, d.to_layer.currentText)
+        print("ok  " if got == expected else "FAIL", "dialog default", available, current, "->", got,
+              f"({d.to_layer.count} offered)")
 except Exception as e:
     print("dialog test skipped/failed:", repr(e))
 # a via port drawn as a zero-height box on the edge of a clipped region must be collected and exported
@@ -54,4 +65,4 @@ class CellView:   # the parts of pya.CellView the dialog uses
     def filename(self): return os.path.join(OUT, "dialog_test.gds")
 d = ExportDialog(CellView(ly, cell), pya.DBox(-80, -60, -30, -30), "test region")
 print("export dialog: stackup", d.stackup_label.text, "| output", d.output.text, "| export enabled", d.export_button.isEnabled())
-print("  ports:", d.ports.text.replace(chr(10), " | "))
+print("  ports:", ascii(d.ports.text.replace(chr(10), " | ")))   # ascii: the marks (⚠) fail in a cp1252 console

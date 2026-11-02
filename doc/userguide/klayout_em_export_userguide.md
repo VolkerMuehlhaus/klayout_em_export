@@ -250,7 +250,8 @@ In the cascode, the two RF pads get a via port each, at the outer edge of the pa
 - **excited**: whether the simulation feeds signal into this port. Leave it ticked.
 
 To change a port later: select its shape and use **EM > Port Settings...**, or double-click its line in the panel's
-port table.
+port table. A port shape you drew yourself, without settings yet, starts like a new port: from the top metal at the
+port down to the next metal below. If only one metal is at the port, the dialog offers all stackup metals.
 
 ### Checking your ports
 
