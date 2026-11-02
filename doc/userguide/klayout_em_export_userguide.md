@@ -562,7 +562,7 @@ it asks once where the program is.
 1. **Port map**: the export's `_portmap.json` (the last export of this layout is filled in).
 2. **EM result**: the Palace result, preferably the `_dc.sNp` file.
 3. **Simulator**: see below.
-4. **IHP PDK** (optional): the `ihp-sg13g2` folder of IHP-Open-PDK. Then the model library lines in the circuit
+4. **IHP PDK** (optional): the `ihp-sg13g2` or `ihp-sg13cmos5l` folder of IHP-Open-PDK. Then the model library lines in the circuit
    file point to it.
 5. **Output**: the circuit file (proposed from the result's name).
 6. **Python**: a Python with snp2le, by default the one of the setupEM environment.
