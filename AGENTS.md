@@ -43,9 +43,9 @@ OUT=/d/tmp/out /d/KLayout/klayout_app.exe -z -nc -rx -r tests/test_export.py
   - The tests print `ok`/`FAIL` lines or plain results; there are few asserts. Compare the output with an earlier
     run rather than relying on the exit code.
 - Several tests read layouts outside the repo. `tests/testpaths.py` finds them: `KLAYOUT_EM_EXPORT_TESTDATA` names a
-  folder with `Palace_testcases/` and `klayout_em_export_tests/` (on hpz2: `~/klayout_em_export_testdata`), unset
-  it is `D:\Palace_testcases` and the `klayout_em_export_tests` folder next to this repo. `GDS2PALACE` names the
-  gds2palace repo (default: next to this repo), `OUT` the output folder (default: a temp folder). New tests use
+  folder with `Palace_testcases/` and `klayout_em_export_tests/` (on hpz2: `~/claude/klayout_em_export_testdata`),
+  unset it is `D:\Palace_testcases` and the `klayout_em_export_tests` folder next to this repo. `GDS2PALACE` names
+  the gds2palace repo (default: next to this repo), `OUT` the output folder (default: a temp folder). New tests use
   these helpers, never a fixed path.
 - The headless interface (`cli.py`, `tools/em_cli.py`): `test_cli.py` drives every command in batch mode. After a
   change to the export, the ports or the devices, also run one command end to end through the launcher

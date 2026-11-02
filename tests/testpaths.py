@@ -2,7 +2,7 @@
 
 Environment:
   KLAYOUT_EM_EXPORT_TESTDATA  folder with Palace_testcases/ and klayout_em_export_tests/ (e.g. on hpz2:
-                              ~/klayout_em_export_testdata). Unset: D:\\Palace_testcases and the
+                              ~/claude/klayout_em_export_testdata). Unset: D:\\Palace_testcases and the
                               klayout_em_export_tests folder next to this repo (the Windows development machine).
   GDS2PALACE                  the gds2palace_ihp_sg13g2 repo (stackups, examples). Unset: next to this repo.
   OUT                         output folder. Unset: <temp>/klayout_em_export_tests/<test name>.
