@@ -440,10 +440,11 @@ When the panel shows green checks (or orange ones you have checked), press **Exp
 ![The export dialog](images_linux/11_export_dialog.png)
 
 - **Region** and **Stackup**: as in the panel.
-- **Output GDS**: where to write the layout. The settings file for setupEM and EMStudio (`.simcfg`) is written
-  next to it.
-- **Ports**: how many, and whether they are complete.
-- **Open after the export in**: starts setupEM (chapter 11) or EMStudio with the result. The choice is remembered.
+- **Output**: where to write the layout. The settings file for setupEM and EMStudio (`.simcfg`) and the port map
+  are written next to it, with the same name.
+- **Ports**: how many, and whether they are complete. A warning sign marks ports that need attention; the grey
+  lines below say which and why.
+- **Open in**: starts setupEM (chapter 11) or EMStudio with the result. The choice is remembered.
 
 Press **Export**. You get three files, e.g. for `cascode_em.gds`:
 
@@ -519,7 +520,7 @@ DC blocks (chapter 12), but the cleaner way is to start at 0.
 ### EMStudio instead of setupEM
 
 EMStudio does the same job in one window: model settings, the simulation run and the results. Choose **EMStudio**
-next to **Open after the export in**. EMStudio then reads the export the way setupEM does, and asks whether the model
+next to **Open in**. EMStudio then reads the export the way setupEM does, and asks whether the model
 is for **Palace** or **OpenEMS**.
 
 - **The first time**, EMStudio makes a new model for the simulator you chose: layout, cell, stackup and ports. Set

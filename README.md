@@ -136,7 +136,7 @@ The same steps are in the **EM** menu in the menu bar, top to bottom in workflow
    - Stackup (Change...), output GDS (Browse...; default `<layout>_em.gds`, then the last output of this layout).
    - The ports with their problems. Ports without complete settings are exported as shapes but left out of the
      `.simcfg`, because setupEM cannot load them. Only the stackup's layers are exported; the others are dropped.
-   - "Open after the export in setupEM / EMStudio". The `.simcfg` is written next to the GDS. EMStudio imports it
+   - "Open in setupEM / EMStudio". The `.simcfg` is written next to the GDS. EMStudio imports it
      as a Palace or OpenEMS model and asks which (File > Import setupEM Config, needs EMStudio with that import,
      IHP-GmbH/EMStudio PR #53). For OpenEMS: use an OpenEMS stackup (gds2openEMS, never a gds2palace one), and
      don't replace devices: device replacement (ports to `REF_FOR_TRANSISTOR`) is for Palace only. Neither the
