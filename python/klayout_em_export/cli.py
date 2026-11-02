@@ -9,6 +9,7 @@ tools/em_cli.py does this from any Python. The request is one JSON object:
      "stackup": "stack.xml" (default: the layout's own, from its meta info),
      "technology": "ihp_sg13" | "generic" (default: from the layout, tech.for_layout),
      "pdk": ".../IHP-Open-PDK/ihp-sg13g2" (loads the SG13_dev device library; needed for PDK pcells),
+     "klayout_technology": "sg13g2" (the layout's KLayout technology; default with "pdk": sg13g2),
      "output": "out.gds", "overwrite": false, ...command arguments}
 
 The result is {"ok": true, ...} or {"ok": false, "error": "..."}. Coordinates are in µm. Commands that change the
@@ -40,9 +41,6 @@ from klayout_em_export.pipeline import (EM_REGION, META_GROUND, META_STACKUP, No
                                         export_em, layout_devices, region_ports)
 from klayout_em_export.ports import PROP_KEY, PortSettings, port_problems, is_complete            # noqa: E402
 from klayout_em_export.stackup import Stackup                            # noqa: E402
-
-PDK_TECHNOLOGIES = ("sg13g2", "sg13cmos5l")
-
 
 class RequestError(Exception):
     """A problem with the request: reported as the error, without a traceback."""
@@ -81,8 +79,10 @@ def open_layout(request):
     if request.get("pdk"):
         load_pdk(request["pdk"])
     layout = pya.Layout()
-    # the PDK library binds its pcells only when the layout has its technology before reading
-    if request.get("pdk") or any(pya.Technology.has_technology(t) for t in PDK_TECHNOLOGIES):
+    # the PDK library binds its pcells only when the layout has its technology before reading. Only on request
+    # ("pdk" or "klayout_technology"), not because KLayout happens to know the technology: the same request gives
+    # the same result on every machine (tech.for_layout also uses the technology name).
+    if request.get("pdk") or request.get("klayout_technology"):
         layout.technology_name = request.get("klayout_technology", "sg13g2")
     layout.read(gds)
     name = request.get("cell")

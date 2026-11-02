@@ -241,7 +241,9 @@ file or on stdin: `{"command": "status", "gds": "core.gds", ...}`. Coordinates a
 | `export` | The EM layout `out` (.gds) with its .simcfg and port map, from `box`, else the EM region, else the whole cell (`whole: true` ignores the region). Same result as the export dialog. |
 
 Every command takes `gds`, `cell` (needed when the file has several top cells), `stackup` (default: the layout's
-own), `technology` (default: from the layout) and `pdk`. Commands that change the layout write it to `output`;
+own), `technology` (default: from the layout) and `pdk`. The layout gets a KLayout technology (`sg13g2`, or
+`klayout_technology`) only with `pdk` or `klayout_technology`, never from what the local KLayout has installed, so a
+request gives the same result on every machine. Commands that change the layout write it to `output`;
 the input is replaced only with `overwrite: true`. The written layout keeps the stackup and the ground marks as meta
 info, so the plug-in in KLayout opens it as if the steps were done by hand. The settings file
 (`~/.klayout_em_export.json`) is not used.

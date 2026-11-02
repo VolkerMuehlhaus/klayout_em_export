@@ -128,4 +128,9 @@ for suffix in ("_portmap.json", ".simcfg"):
         d.get("saved_values", {}).pop("GdsFile", None)     # the file names differ
     check(a == b, f"CLI export == export_em: {suffix}")
 
+# KLayout knows sg13g2 now (the PDK was loaded above): without "pdk", a layout still gets no technology from that
+r = run(command="status", gds=octa, stackup=STACKUP)
+check(r["technology"] == "generic", f"no pdk in the request: technology {r['technology']} although KLayout knows "
+      "sg13g2 now")
+
 print("all passed" if not failed else f"FAILED: {'; '.join(failed)}")
