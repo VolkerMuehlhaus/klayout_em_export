@@ -80,28 +80,29 @@ class CircuitDialog(pya.QDialog):
         form = pya.QFormLayout(self)
         self.portmap = self._file_row(form, "Port map", portmap, self._browse_portmap)
         self.snp = self._file_row(form, "EM result", "", self._browse_snp)
-        form.addRow("", pya.QLabel("The Palace result, preferably the _dc.sNp file (sweep started at 0 Hz)."))
+        gui.add_form_row(self, form, "",
+                         pya.QLabel("The Palace result, preferably the _dc.sNp file (sweep started at 0 Hz)."))
         self.simulator = pya.QComboBox()
         for label, _, _ in CHOICES:
             self.simulator.addItem(label)
         self.simulator.setCurrentIndex(min(int(self.settings.get("circuit_choice", 0)), len(CHOICES) - 1))
         self.simulator.currentIndexChanged += lambda index: self._update_output()
-        form.addRow("Simulator", self.simulator)
+        gui.add_form_row(self, form, "Simulator", self.simulator)
         self.pdk_label, self.pdk_hint = pya.QLabel(), pya.QLabel()
         self.pdk = self._file_row(form, self.pdk_label, self.settings.get("circuit_pdk", ""), self._browse_pdk)
-        form.addRow("", self.pdk_hint)
+        gui.add_form_row(self, form, "", self.pdk_hint)
         self._update_pdk_labels()
         self.output = self._file_row(form, "Output", "", self._browse_output)
         self.output.textEdited += lambda text: setattr(self, "_output_edited", True)
         self._output_edited = False
         self.python = self._file_row(form, "Python", default_python(self.settings), self._browse_python)
-        form.addRow("", pya.QLabel("A Python with snp2le, e.g. the one of the setupEM environment."))
+        gui.add_form_row(self, form, "", pya.QLabel("A Python with snp2le, e.g. the one of the setupEM environment."))
         buttons = pya.QDialogButtonBox(self)
         buttons.addButton("Create", pya.QDialogButtonBox.AcceptRole)
         buttons.addButton(pya.QDialogButtonBox.Cancel)
         buttons.accepted += self.accept
         buttons.rejected += self.reject
-        form.addRow(buttons)
+        gui.add_form_row(self, form, buttons)
 
     def _file_row(self, form, label, value, browse_handler):
         edit = pya.QLineEdit(value)
@@ -110,7 +111,7 @@ class CircuitDialog(pya.QDialog):
         row = pya.QHBoxLayout()
         row.addWidget(edit, 1)
         row.addWidget(browse)
-        form.addRow(label, row)
+        gui.add_form_row(self, form, label, row)
         return edit
 
     def choice(self):

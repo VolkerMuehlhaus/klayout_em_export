@@ -3,6 +3,7 @@
 One stackup per layout, chosen once (menu, port dialog or export dialog) and used by every step. It is stored in the
 layout's meta info, so it is saved with the layout, and as the default for new layouts.
 """
+import html
 import json
 import os
 import shutil
@@ -346,7 +347,27 @@ def open_last_export(tool=None):
 
 # ---------- export ----------
 
-def _stackup_row(dialog, form, on_change):
+OK, WARN, ERROR = ("✓", "#1a8f1a"), ("⚠", "#c87800"), ("✗", "#c00000")     # status marks, also in the panel
+
+
+def _marked(state, text, detail=""):
+    """Rich text: the status mark (none for OK), the text and, if given, a smaller grey line below (plain text)."""
+    mark = html.escape(text) if state == OK else \
+        f'<span style="color:{state[1]}; font-weight:bold">{state[0]}</span>&nbsp; {html.escape(text)}'
+    if detail:
+        mark += f'<br><span style="color:#777">{html.escape(detail).replace(chr(10), "<br>")}</span>'
+    return mark
+
+
+def add_form_row(dialog, form, *args):
+    """form.addRow(*args), with the dialog keeping the widgets and layouts of the row. KLayout 0.30.12 deletes a
+    widget or layout that Python no longer refers to, also after addRow (0.30.5 kept it): rows went missing, and a
+    combo box was left over the whole dialog."""
+    dialog._form_rows = getattr(dialog, "_form_rows", []) + [args]
+    form.addRow(*args)
+
+
+def _stackup_row(dialog, form, on_change, title="Stackup"):
     """Stackup label + Change... button as a form row; returns the label."""
     label = pya.QLabel()
     change = pya.QPushButton("Change...")
@@ -354,7 +375,7 @@ def _stackup_row(dialog, form, on_change):
     row = pya.QHBoxLayout()
     row.addWidget(label, 1)
     row.addWidget(change)
-    form.addRow("Stackup", row)
+    add_form_row(dialog, form, title, row)
     return label
 
 
@@ -371,33 +392,42 @@ class ExportDialog(pya.QDialog):
         self.setWindowTitle("Export for EM")
         self.resize(640, 0)
         form = pya.QFormLayout(self)
+        form.setLabelAlignment(pya.Qt.AlignRight | pya.Qt.AlignTop)
         self.mode_box = self.mode_shapes = None
         if self.selection is not None:
             # a selection means "these shapes": that is the default, the bounding box is the deliberate choice
             self.mode_shapes = pya.QRadioButton("Selected shapes only (+ connecting vias and ports)")
-            self.mode_box = pya.QRadioButton("Everything inside the selection's bounding box (cut at the box)")
+            self.mode_box = pya.QRadioButton("Everything inside their bounding box (cut at the box)")
             self.mode_shapes.setChecked(True)
             self.mode_box.toggled += lambda checked: self._refresh()
             column = pya.QVBoxLayout()
             column.addWidget(self.mode_shapes)
             column.addWidget(self.mode_box)
-            form.addRow("Export", column)
+            add_form_row(self, form, "<b>Export</b>", column)
         self.region = pya.QLabel()
-        form.addRow("Region", self.region)
-        self.stackup_label = _stackup_row(self, form, self._change_stackup)
+        self.region.setWordWrap(True)
+        add_form_row(self, form, "<b>Region</b>", self.region)
+        self.stackup_label = _stackup_row(self, form, self._change_stackup, "<b>Stackup</b>")
         self.output = pya.QLineEdit(self._default_output(cv))
+        self.output.setToolTip("The .simcfg (for setupEM and EMStudio) and the port map are written next to it, "
+                               "with the same name")
         browse = pya.QPushButton("Browse...")
         browse.clicked += self._browse
         row = pya.QHBoxLayout()
         row.addWidget(self.output, 1)
         row.addWidget(browse)
-        form.addRow("Output GDS", row)
-        form.addRow("", pya.QLabel("The .simcfg for setupEM and EMStudio is written next to it."))
+        add_form_row(self, form, "<b>Output</b>", row)
+        companions = pya.QLabel('<span style="color:#777">+ .simcfg and _portmap.json with the same name</span>')
+        add_form_row(self, form, "", companions)
         self.ports = pya.QLabel()
         self.ports.setWordWrap(True)
-        form.addRow("Ports", self.ports)
+        add_form_row(self, form, "<b>Ports</b>", self.ports)
+        line = pya.QFrame()
+        line.setFrameShape(pya.QFrame.HLine)
+        line.setFrameShadow(pya.QFrame.Sunken)
+        add_form_row(self, form, line)
         settings = _load_settings()
-        self.open_after = pya.QCheckBox("Open after the export in")
+        self.open_after = pya.QCheckBox("Open in")
         self.open_after.setChecked(settings.get("open_setupem", True))
         self.open_tool = pya.QComboBox()
         self.open_tool.addItems(list(TOOLS))
@@ -405,17 +435,17 @@ class ExportDialog(pya.QDialog):
         self.open_tool.setToolTip("EMStudio imports the .simcfg as a Palace or OpenEMS model (it asks which); when "
                                   "<name>.py exists next to it, only that model's ports, layout file, stackup, cell "
                                   "and purpose are updated")
-        row = pya.QHBoxLayout()
-        row.addWidget(self.open_after)
-        row.addWidget(self.open_tool)
-        row.addStretch(1)
-        form.addRow("", row)
         buttons = pya.QDialogButtonBox(self)
         self.export_button = buttons.addButton("Export", pya.QDialogButtonBox.AcceptRole)
         buttons.addButton(pya.QDialogButtonBox.Cancel)
         buttons.accepted += self.accept
         buttons.rejected += self.reject
-        form.addRow(buttons)
+        row = pya.QHBoxLayout()
+        row.addWidget(self.open_after)
+        row.addWidget(self.open_tool)
+        row.addStretch(1)
+        row.addWidget(buttons)
+        add_form_row(self, form, row)
         self._refresh()
 
     def shapes_only(self):
@@ -437,19 +467,27 @@ class ExportDialog(pya.QDialog):
         if ask_stackup(self.em_layout):
             self._refresh()
 
+    def _region_text(self):
+        """(headline, detail) of the region: the source's parenthesis goes into the detail line."""
+        head, _, rest = self.source.partition(" (")
+        detail = rest.rstrip(")")
+        if self.box is not None:
+            size = f"{self.box.width():g} × {self.box.height():g} µm"
+            detail = f"{size} at ({self.box.left:g}, {self.box.bottom:g})" + (f", {detail}" if detail else "")
+        return head[:1].upper() + head[1:], detail
+
     def _refresh(self):
         shapes_only = self.shapes_only()
-        region = ("the selected shapes" if shapes_only else
-                  f"{self.source}\n{self.box}" if self.box is not None else self.source)
-        self.region.setText(region)
+        head, detail = ("Selected shapes", "") if shapes_only else self._region_text()
+        self.region.setText(_marked(OK, head, detail))
         path = stackup_path(self.em_layout)
         self.stackup, error = read_stackup(path) if path else (None, "no stackup chosen yet")
         self.export_button.setEnabled(self.stackup is not None)
         if self.stackup is None:
-            self.stackup_label.setText(f"<b>{error}</b>")
-            self.ports.setText("choose a stackup first")
+            self.stackup_label.setText(_marked(ERROR, error))
+            self.ports.setText(_marked(ERROR, "choose a stackup first"))
             return
-        self.stackup_label.setText(os.path.basename(path))
+        self.stackup_label.setText(_marked(OK, os.path.basename(path)))
         self.stackup_label.setToolTip(path)
         if shapes_only:
             self.completed = self.selection.completed(self.stackup)
@@ -460,8 +498,8 @@ class ExportDialog(pya.QDialog):
                 added.append(f"{self.completed.added_ports} port shape(s)")
             if self.completed.added_patches:
                 added.append(f"{self.completed.added_patches} REF patch(es) of replaced devices")
-            self.region.setText(region + "\nadded: " + (", ".join(added) or "nothing (no vias between selected "
-                                                                             "metals, no touching ports)"))
+            self.region.setText(_marked(OK, head, "added: " + (", ".join(added) or "nothing (no vias between the "
+                                                                                    "selected metals, no ports)")))
         else:
             clip = None if self.box is None else self.box.to_itype(self.em_layout.dbu)
             ports = collect_ports(self.em_layout, self.cell, clip, stackup=self.stackup)
@@ -470,23 +508,23 @@ class ExportDialog(pya.QDialog):
                                ground_seeds(self.em_layout), self.box)
         problems, left_out = checks["problems"], checks["left_out"]
         if not ports:
-            text = "no ports in the region (add them with the EM Port tool)"
-        else:
-            text = f"{len(ports)} port(s)" + ("" if problems else ", all complete")
-            if left_out:
-                text += (f"\nport(s) {', '.join(map(str, left_out))} without complete settings are left out of the "
-                         ".simcfg (setupEM cannot load them); their shapes are exported. Set them with Port "
-                         "Settings first.")
-            if problems:
-                text += "\n" + "\n".join(problems)
-            if checks["numbering_error"]:
-                text += f"\n{checks['numbering_error']}: the export is not possible"
-                self.export_button.setEnabled(False)
-            elif checks["renumbered"]:
-                text += ("\nnumbered without gaps for the export (exported/.snp port <- layout port): " +
-                         ", ".join(f"{new} <- {old}" for new, old in checks["renumbered"]) +
-                         "; written to the port map file")
-        self.ports.setText(text)
+            self.ports.setText(_marked(WARN, "no ports in the region", "add them with the EM Port tool"))
+            return
+        notes = []
+        if left_out:
+            notes.append(f"port(s) {', '.join(map(str, left_out))}: no settings, left out of the .simcfg "
+                         "(their shapes are exported)")
+        # "no port settings" of a left-out port is already said in the line above
+        notes += [p for p in problems if not p.endswith(": no port settings")]
+        if checks["numbering_error"]:
+            notes.append(f"{checks['numbering_error']}: the export is not possible")
+            self.export_button.setEnabled(False)
+        elif checks["renumbered"]:
+            notes.append("renumbered for the export (.snp port ← layout port): " +
+                         ", ".join(f"{new} ← {old}" for new, old in checks["renumbered"]))
+        state = ERROR if checks["numbering_error"] else WARN if problems or left_out else OK
+        headline = f"{len(ports)} port(s)" + ("" if problems or left_out else ", all complete")
+        self.ports.setText(_marked(state, headline, "\n".join("• " + n for n in notes)))
 
 
 def export_region():
@@ -592,32 +630,32 @@ class PortDialog(pya.QDialog):
         self.em_layout, self.available_for, self.current = layout, available, current
         self.setWindowTitle("Port Settings")
         form = pya.QFormLayout(self)
-        form.addRow(pya.QLabel(f"{count} port shape(s)"))
+        add_form_row(self, form, pya.QLabel(f"{count} port shape(s)"))
         self.stackup_label = _stackup_row(self, form, self._change_stackup)
         self.at_port = pya.QLabel()
         self.at_port.setWordWrap(True)
-        form.addRow("Drawn at the port" if count == 1 else f"Drawn at all {count} shapes", self.at_port)
+        add_form_row(self, form, "Drawn at the port" if count == 1 else f"Drawn at all {count} shapes", self.at_port)
         self.show_all = pya.QCheckBox("offer all stackup metals")
         self.show_all.toggled += lambda checked: self._fill()
-        form.addRow("", self.show_all)
+        add_form_row(self, form, "", self.show_all)
         self.direction = pya.QComboBox()
         self.direction.addItems(list(DIRECTIONS))
         self.from_layer, self.to_layer, self.target = pya.QComboBox(), pya.QComboBox(), pya.QComboBox()
         self.z0 = pya.QLineEdit(f"{current.z0:g}")
         self.excited = pya.QCheckBox("excited (voltage 1)")
         self.excited.setChecked(current.voltage != 0)
-        form.addRow("Direction", self.direction)
-        form.addRow("From layer (via port)", self.from_layer)
-        form.addRow("To layer (via port)", self.to_layer)
-        form.addRow("Target layer (in-plane port)", self.target)
-        form.addRow("Z0 (Ohm)", self.z0)
-        form.addRow("", self.excited)
+        add_form_row(self, form, "Direction", self.direction)
+        add_form_row(self, form, "From layer (via port)", self.from_layer)
+        add_form_row(self, form, "To layer (via port)", self.to_layer)
+        add_form_row(self, form, "Target layer (in-plane port)", self.target)
+        add_form_row(self, form, "Z0 (Ohm)", self.z0)
+        add_form_row(self, form, "", self.excited)
         buttons = pya.QDialogButtonBox(self)
         buttons.addButton(pya.QDialogButtonBox.Ok)
         buttons.addButton(pya.QDialogButtonBox.Cancel)
         buttons.accepted += self.accept
         buttons.rejected += self.reject
-        form.addRow(buttons)
+        add_form_row(self, form, buttons)
         if current.direction in DIRECTIONS:
             self.direction.setCurrentText(current.direction)
         self.direction.currentIndexChanged += lambda index: self._update()

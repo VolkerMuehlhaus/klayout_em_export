@@ -82,6 +82,10 @@ These crash KLayout without a Python error, or behave differently in the GUI:
   `MainWindow.message(text, ms)`.
 - GDS keeps only integer property keys. Persisted meta info does not mark the layout as modified, so it is mirrored
   into the settings file (`gui.set_layout_value`).
+- KLayout 0.30.12 deletes a widget or layout handed to `QFormLayout.addRow` once Python no longer refers to it
+  (0.30.5 kept it): rows vanished and a combo box covered the whole Export dialog. Add form rows with
+  `gui.add_form_row(dialog, form, ...)`, which keeps them in the dialog. `addWidget` / `addLayout` of box layouts
+  keep their arguments (the panel is fine).
 
 ## Rules that protect design decisions
 

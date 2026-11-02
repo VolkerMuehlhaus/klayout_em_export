@@ -15,7 +15,7 @@ from .connectivity import check_ground, wiring
 from .export import marker_box
 from .ports import collect_ports, device_of, export_numbering, export_port_numbers, is_complete, port_problems
 
-OK, WARN, ERROR = ("✓", "#1a8f1a"), ("⚠", "#c87800"), ("✗", "#c00000")
+OK, WARN, ERROR = gui.OK, gui.WARN, gui.ERROR
 COLUMNS = ("#", "Layer", "Port", "Export #", "Status")
 AUTO_CHECK_LIMIT = 50000            # metal shapes in the region; above, the checks run on request only
 MAX_MARKERS = 2000                  # ground outline: at most this many polygons
