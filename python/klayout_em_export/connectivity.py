@@ -163,6 +163,27 @@ def shorted_ports(metals, vias, connections, port_ends):
     return out
 
 
+def _seed(layout, cell, layer, point, box):
+    """Region that a ground mark (a point in the marked shape) starts from: the point; or, if the point lies outside
+    box (the region checked), the drawn shapes at the point, cut to box - a mark is one point in a shape that may
+    reach far beyond the region (a ground plane)."""
+    at = pya.Box(point, point).enlarged(1, 1)
+    if box is None or box.contains(point):
+        return pya.Region(at)
+    li = layout.find_layer(layer, 0)
+    if li is None:
+        return pya.Region()
+    shapes = pya.Region()
+    it = cell.begin_shapes_rec_touching(li, at)
+    while not it.at_end():
+        if not it.shape().is_text():
+            polygon = it.shape().polygon.transformed(it.trans())
+            if polygon.inside(point):
+                shapes.insert(polygon)
+        it.next()
+    return shapes & pya.Region(box)
+
+
 def check_ground(layout, cell, stackup, box=None, seeds=(), ports=None):
     """Ground net in cell (clipped to box, Box in dbu). seeds: [(GDS layer, Point)] marked ground shapes; without
     them the ground is found from ports ({layer: Port} from ports.collect_ports)."""
@@ -197,7 +218,7 @@ def check_ground(layout, cell, stackup, box=None, seeds=(), ports=None):
         result.source = f"{len(seeds)} marked shape(s)"
         pieces = []
         for layer, point in seeds:
-            seed = pya.Region(pya.Box(point, point).enlarged(1, 1))
+            seed = _seed(layout, cell, layer, point, box)
             if any(_touches(piece, layer, seed) for piece in pieces):
                 continue
             piece = flood(metals, vias, connections, {layer: seed})

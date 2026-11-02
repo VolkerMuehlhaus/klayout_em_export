@@ -59,3 +59,17 @@ cell.shapes(ly.layer(204, 0)).insert(pya.Box(via.left, via.center().y, via.right
     PROP_KEY, PortSettings("Z", "TopMetal1", "TopMetal2").encode())
 result = check_ground(ly, cell, st, ports=collect_ports(ly, cell, stackup=st))
 print("## OctaDiffTap with port 4 across a TopVia2\n" + result.summary())
+
+# a marked ground plane larger than the region: the mark (a point in the plane) lies outside the region box, the
+# plane's part inside is ground (Metal3 30/0 plane with a Via3 to a Metal4 strip inside the box)
+ly = pya.Layout()
+ly.dbu = 0.001
+cell = ly.create_cell("PLANE")
+cell.shapes(ly.layer(30, 0)).insert(pya.Box(0, 0, 400000, 400000))
+cell.shapes(ly.layer(49, 0)).insert(pya.Box(200000, 200000, 200500, 200500))
+cell.shapes(ly.layer(50, 0)).insert(pya.Box(190000, 190000, 260000, 210000))
+box = pya.Box(150000, 150000, 300000, 300000)
+result = check_ground(ly, cell, st, box, seeds=[(30, pya.Point(10000, 10000))], ports={})
+print("## Metal3 plane marked outside the region box\n" + result.summary())
+print("ok  " if sorted(result.names[l] for l in result.net) == ["Metal3", "Metal4"] else "FAIL",
+      "plane marked outside the region: ground", sorted(result.names[l] for l in result.net))

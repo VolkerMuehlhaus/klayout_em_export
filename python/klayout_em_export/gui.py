@@ -170,7 +170,9 @@ def mark_ground():
         return
     from .connectivity import wiring
     traced = wiring(stackup)[0]
-    seeds, skipped = ground_seeds(layout), 0
+    region = marker_box(layout, cv.cell, EM_REGION)     # the point goes inside it, where the check looks
+    region = None if region is None else pya.Region(region.to_itype(layout.dbu))
+    seeds, skipped, shapes = ground_seeds(layout), 0, 0
     for obj in view.each_object_selected():
         if obj.cv_index != view.active_cellview_index or obj.is_cell_inst() or obj.shape.is_text():
             skipped += 1
@@ -179,10 +181,16 @@ def mark_ground():
         if info.layer not in traced or info.datatype != 0:
             skipped += 1
             continue
+        shapes += 1
         polygon = obj.shape.polygon.transformed(obj.trans())
+        if region is not None:                          # its part in the EM region box, if it has one
+            for part in (pya.Region(polygon) & region).each():
+                polygon = part.dup()
+                break
         inside = polygon.decompose_trapezoids()[0].bbox().center()    # a trapezoid is convex: its center is inside
-        seeds.append((info.layer, inside))
-    if len(seeds) == len(ground_seeds(layout)):
+        if (info.layer, inside) not in seeds:           # marking the same shape again adds nothing
+            seeds.append((info.layer, inside))
+    if not shapes:
         pya.MessageBox.warning("EM Export", "Select one or more metal shapes of the ground first (shapes, not "
                                "instances; on the stackup's wiring layers).", pya.MessageBox.Ok)
         return
