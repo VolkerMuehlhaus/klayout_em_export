@@ -50,6 +50,8 @@ top.shapes(V1).insert(pya.Box(um(0.5), um(0.5), um(0.7), um(0.7)))
 top.shapes(M2).insert(pya.Box(0, 0, um(1), um(1)))
 top.shapes(TXT).insert(pya.Text("sig", um(5), um(1)))
 top.shapes(P201).insert(pya.Box(um(8), um(1), um(8), um(1.5)))
+# a no-fill marker (8/23, not metal) abutting the last tile (36, 8): the tile is still fill, the marker stays
+top.shapes(ly.layer(8, 23)).insert(pya.Box(um(38), um(8), um(60), um(20)))
 # a via array on Via1 (30 vias, each isolated): never removed
 for i in range(30):
     top.shapes(V1).insert(pya.Box(um(100 + 0.5 * i), 0, um(100.2 + 0.5 * i), um(0.2)))
@@ -68,6 +70,7 @@ removed, cells = remove_dummy_fill(ly, top, st)
 check(count(ly, top, 8, 22) == 3 and removed.get((8, 22)) == 27,
       f"tile placements: 27 removed, the 3 touching a via, a label and a port stay ({count(ly, top, 8, 22)} left)")
 check(count(ly, top, 19, 0) == vias_before, "vias and the via array are never removed")
+check(count(ly, top, 8, 23) == 1, "a tile abutting a marker datatype is fill (counted above); the marker stays")
 check(removed.get((8, 0)) == 25 and count(ly, top, 8, 0) == 1 + 26,
       f"flat floating repeated fill on datatype 0 removed ({removed.get((8, 0))}); the single shape and the shield "
       f"(26 shapes) stay ({count(ly, top, 8, 0)} left)")

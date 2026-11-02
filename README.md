@@ -113,11 +113,13 @@ The same steps are in the **EM** menu in the menu bar, top to bottom in workflow
    export dialog show it and can change it too.
    - **Remove Dummy Fill** (next in the menu, once, if the layout has fill): removes the dummy metal fill of the
      current cell, one undo step. Process independent, told by what it is, not by datatype or cell names: a shape
-     on a conductor or sheet layer of the stackup (any datatype) that floats (with all datatypes of its layer
-     merged, it touches no via of the stackup, no label, no port and no device or PDK cell) and whose size repeats
-     at least 20 times among the floating shapes. Vias and via arrays are never removed: via layers are not
-     searched. A fill tile cell loses the placements that are fill; a cell left empty or unplaced is deleted. On a
-     60 GHz PA: 68,312 fill shapes in 9 s, on a 180 GHz PA 613,587 in about 50 s.
+     on a conductor or sheet layer of the stackup (any datatype) that floats (merged with the drawn metal of its
+     layer, datatype 0, it touches no via of the stackup, no label, no port and no device or PDK cell; other
+     datatypes such as no-fill markers are no metal and are left out) and whose size repeats at least 20 times
+     among the floating shapes. Drawn metal (datatype 0) is judged more carefully: a drawn shape touching a shape of
+     another datatype stays. Vias and via arrays are never removed: via layers are not searched. A fill tile cell
+     loses the placements that are fill; a cell left empty or unplaced is deleted. On a 60 GHz PA: 68,312 fill
+     shapes in about 14 s, on a 180 GHz PA 617,659 (all of its fill, Activ included) in about 60 s.
    - **Fill Density Holes and Merge Metal** (next in the menu, once, before ports): fewer edges to mesh and fewer
      polygons for the checks, in the current cell, one undo step (Edit > Undo). Per metal layer of the stackup
      (conductors and sheets, not vias): the repeated small openings that density rules put into wide metal

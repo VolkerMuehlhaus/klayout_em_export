@@ -4,11 +4,15 @@ on the drawing datatype, adds floating metal to the EM model.
 Process independent: the fill is told by what it is, not by datatype or cell names. A shape is dummy fill when
 - it is on a conductor or sheet layer of the stackup (any datatype). Never on a via layer of the stackup (any
   datatype): vias and via arrays are repeated, isolated shapes too, and are never removed;
-- it floats: with all datatypes of its layer merged over the hierarchy, its polygon touches no via of the stackup's
-  via layers above or below that metal, no text, no port shape, and no device or PDK cell;
+- it floats: merged over the hierarchy with the drawn metal of its layer (datatype 0, the geometry the stackup and
+  the export use) and the other shapes of its own datatype, its polygon touches no via of the stackup's via layers
+  above or below that metal, no text, no port shape, and no device or PDK cell. Other datatypes are left out of
+  this merge: markers (IHP's no-fill area 23, ...) are no metal, and fill tiles abut them. Drawn metal (datatype 0)
+  is EM model geometry, so it is judged more carefully: a drawn polygon touching a shape of any other datatype
+  (a marker, a pin) stays;
 - it repeats: every drawn shape of that floating polygon has a bounding-box size found at least MINCOUNT times
-  among the shapes of the floating polygons of the layer (judged per drawn shape, as abutting fill tiles merge into
-  large blocks; a floating shield or test structure with one shape of its own size stays).
+  among the shapes of the floating polygons (judged per drawn shape, as abutting fill tiles merge into large
+  blocks; a floating shield or test structure with one shape of its own size stays).
 Shapes are deleted where they are, in the cell and in its plain subcells placed nowhere else (density.plain_cells),
 where every placement of a shape is fill; cells left empty (fill cells) are deleted with their placements. Shapes
 with properties (the plug-in's REF patches and ports) are never deleted.
@@ -28,6 +32,17 @@ def _flat(layout, cell, layer_numbers, merged=True):
     region.merged_semantics = merged
     for li in layout.layer_indexes():
         if layout.get_info(li).layer in layer_numbers:
+            region.insert(cell.begin_shapes_rec(li))
+    return region.merged() if merged else region
+
+
+def _flat_datatypes(layout, cell, layer, datatypes, merged=True):
+    """As _flat, for one layer number and the given datatypes only."""
+    region = pya.Region()
+    region.merged_semantics = merged
+    for li in layout.layer_indexes():
+        info = layout.get_info(li)
+        if info.layer == layer and info.datatype in datatypes:
             region.insert(cell.begin_shapes_rec(li))
     return region.merged() if merged else region
 
@@ -81,35 +96,49 @@ def fill_layers(stackup):
 
 
 def find_fill(layout, cell, stackup, mincount=MINCOUNT):
-    """{layer number: Region of the dummy fill polygons (merged)} in cell and its subcells."""
+    """{(layer, datatype): Region of the dummy fill polygons (merged)} in cell and its subcells. Each datatype is
+    judged with the drawn metal (datatype 0) of its layer, not with the other datatypes (markers); drawn metal alone,
+    and kept where it touches a shape of another datatype."""
     neighbors = stackup.via_neighbors()             # {via layer: (metals below, metals above)}
     blocked = _blocked(layout, cell, stackup)
     out = {}
     for layer in fill_layers(stackup):
-        metal = _flat(layout, cell, {layer})
-        if metal.is_empty():
+        datatypes = sorted({layout.get_info(li).datatype for li in layout.layer_indexes()
+                            if layout.get_info(li).layer == layer})
+        if not datatypes:
             continue
         vias = [v for v, (below, above) in neighbors.items() if layer in [l.layer for l in below + above]]
         contact = _flat(layout, cell, set(vias)) if vias else pya.Region()
-        floating = metal.not_interacting(contact & metal.sized(1)) if not contact.is_empty() else metal
-        floating = floating.not_interacting(_texts(layout, cell, layer)).not_interacting(blocked)
-        if floating.is_empty():
-            continue
-        # repeated: judged on the drawn shapes, not the merged ones (abutting fill tiles merge into large blocks).
-        # A floating block is fill only if every shape in it has a size found mincount times or more
-        shapes = _flat(layout, cell, {layer}, merged=False).interacting(floating)
-        sizes = {}
-        for polygon in shapes.each():
-            box = polygon.bbox()
-            sizes[(box.width(), box.height())] = sizes.get((box.width(), box.height()), 0) + 1
-        rare = pya.Region()
-        for polygon in shapes.each():
-            box = polygon.bbox()
-            if sizes[(box.width(), box.height())] < mincount:
-                rare.insert(polygon)
-        fill = floating.not_interacting(rare) if not rare.is_empty() else floating
-        if not fill.is_empty():
-            out[layer] = fill
+        texts = _texts(layout, cell, layer)
+        for datatype in datatypes:
+            # fill on other datatypes: with the drawn metal only, not with the markers. Drawn metal (datatype 0) is EM
+            # model geometry, so be careful: a drawn polygon touching a shape of any other datatype stays
+            with_drawn = {0} if datatype == 0 else {0, datatype}
+            metal = _flat_datatypes(layout, cell, layer, with_drawn)
+            if metal.is_empty():
+                continue
+            floating = metal.not_interacting(contact & metal.sized(1)) if not contact.is_empty() else metal
+            floating = floating.not_interacting(texts).not_interacting(blocked)
+            if datatype == 0 and len(datatypes) > 1 and not floating.is_empty():
+                others = _flat_datatypes(layout, cell, layer, set(datatypes) - {0}, merged=False)
+                floating = floating.not_interacting(others & floating.sized(1))
+            if floating.is_empty():
+                continue
+            # repeated: judged on the drawn shapes, not the merged ones (abutting fill tiles merge into large
+            # blocks). A floating block is fill only if every shape in it has a size found mincount times or more
+            shapes = _flat_datatypes(layout, cell, layer, with_drawn, merged=False).interacting(floating)
+            sizes = {}
+            for polygon in shapes.each():
+                box = polygon.bbox()
+                sizes[(box.width(), box.height())] = sizes.get((box.width(), box.height()), 0) + 1
+            rare = pya.Region()
+            for polygon in shapes.each():
+                box = polygon.bbox()
+                if sizes[(box.width(), box.height())] < mincount:
+                    rare.insert(polygon)
+            fill = floating.not_interacting(rare) if not rare.is_empty() else floating
+            if not fill.is_empty():
+                out[(layer, datatype)] = fill
     return out
 
 
@@ -122,7 +151,7 @@ def _fill_cell_shapes(layout, c, fill):
     for li in layout.layer_indexes():
         info = layout.get_info(li)
         for shape in c.shapes(li).each():
-            if info.layer not in fill or shape.prop_id != 0 or shape.is_text() or not (
+            if (info.layer, info.datatype) not in fill or shape.prop_id != 0 or shape.is_text() or not (
                     shape.is_box() or shape.is_polygon() or shape.is_path() or shape.is_simple_polygon()):
                 return None
             out.append((info.layer, info.datatype, shape.polygon))
@@ -147,21 +176,21 @@ def _remove_fill_placements(layout, cell, owners, fill):
             if inst.is_regular_array():
                 inst.explode()
         instances = [inst for inst in cell.each_inst() if inst.cell_index == ci]
-        placed = {}                 # layer -> Region of all placed shapes (one polygon each)
-        keys = []                   # per instance: [(layer, key of its placed polygon)]
+        placed = {}                 # (layer, datatype) -> Region of all placed shapes (one polygon each)
+        keys = []                   # per instance: [key of its placed polygon]
         for inst in instances:
             mine = []
             for layer, datatype, polygon in shapes:
-                if layer not in placed:
-                    placed[layer] = pya.Region()
-                    placed[layer].merged_semantics = False
+                if (layer, datatype) not in placed:
+                    placed[(layer, datatype)] = pya.Region()
+                    placed[(layer, datatype)].merged_semantics = False
                 moved = polygon.transformed(inst.cplx_trans)
-                placed[layer].insert(moved)
+                placed[(layer, datatype)].insert(moved)
                 mine.append(str(moved))
             keys.append(mine)
         hits = {}
-        for layer, region in placed.items():
-            for polygon in region.interacting(fill[layer]).each():
+        for key, region in placed.items():
+            for polygon in region.interacting(fill[key]).each():
                 hits[str(polygon)] = hits.get(str(polygon), 0) + 1
         doomed = []
         for inst, mine in zip(instances, keys):
@@ -189,7 +218,7 @@ def remove_dummy_fill(layout, cell, stackup):
         c = layout.cell(ci)
         for li in layout.layer_indexes():
             info = layout.get_info(li)
-            if info.layer not in fill or c.shapes(li).is_empty():
+            if (info.layer, info.datatype) not in fill or c.shapes(li).is_empty():
                 continue
             # all placements of all candidate shapes in one region (not merged: one polygon each), tested at once;
             # a shape is fill if every one of its placements is
@@ -206,7 +235,7 @@ def remove_dummy_fill(layout, cell, stackup):
             if not candidates:
                 continue
             hit = {}
-            for polygon in placed.interacting(fill[info.layer]).each():
+            for polygon in placed.interacting(fill[(info.layer, info.datatype)]).each():
                 hit[str(polygon)] = hit.get(str(polygon), 0) + 1
             doomed = []
             for shape, copies in candidates:

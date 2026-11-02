@@ -284,7 +284,11 @@ Fill tools differ: IHP's put tiles on a fill datatype (22) as cells placed tens 
 the drawing datatype or flat. So fill is not found by datatype or cell name, but by its nature: it floats (touches
 no via of the stackup's via layers above or below its metal, no label, no port, no device or PDK cell) and repeats
 (each drawn shape's size is found 20 times or more among the floating shapes; judged per drawn shape, because
-abutting tiles merge into large blocks, and a floating structure with one shape of its own size stays). Via layers
+abutting tiles merge into large blocks, and a floating structure with one shape of its own size stays). Floating is
+judged per datatype, merged with the drawn metal (datatype 0) only: markers on other datatypes are no metal, and
+IHP's fill tiles abut its no-fill marker (23), which made all of a 180 GHz PA's Activ fill look connected when all
+datatypes were merged. Drawn metal itself is EM model geometry and judged more carefully: a drawn polygon touching a
+shape of another datatype stays (in that PA, 22 floating repeated drawn groups next to no-fill markers stay). Via layers
 are never searched: a via array is repeated and isolated on its own layer too, which is what a purely geometric rule
 such as gds_prepare_for_EM's gds_removefill (with its IHP via list and 1 um minimum size) has to work around. A tile
 cell placed thousands of times usually has a few placements touching a via or a label: such a cell keeps those
