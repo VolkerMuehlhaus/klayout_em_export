@@ -136,6 +136,7 @@ class PortTool(pya.Plugin):
         if layer is None:
             pya.MessageBox.warning("EM Export", "All port layers 201..299 are used in this cell.", pya.MessageBox.Ok)
             return True
+        gui.backup_original(layout)
         self.layout_view.transaction("Add port")
         try:
             shape = cell.shapes(layout.layer(layer, 0)).insert(found[2])

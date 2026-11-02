@@ -755,6 +755,12 @@ Saving the layout keeps its EM setup. The export copies none of this into `<name
 | Replaced device | GDS property 202 on the device's REF patch and ports |
 | Stackup, last export, ground marks | layout meta info `klayout_em_export.stackup`, `.output`, `.ground` |
 
+**Your original file is kept.** The first time the plug-in changes a layout that has none of its data yet (you
+place a port, choose a stackup, mark ground, replace devices, ...), it copies the layout file as it is on disk to
+`<name>.gds.bak`, next to it. The status bar says so. An existing `.bak` is never replaced. Saving the layout later
+writes the EM setup into `<name>.gds`; the `.bak` is your original, without any of it. KLayout itself can keep
+backups of every save as well: **File > Setup > Application > General**, number of backup files.
+
 KLayout saves meta info in an extra cell `$$$CONTEXT_INFO$$$` in the GDS file. KLayout hides it, but other GDS
 tools may show it as an empty top cell. (KLayout writes this cell anyway for a layout with PCells.)
 

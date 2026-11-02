@@ -186,6 +186,12 @@ The same steps are in the **EM** menu in the menu bar, top to bottom in workflow
 7. **Create Circuit (EM Result with Devices)...**: after the Palace run, the EM result with the PDK devices put
    back, for ngspice, VACASK, Xyce or Spectre; see [Circuit wrapper](#circuit-wrapper-ngspice-vacask-xyce-spectre).
 
+**Backup of the original layout:** before the plug-in first changes a layout that holds none of its data (no meta
+info of the plug-in, no port settings, device or boundary tags, no EM region box), it copies the layout file as it is
+on disk to `<file>.bak`, e.g. `core.gds.bak` - never over an existing `.bak`, so the oldest original stays. Saving the
+layout afterwards writes the EM setup into it; the `.bak` is the file to pass on. KLayout can also keep backups of
+every save (File > Setup > Application > General, number of backup files).
+
 Remembered in `~/.klayout_em_export.json`: the last stackup, the last port settings (a port without settings of
 its own takes their direction, Z0 and excitation, not their layers), the setupEM and EMStudio
 programs, whether and where to open the export (`open_setupem`, `open_with`), the Create Circuit choices (Python with snp2le, PDK folder, simulator); and per layout file its stackup, last export and ground marks. These are also stored in the layout

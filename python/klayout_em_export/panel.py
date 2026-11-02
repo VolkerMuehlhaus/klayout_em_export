@@ -614,6 +614,7 @@ class EMPanel(pya.QWidget):
         if pya.MessageBox.question("EM Export", f"Delete the shapes of port(s) {numbers}?",
                                    pya.MessageBox.Yes | pya.MessageBox.No) != pya.MessageBox.Yes:
             return
+        gui.backup_original(cv.layout())
         view.transaction("Delete ports")
         try:
             for port in ports:

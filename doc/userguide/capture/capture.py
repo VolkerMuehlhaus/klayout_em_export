@@ -173,6 +173,10 @@ def make_clean():
     for name in ("klayout_em_export.ground", "klayout_em_export.output", "klayout_em_export.stackup"):
         ly.remove_meta_info(name)
     ly.write(os.path.join(WORK, "cascode.gds"))
+    # the plug-in keeps the original as cascode.gds.bak at its first change, but never over an existing .bak: a fresh
+    # work copy gets a fresh backup
+    if os.path.exists(os.path.join(WORK, "cascode.gds.bak")):
+        os.remove(os.path.join(WORK, "cascode.gds.bak"))
 
 
 def view_cv():

@@ -68,6 +68,53 @@ def _layout_file(layout):
     return ""
 
 
+BACKUP_SUFFIX = ".bak"              # <layout file>.bak: the original, before the plug-in's first change
+_backup_checked = set()             # layout files checked in this session (backed up, or not an original)
+
+
+def has_em_data(layout):
+    """Whether layout holds anything the plug-in stores: its meta info, shapes with its properties (port settings
+    200, boundary tag 201, device tag 202) on the port layers and the REF layer 300, or the EM region box. A layout
+    without any of it is an original that the plug-in has never changed."""
+    from .boundary import BOUNDARY_KEY
+    from .ports import DEVICE_KEY
+    if any(layout.meta_info_value(key) for key in (META_STACKUP, META_OUTPUT, META_GROUND)):
+        return True
+    keys = {PROP_KEY, BOUNDARY_KEY, DEVICE_KEY}
+    for li in layout.layer_indexes():
+        info = layout.get_info(li)
+        region = (info.layer, info.datatype) == tuple(EM_REGION)
+        if not (region or info.layer in PORT_LAYERS or info.layer == 300):
+            continue
+        for c in layout.each_cell():
+            for shape in c.shapes(li).each():
+                if region:
+                    return True
+                if shape.prop_id and any(key in keys for key, _ in layout.properties(shape.prop_id)):
+                    return True
+    return False
+
+
+def backup_original(layout):
+    """Before the plug-in changes layout: if its file is an original (has_em_data is false, so saving would write the
+    plug-in's data into it), copy the file as it is on disk to <file>.bak - never over an existing one, which keeps
+    the oldest original. Checked once per file and session. Returns the backup's path, or None."""
+    path = _layout_file(layout)
+    if not path or path in _backup_checked:
+        return None
+    _backup_checked.add(path)
+    backup = path + BACKUP_SUFFIX
+    if not os.path.isfile(path) or os.path.exists(backup) or has_em_data(layout):
+        return None
+    try:
+        shutil.copy2(path, backup)
+    except OSError as e:
+        _status(f"No backup of the original layout: {e}", 10)
+        return None
+    _status(f"Original layout kept as {backup}", 10)
+    return backup
+
+
 def native_path(path):
     """path with one kind of separator. KLayout's Python joins with "/" also on Windows (os.sep is "/" there), so a
     Windows path can come out as D:\\work\\guide/cascode_em.gds; decided by the path itself, not by os.sep: one with a
@@ -92,6 +139,7 @@ def layout_value(layout, meta_name):
 
 
 def set_layout_value(layout, meta_name, value, description):
+    backup_original(layout)
     if layout is None:
         return
     layout.add_meta_info(pya.LayoutMetaInfo(meta_name, value, description, True))
@@ -218,6 +266,7 @@ def remove_dummy_fill():
     from .dummyfill import MINCOUNT, remove_dummy_fill as remove
     names = {l.layer: l.name for l in stackup.layers}
     _status("Removing dummy fill...", 0)
+    backup_original(layout)
     view.transaction("Remove dummy fill")
     try:
         removed, cells = remove(layout, cv.cell, stackup)
@@ -246,6 +295,7 @@ def fill_and_merge():
         pya.MessageBox.warning("EM Export", "Choose a stackup first.", pya.MessageBox.Ok)
         return
     from .density import MINCOUNT, fill_and_merge as convert
+    backup_original(layout)
     view.transaction("Fill density holes and merge metal")
     try:
         done, cells = convert(layout, cv.cell, stackup)
@@ -265,6 +315,7 @@ def fill_and_merge():
 def create_boundary_ports(view, cv, crossings):
     from .boundary import create_ports
     stackup = read_stackup(stackup_path(cv.layout()))[0]
+    backup_original(cv.layout())
     return create_ports(view, cv.cell, stackup, crossings)
 
 
@@ -290,6 +341,7 @@ def replace_devices(view, cv, include_resistors=False):
     stackup = read_stackup(stackup_path(layout))[0]
     if stackup is None:
         return {}
+    backup_original(layout)
     try:
         return replace(view, cell, stackup, find_layout_devices(layout, cell, stackup)[0], include_resistors)
     except ValueError as e:
@@ -299,6 +351,7 @@ def replace_devices(view, cv, include_resistors=False):
 
 def unreplace_devices(view, cv):
     from .devices import unreplace
+    backup_original(cv.layout())
     return unreplace(view, cv.cell)
 
 
@@ -328,6 +381,7 @@ def mark_region():
                                f"region (layer {EM_REGION[0]}/{EM_REGION[1]}).", pya.MessageBox.Ok)
         return
     layout = cv.layout()
+    backup_original(layout)
     view.transaction("Mark EM region")
     try:
         li = layout.layer(*EM_REGION)
@@ -846,6 +900,7 @@ def edit_ports(view, cv, shapes, current=None):
     if not dialog.exec_():
         return False
     new = dialog.result_settings()
+    backup_original(layout)
     view.transaction("Port settings")
     try:
         for shape, _ in shapes:

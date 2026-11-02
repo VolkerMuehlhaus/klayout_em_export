@@ -310,6 +310,17 @@ via array correction. The result is checked to be exactly the original metal plu
 Running gds_prepare_for_EM first is no alternative: it flattens the layout and drops layers the plug-in needs
 (devices, ports). The converted layout breaks the density rules: it must never go to tape-out.
 
+### Backup of the original layout
+
+Saving a layout after the plug-in worked on it writes its data (meta info, port shapes with settings, REF patches,
+the EM region box, filled and merged metal) into the designer's file. KLayout offers no hook before saving that the
+plug-in could rely on, so the backup is made at the plug-in's first change instead: `gui.backup_original` runs in
+`set_layout_value` and before every undo transaction (gui, panel, EM Port tool, device and boundary port wrappers).
+If the layout holds none of the plug-in's data (`gui.has_em_data`: its meta info, properties 200-202 on the port
+layers and the REF layer 300, or the EM region box) the file on disk is still the original and is copied to
+`<file>.bak`, never over an existing one (the oldest original stays), once per file and session. Plain port shapes
+without settings do not count: gds2palace layouts have those too.
+
 ### Resistors replaced by default
 
 The PDK computes R = Rsh·l/(w + Δw) + 2·rz/w. The gds2palace sheet has the drawn size and the nominal Rsh: no width
@@ -354,7 +365,7 @@ through `klayout_em_export_tests/pdk_env.py`.
 | Ports | `test_ports.py`, `test_locate.py`, `test_numbering.py`, `test_portlayers.py`, `test_boundary.py` |
 | Ground and nets | `test_ground.py`, `test_unconnected.py`, `test_density.py` (Fill Density Holes and Merge Metal: the rule, what is merged and what stays, exact geometry on the FMD layouts if present), `test_dummyfill.py` (Remove Dummy Fill: what is fill and what stays, vias and devices unchanged on the FMD layouts) |
 | Devices | `test_devices.py`, `test_mosfets.py`, `test_resistors.py`, `test_replaced_devices.py` (selection patches, ground voting, moved devices) (PDK needed) |
-| GUI pieces in batch | `test_panel.py`, `test_reopen.py` (stand-in view, own settings file), `test_open_with.py` (setupEM / EMStudio command line, which stale scripts are reported) |
+| GUI pieces in batch | `test_panel.py`, `test_reopen.py` (stand-in view, own settings file), `test_open_with.py` (setupEM / EMStudio command line, which stale scripts are reported), `test_backup.py` (backup of the original layout: when, and when not) |
 | Technologies | `test_technology.py` (choice and generic fallback, SG13CMOS5L stackup, wrapper per port map technology) (PDK needed) |
 | Create Circuit | `test_circuit.py` (needs a Python with snp2le), `tests/simulators/` (Docker, Linux) |
 | Physics checks | `tests/resistor_palace/` (Palace), `doc/test_cascode_wrapper`, `doc/test_cascode_epi_tie` |
