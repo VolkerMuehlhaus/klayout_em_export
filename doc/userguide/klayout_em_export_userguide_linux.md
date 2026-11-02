@@ -686,7 +686,7 @@ ground, which adds a few fF. In the cascode that lowers S21 by 0.06 dB at 10 GHz
 | no PDK devices (SG13_dev pcells) in the cell | transistors not recognized | load the IHP PDK in KLayout |
 | N pair(s) of REF patches touch | two devices would share a reference | keep devices apart, or check the layout |
 | N terminal(s) not connected | a device terminal has no wiring in the region | enlarge the region, or check the layout |
-| resistor "not replaced: R too low" | a resistor stays in the EM model as a sheet of drawn size | tick include resistors and press Replace All (chapter 9) |
+| resistor "not replaced: EM gives R too low" | a resistor stays in the EM model as a sheet of drawn size, without the PDK's width offset and contact end resistance (about 10 % low) | tick include resistors and press Replace All (chapter 9) |
 | port N ... not simulated (incomplete) | port settings missing | set them (EM > Port Settings...) |
 | layer '...' is not a metal of the stackup | a port uses a layer the stackup does not know | choose another layer in the port dialog |
 | ... is not drawn at the port | the port's from/to layer has no metal at the port | check the port position and layers |
@@ -753,7 +753,8 @@ It uses that copy only when the layout has none of its own.
 - The 1 mH ties are ideal: the wiring's DC resistance is not in the bias (in the cascode it would lower Icc by about
   6 %).
 - Resistors from static cells (no PDK parameters) become ideal resistors of their label value: no temperature
-  behaviour, no parasitics.
+  behaviour, no parasitics. A static npn cell (e.g. `npn13G2$1` in a layout saved without pcell context, as some fill
+  tools write it) gets its size from its `Ae=Nx*Ny*we*le` label; without that label it is not replaced.
 - Resistors left in the EM model (not replaced) come out too low: the sheet has the drawn size, without the PDK's
   width offset and contact end resistance. rhigh and rppd are about 10 % to 13 % low, rsil up to about 2 %
   (chapter 9). A resistor of several segments cannot be replaced yet.

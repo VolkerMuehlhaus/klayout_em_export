@@ -373,7 +373,7 @@ class EMPanel(pya.QWidget):
             elif d.problems:
                 state, why = "cannot be replaced", "; ".join(d.problems)
             elif d.is_resistor:
-                state, why = "not replaced: R too low", technology.resistor_note(d)
+                state, why = "not replaced: EM gives R too low", technology.resistor_note(d)
             else:
                 state, why = "not replaced", "simulated as drawn layout"
             ports = ", ".join(f"{t} {n}" for t, n in sorted(d.ports.items(), key=lambda item: item[1]))

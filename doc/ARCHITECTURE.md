@@ -39,7 +39,8 @@ port shapes) and setupEM's `.simcfg` format.
   `snp2le_python` setting, else the Python next to setupEM). It also works from the command line on its own.
 - **Tested with** KLayout 0.29.4 on Windows; `api-version` in `grain.xml` is 0.28.
 - **PDK.** Device recognition needs the SG13G2 PDK library (`SG13_dev`) loaded in KLayout. Static device cells
-  exported from Cadence (`<device>_CDNS_<number>`) are recognized by name.
+  (exported from Cadence, `<device>_CDNS_<number>`, or saved without pcell context, `<device>$<number>`) are
+  recognized by name; an npn's parameters come from its `Ae=Nx*Ny*we*le` label.
 
 ## 3. Module map
 
@@ -76,7 +77,7 @@ gds2palace stackup.
 
 - **Choosing one** (`tech.for_layout`, `gui.layout_technology`): the `technology` entry of the settings file, if
   set; else the first technology whose devices are in the layout (`devices_in`: IHP: a cell of the `SG13_dev`
-  library, also when the library is not loaded, or a Cadence cell `<device>_CDNS_<n>`); else the first whose
+  library, also when the library is not loaded, or a static device cell `<device>_CDNS_<n>` / `<device>$<n>`); else the first whose
   KLayout technology name the layout has (`KLAYOUT_TECHNOLOGIES`); else `generic`. The Devices line's tooltip shows
   the technology and why. Devices decide before the KLayout technology name because a GDS is often opened without
   choosing a technology, and the stackup is not used because nothing in it names the process.

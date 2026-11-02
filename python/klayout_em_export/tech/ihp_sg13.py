@@ -7,8 +7,12 @@ sg13cmos5l), which only matters for the stackup.
 Supported: SG13_dev pcells with named pins, i.e. pin shapes (datatype 2 on a metal layer) and a TEXT label with the
 terminal name inside each: npn13G2, npn13G2L, npn13G2V (C, B on Metal1; E on Metal2) and the rf MOSFETs (S, D, G,
 TIE); nmos/pmos (unnamed or no pins: terminals from the geometry); the resistors rsil, rppd, rhigh (two unnamed
-Metal1 pins). Static device cells exported from Cadence (<pcell name>_CDNS_<number>) are recognized by name.
+Metal1 pins). Static device cells are recognized by name: exported from Cadence (<pcell name>_CDNS_<number>), or
+a pcell saved without its pcell context (<pcell name>$<number>, e.g. by a fill tool). They have no parameters: an
+npn's come from its 'Ae=Nx*Ny*we*le' label, a resistor's value from its label (see ihp_sg13_circuit).
 """
+import re
+
 import pya
 
 NAME = "ihp_sg13"
@@ -19,6 +23,7 @@ MOSFET_PCELLS = {"nmos", "pmos", "nmosHV", "pmosHV"}    # unnamed (nmos) or no (
 RESISTOR_PCELLS = {"rsil", "rppd", "rhigh"}             # two unnamed Metal1 pins (PLUS, MINUS); replaced on request
 PCELL_PARAMETERS = ("model", "Nx", "Ny", "le", "we", "w", "l", "ng", "b")   # kept for the circuit wrapper
 STATIC_SUFFIX = "_CDNS_"            # a device cell exported from Cadence: <pcell name>_CDNS_<number>, no pcell context
+AE_LABEL = re.compile(r"Ae=(\d+)\*(\d+)\*([0-9.]+)\*([0-9.]+)")     # npn label: Ae=Nx*Ny*we*le (we, le in um)
 POLY_LAYER = 5                      # SG13G2 GatPoly.drawing (datatype 0)
 CONT_NAME = "Cont"
 LIBRARY = "SG13_dev"
@@ -30,12 +35,13 @@ NO_DEVICES = "no PDK devices (SG13_dev pcells) in the cell"
 
 def devices_in(layout):
     """Why the layout is of this technology, from its devices (anywhere in the layout), or None: a cell of the
-    SG13_dev library (also when the library is not loaded) or a static device cell from Cadence."""
+    SG13_dev library (also when the library is not loaded) or a static device cell (see _static_name)."""
     for c in layout.each_cell():
-        if c.qname().startswith(LIBRARY + "."):
+        if c.qname().replace("<defunct>", "").startswith(LIBRARY + "."):
             return f"{LIBRARY} cells in the layout"
-        if STATIC_SUFFIX in c.name and is_device(c.name.split(STATIC_SUFFIX)[0]):
-            return f"device cells from Cadence ({c.name.split(STATIC_SUFFIX)[0]}{STATIC_SUFFIX}...) in the layout"
+        name = _static_name(c.name)
+        if name is not None and is_device(name):
+            return f"static device cells ({c.name}) in the layout"
     return None
 
 
@@ -50,19 +56,37 @@ def context(layout, stackup):
 def identify(c, ctx):
     """(device name or None, parameters, problem or None) of cell c: a pcell of the PDK library or a static device
     cell. problem names a library cell that cannot be evaluated (PDK library not loaded)."""
-    qname = c.qname()
+    # a library proxy whose library was not bound when the layout was read: <defunct>SG13_dev.npn13G2(...)
+    qname = c.qname().replace("<defunct>", "").split("(")[0]
     if qname.startswith(LIBRARY + "."):
         decl = c.pcell_declaration()
         if decl is None:
             return None, {}, qname + " (PDK library not loaded)"
         values = c.pcell_parameters_by_name()
         return decl.name(), {k: values[k] for k in PCELL_PARAMETERS if k in values}, None
-    if STATIC_SUFFIX in c.name:
-        name = c.name.split(STATIC_SUFFIX)[0]           # a device cell from Cadence: same pins, no parameters
-        text_li = ctx["text_li"]
-        labels = [] if text_li is None else [s.text.string for s in c.shapes(text_li).each() if s.is_text()]
+    name = _static_name(c.name)
+    if name is None:
+        return None, {}, None
+    # a static device cell: same pins as the pcell, parameters only in its labels
+    text_li = ctx["text_li"]
+    labels = [] if text_li is None else [s.text.string for s in c.shapes(text_li).each() if s.is_text()]
+    if name in RESISTOR_PCELLS:
         return name, ({"label": labels[0]} if labels else {}), None
-    return None, {}, None
+    for label in labels:
+        m = AE_LABEL.search(label)
+        if m:
+            return name, {"Nx": int(m.group(1)), "Ny": int(m.group(2)), "we": m.group(3) + "u",
+                          "le": m.group(4) + "u"}, None
+    return name, {}, None
+
+
+def _static_name(cell_name):
+    """The device name of a static device cell: <name>_CDNS_<number> (Cadence), or <name>$<number> / <name> (a pcell
+    saved without its pcell context); else None."""
+    if STATIC_SUFFIX in cell_name:
+        return cell_name.split(STATIC_SUFFIX)[0]
+    name = re.sub(r"\$\d+$", "", cell_name)
+    return name if is_device(name) else None
 
 
 def is_device(name):
@@ -75,6 +99,10 @@ def is_resistor(name):
 
 def terminals(layout, top, c, trans, device, ctx, m1_li, m1, stackup):
     """Fill device.terminals (and device.problems, device.gate_trace) for the device cell c at trans in top."""
+    if not device.params and device.pcell not in RESISTOR_PCELLS:
+        # a static cell without a parameter label: Create Circuit would put in the model with default size
+        device.problems.append("no parameters: a static device cell (no pcell context) without a parameter label "
+                               "(npn: 'Ae=Nx*Ny*we*le')")
     if device.pcell in MOSFET_PCELLS:
         _mosfet_terminals(layout, top, c, trans, device, m1_li, m1, stackup)
     elif device.pcell in RESISTOR_PCELLS:

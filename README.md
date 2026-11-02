@@ -47,8 +47,10 @@ summary; the arrow shows its details and buttons.
     up as separate pieces.
 - **Devices**: PDK transistors (npn13G2, npn13G2L, npn13G2V, nmos, pmos and their HV and rf variants) and resistors
   (rsil, rppd, rhigh) found in the cell, and whether they are replaced by ports. Recognized as SG13_dev pcells, or
-  as static device cells exported from Cadence (`<device>_CDNS_<number>`, same pins, no parameters: the resistor
-  value label is shown instead). The reference plane is at the pcell's pins: the device model
+  as static device cells: exported from Cadence (`<device>_CDNS_<number>`) or saved without pcell context
+  (`<device>$<number>`, e.g. after a fill tool). These have the same pins but no parameters: a resistor's value
+  comes from its label, an npn's size from its `Ae=Nx*Ny*we*le` label; any other static device without a parameter
+  label is not replaced ("no parameters"). The reference plane is at the pcell's pins: the device model
   (circuit simulator) covers the device up to its pins, the EM model everything from there on.
   - **Replace All** adds, in the layout and tagged (GDS property 202): one `REF_FOR_TRANSISTOR` patch per device,
     under its pins (their bounding box + 0.2 um; separate for devices side by side, the Devices step warns if two

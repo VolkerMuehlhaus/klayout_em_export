@@ -39,7 +39,8 @@ def layout_with(cell_name=None, technology=""):
 # ---- choosing the technology
 for cell_name, technology, expected in ((None, "", "generic"), (None, "sg13g2", "ihp_sg13"),
                                         (None, "sg13cmos5l", "ihp_sg13"), ("rhigh_CDNS_1234", "", "ihp_sg13"),
-                                        ("mycell_CDNS_1234", "", "generic"), (None, "gf180mcu", "generic")):
+                                        ("mycell_CDNS_1234", "", "generic"), (None, "gf180mcu", "generic"),
+                                        ("npn13G2$1", "", "ihp_sg13"), ("mycell$1", "", "generic")):
     module, reason = tech.for_layout(layout_with(cell_name, technology))
     check(module.NAME == expected, f"cell {cell_name}, KLayout technology '{technology}': {module.NAME} ({reason})")
 module, reason = tech.for_layout(layout_with(None, "sg13g2"), override="generic")
@@ -54,6 +55,27 @@ check(tech.device_level_names() == {"Activ"}, f"device level names: {tech.device
 # ---- the cascode: IHP devices found; with the generic technology none, and the ground check does not change
 load_pdk()
 st = Stackup(STACKUP)
+
+# ---- static device cells: <device>_CDNS_<n> (Cadence) and <device>$<n> (a pcell saved without pcell context, as a
+# fill tool writes it): parameters from the labels; a static npn without its Ae= label is not replaced
+from klayout_em_export.tech import ihp_sg13
+ly = layout_with()
+for name, label, expected in (("npn13G2$1", "Ae=10*1*0.07*0.90", ("npn13G2", {"Nx": 10, "Ny": 1, "we": "0.07u",
+                                                                               "le": "0.90u"})),
+                              ("npn13G2$2", None, ("npn13G2", {})),
+                              ("rppd_CDNS_1", "rppd r=2.4k", ("rppd", {"label": "rppd r=2.4k"})),
+                              ("rppd$3", "rppd r=999.847", ("rppd", {"label": "rppd r=999.847"})),
+                              ("mycell$1", "Ae=1*1*0.07*0.90", (None, {}))):
+    c = ly.create_cell(name)
+    if label:
+        c.shapes(ly.layer(*ihp_sg13.TEXT_LAYER)).insert(pya.Text(label, 0, 0))
+    got = ihp_sg13.identify(c, ihp_sg13.context(ly, st))[:2]
+    check(got == expected, f"static cell {name} labelled {label!r}: {got}")
+top = ly.top_cells()[0]
+top.insert(pya.CellInstArray(ly.cell_by_name("npn13G2$2"), pya.Trans()))
+problems = [d.problems for d in find_devices(ly, top, st, ihp_sg13)[0] if d.id.startswith("npn13G2$2")]
+check(problems and any(p.startswith("no parameters") for p in problems[0]),
+      f"static npn without Ae= label is not replaced: {problems}")
 ly = pya.Layout()
 ly.technology_name = "sg13g2"       # the PDK library binds its pcells to this technology
 ly.read(palace_testcases("klayout_export", "1_St_Core_v1.gds"))
