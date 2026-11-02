@@ -898,7 +898,8 @@ def show_panel():
     main_window = pya.Application.instance().main_window()
     if _dock is None:
         from .panel import EMPanel
-        _dock = pya.QDockWidget("EM Export", main_window)
+        from . import __version__
+        _dock = pya.QDockWidget(f"EM Export {__version__}", main_window)    # the version a bug report needs
         _dock.setObjectName("klayout_em_export_panel")
         # in a scroll area: a dock shorter than the open details gets a scrollbar instead of squeezed buttons
         _dock._scroll = pya.QScrollArea(_dock)

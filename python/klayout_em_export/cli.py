@@ -30,7 +30,7 @@ import pya
 # run as a script by KLayout: make the package importable
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from klayout_em_export import tech                                        # noqa: E402
+from klayout_em_export import __version__, tech                           # noqa: E402
 from klayout_em_export.boundary import create_ports, find_crossings      # noqa: E402
 from klayout_em_export.connectivity import check_ground                  # noqa: E402
 from klayout_em_export.devices import replace, unreplace                 # noqa: E402
@@ -219,7 +219,8 @@ def cmd_status(request, layout, cell):
     devices, unknown = layout_devices(layout, cell, stackup, technology)
     check = check_ground(layout, cell, stackup, None if box is None else box.to_itype(layout.dbu), seeds, ports)
     return {
-        "cell": cell.name, "stackup": stackup.path, "metals": [n for n, _ in drawn_metals(stackup)],
+        "version": __version__, "cell": cell.name, "stackup": stackup.path,
+        "metals": [n for n, _ in drawn_metals(stackup)],
         "technology": technology.NAME, "technology_reason": reason,
         "region": None if box is None else [box.left, box.bottom, box.right, box.top],
         "ground": {"summary": check.summary(), "marks": len(seeds)},

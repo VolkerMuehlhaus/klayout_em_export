@@ -2,7 +2,7 @@
 
 Volker Mühlhaus, volker@muehlhaus.com
 ---
-Document version: 2026-10-31 (v1)
+Document version: 2026-11-02 (v2), plug-in version 0.2.0
 
 Linux edition: the same text as the main guide, with screenshots taken on Ubuntu 26.04 (GNOME) with KLayout 0.30.5 and setupEM 0.16.0.
 

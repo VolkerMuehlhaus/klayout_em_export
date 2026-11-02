@@ -45,6 +45,8 @@ r = run(command="status", gds=octa, stackup=STACKUP)
 check(r["ok"] and [p["port"] for p in r["ports"]] == [1, 2, 3] and not any(p["complete"] for p in r["ports"]),
       f"status: 3 ports without settings ({[p['problems'] for p in r['ports']]})")
 check(r["technology"] == "generic", f"status: technology {r['technology']} ({r['technology_reason']})")
+from klayout_em_export import __version__
+check(r.get("version") == __version__, f"status: plug-in version {r.get('version')}")
 
 r = run(command="add_via_port", gds=octa, stackup=STACKUP, x=33.7, y=-42.2)
 check(not r["ok"] and "output" in r["error"], f"a changing command needs 'output': {r.get('error')}")

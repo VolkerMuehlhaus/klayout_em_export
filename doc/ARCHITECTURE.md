@@ -37,7 +37,9 @@ port shapes) and setupEM's `.simcfg` format.
 - **Outside KLayout.** `tools/spice_wrapper.py` needs snp2le (vector fitting), which does not live in KLayout's
   Python. Create Circuit runs it as a subprocess with a separate Python (`circuit.default_python`: the
   `snp2le_python` setting, else the Python next to setupEM). It also works from the command line on its own.
-- **Tested with** KLayout 0.29.4 on Windows; `api-version` in `grain.xml` is 0.28.
+- **Tested with** KLayout 0.29.4 on Windows and 0.30.12 on Linux; `api-version` in `grain.xml` is 0.28.
+- **Version:** in `grain.xml` (KLayout's package manager) and `__version__` in `python/klayout_em_export/__init__.py`,
+  kept equal (`test_version.py`); the EM panel's title and the CLI's `status` show it. Raise both together.
 - **PDK.** Device recognition needs the SG13G2 PDK library (`SG13_dev`) loaded in KLayout. Static device cells
   (exported from Cadence, `<device>_CDNS_<number>`, or saved without pcell context, `<device>$<number>`) are
   recognized by name; an npn's parameters come from its `Ae=Nx*Ny*we*le` label.
@@ -347,6 +349,7 @@ through `klayout_em_export_tests/pdk_env.py`.
 | Area | Tests |
 | --- | --- |
 | Export, selection, simcfg | `test_export.py`, `test_selection.py`, `test_simcfg.py`, `test_modelcheck.py` (the last two also plain Python) |
+| Version | `test_version.py` (plain Python): `grain.xml` and `__version__` agree (the EM panel's title shows it), the user's guide names it |
 | Stackup parser | `test_stackup_drift.py` (plain Python): z positions against gds2palace's `util_stackup_reader.py` for every stackup in the sibling repos `gds2palace_ihp_sg13g2` and `EMStudio` |
 | Ports | `test_ports.py`, `test_locate.py`, `test_numbering.py`, `test_portlayers.py`, `test_boundary.py` |
 | Ground and nets | `test_ground.py`, `test_unconnected.py`, `test_density.py` (Fill Density Holes and Merge Metal: the rule, what is merged and what stays, exact geometry on the FMD layouts if present), `test_dummyfill.py` (Remove Dummy Fill: what is fill and what stays, vias and devices unchanged on the FMD layouts) |

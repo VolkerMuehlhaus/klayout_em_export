@@ -251,7 +251,7 @@ file or on stdin: `{"command": "status", "gds": "core.gds", ...}`. Coordinates a
 
 | Command | Does |
 | --- | --- |
-| `status` | What the EM panel shows: stackup and metals, technology, region, ground, ports with their problems, devices, and the export checks (problems, ports left out, renumbering). |
+| `status` | The plug-in version (`version`) and what the EM panel shows: stackup and metals, technology, region, ground, ports with their problems, devices, and the export checks (problems, ports left out, renumbering). |
 | `add_via_port` | A via port on the metal edge nearest to `x`, `y` (within `tol`, default 0.5 µm), from that metal down to the next metal at the port, as the EM Port tool does. `metal` limits the search, `to`, `z0`, `excited` override. |
 | `add_inplane_port` | An in-plane port across the narrowest gap around `x`, `y` (within `reach`, default 20 µm). |
 | `set_port`, `remove_port` | Change (`direction`, `from`, `to`, `target`, `z0`, `excited`) or remove port `port`. |
