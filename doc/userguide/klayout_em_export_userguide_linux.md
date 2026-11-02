@@ -403,7 +403,10 @@ orange and says so.
 
 ### Step by step
 
-1. Open the details of the **Devices** line. It lists the transistors and resistors found.
+1. Open the details of the **Devices** line. A table lists the transistors and resistors found: type, size or
+   value, ports and status. Click a row to highlight the device in the layout, double-click to zoom to it. **#**
+   is the device's number in Create Circuit's subcircuit (X1, X2, ..., or R3 for a resistor taken from its
+   label); the port table names it too, e.g. `[B of #1 npn13G2]`.
 
    ![Devices found, none replaced yet](images_linux/10_panel_devices_before.png)
 
@@ -683,7 +686,7 @@ ground, which adds a few fF. In the cascode that lowers S21 by 0.06 dB at 10 GHz
 | no PDK devices (SG13_dev pcells) in the cell | transistors not recognized | load the IHP PDK in KLayout |
 | N pair(s) of REF patches touch | two devices would share a reference | keep devices apart, or check the layout |
 | N terminal(s) not connected | a device terminal has no wiring in the region | enlarge the region, or check the layout |
-| resistor "not replaced: ... too low" | a resistor stays in the EM model as a sheet of drawn size | tick include resistors and press Replace All (chapter 9) |
+| resistor "not replaced: R too low" | a resistor stays in the EM model as a sheet of drawn size | tick include resistors and press Replace All (chapter 9) |
 | port N ... not simulated (incomplete) | port settings missing | set them (EM > Port Settings...) |
 | layer '...' is not a metal of the stackup | a port uses a layer the stackup does not know | choose another layer in the port dialog |
 | ... is not drawn at the port | the port's from/to layer has no metal at the port | check the port position and layers |

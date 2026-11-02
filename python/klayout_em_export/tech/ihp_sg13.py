@@ -83,6 +83,25 @@ def terminals(layout, top, c, trans, device, ctx, m1_li, m1, stackup):
         _named_terminals(layout, c, trans, device, ctx["pin_layers"], ctx["text_li"])
 
 
+def _size(value):
+    """A pcell length for the panel: '0.9u' -> '0.9 µm'; numbers (pcell values in µm) as they are."""
+    text = f"{value:g}" if isinstance(value, float) else str(value)
+    return text[:-1] + " µm" if text.endswith("u") else text
+
+
+def describe(device):
+    """The panel's Value column: the device's size, or for a static resistor cell its labelled resistance."""
+    p = device.params
+    if "label" in p:
+        from .ihp_sg13_circuit import label_value
+        value = label_value(p["label"])
+        return f"{value}Ω" if value else p["label"]
+    parts = [f"{k}={p[k]}" for k in ("Nx", "Ny") if k in p and not (k == "Ny" and str(p[k]) == "1")]
+    parts += [f"{k} {_size(p[k])}" for k in ("le", "we", "w", "l") if k in p]
+    parts += [f"{k}={p[k]}" for k in ("ng", "b") if k in p and str(p[k]) not in ("0", "1")]
+    return ", ".join(parts)
+
+
 def resistor_note(device):
     """Panel text for a resistor that is not replaced: how far off its sheet in the EM model is."""
     low = "a few %" if device.pcell == "rsil" else "about 10 %"     # Palace, tests/resistor_palace

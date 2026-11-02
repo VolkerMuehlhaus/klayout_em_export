@@ -94,7 +94,8 @@ gds2palace stackup.
 1. `tech/<name>.py` with the interface of `ihp_sg13.py` / `generic.py`: `NAME`, `LABEL`, `KLAYOUT_TECHNOLOGIES`,
    `DEVICE_LEVEL` (stackup names of the diffusion and every other layer below the wiring that would join nets),
    `NO_DEVICES`, `devices_in(layout)`, `context`, `identify`, `is_device`, `is_resistor`, `terminals` (fill
-   `device.terminals` as `{name: (GDS layer of the pin metal, [pin boxes])}`), `resistor_note`.
+   `device.terminals` as `{name: (GDS layer of the pin metal, [pin boxes])}`), `describe` (the panel's Value
+   column: size or value), `resistor_note`.
 2. `tech/<name>_circuit.py`, plain Python: `NAME`, `PDK_LABEL`, `PDK_HINT`, `PDK_BROWSE_TITLE`, `LIBRARIES`,
    `SPECTRE_NOTE`, `VACASK_HEADER`, `pcell_of`, `lib_path`, `instantiate` (the subcircuit or model per device with
    its terminal order).

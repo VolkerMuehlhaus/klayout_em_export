@@ -36,5 +36,9 @@ def terminals(layout, top, c, trans, device, ctx, m1_li, m1, stackup):
     pass
 
 
+def describe(device):
+    return ""
+
+
 def resistor_note(device):
     return "simulated as drawn layout"

@@ -80,9 +80,24 @@ view.cellview(idx).cell = next(c for c in vly.top_cells() if not c.name.startswi
 gui.replace_devices = lambda v, c, include_resistors=False: _replace(NoUndo(), c.cell, st, gui.find_layout_devices(c.layout(), c.cell, st)[0], include_resistors)
 EMPanel._view = lambda self: (view, view.active_cellview())
 panel = EMPanel()
+
+
+def device_rows():
+    t = panel.devices_table
+    return [" | ".join(t.item(r, c).text for c in range(t.columnCount)).encode("ascii", "replace").decode()
+            for r in range(t.rowCount)]
+
+
 print("devices step:", panel.devices_step.summary.text, "|", panel.devices_detail.text)
+for row in device_rows():
+    print("  " + row)
 panel._replace_devices()
 print("after Replace All:", panel.devices_step.summary.text, "|", panel.devices_detail.text)
+for row in device_rows():
+    print("  " + row)
+numbers = [panel.devices_table.item(r, 0).text for r in range(panel.devices_table.rowCount)]
+print("ok  " if numbers == [str(k) for k in range(1, len(numbers) + 1)] else "FAIL",
+      "device numbers 1..N in id order (Create Circuit's X<k>):", numbers)
 print("port rows:", [panel.table.item(r, 2).text.encode("ascii", "replace").decode() for r in range(panel.table.rowCount)])
 
 # cascode (1_St_Core_v1.gds): two npn13G2 placed side by side, their cell boxes touch. The REF patches follow the

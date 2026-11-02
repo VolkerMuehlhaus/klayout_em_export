@@ -17,6 +17,8 @@ from .ports import collect_ports, device_of, export_numbering, export_port_numbe
 
 OK, WARN, ERROR = gui.OK, gui.WARN, gui.ERROR
 COLUMNS = ("#", "Layer", "Port", "Export #", "Status")
+DEVICE_COLUMNS = ("#", "Type", "Value", "Ports", "Status")
+DEVICE_ROWS_SHOWN = 8               # the device table grows up to this many rows, then scrolls
 AUTO_CHECK_LIMIT = 50000            # metal shapes in the region; above, the checks run on request only
 MAX_MARKERS = 2000                  # ground outline: at most this many polygons
 
@@ -80,6 +82,25 @@ class Step(pya.QWidget):
         self.summary.setToolTip(tip or text)
 
 
+def _table(columns, tip):
+    """A read-only table with whole-row selection, as the panel's port and device tables."""
+    table = pya.QTableWidget(0, len(columns))
+    table.setHorizontalHeaderLabels(list(columns))
+    table.setSelectionBehavior(pya.QAbstractItemView.SelectRows)
+    table.setEditTriggers(pya.QAbstractItemView.NoEditTriggers)
+    _get(table.verticalHeader).setVisible(False)
+    _get(table.horizontalHeader).setStretchLastSection(True)
+    table.setToolTip(tip)
+    return table
+
+
+def _set_row(table, row, values, tip=""):
+    for col, value in enumerate(values):
+        item = pya.QTableWidgetItem(value)
+        item.setToolTip(tip or value)
+        table.setItem(row, col, item)
+
+
 def _details(*widgets):
     """A details widget: the given labels and button rows, indented under the step line."""
     box = pya.QWidget()
@@ -124,13 +145,19 @@ class EMPanel(pya.QWidget):
             self.show_ground,
             _button("Run Checks", lambda: self.refresh(run_checks=True),
                     "ground and boundary checks for a region too large to check on every refresh")]))
+        self.devices_table = _table(DEVICE_COLUMNS, "click: highlight the device; double-click: zoom to it. #: its "
+                                    "number in Create Circuit (X# in the subcircuit, R# for a resistor from its label)")
+        self.devices_table.itemSelectionChanged += self._devices_selected
+        self.devices_table.cellDoubleClicked += lambda row, col: self._zoom_to_device(row)
+        self.device_rows = []       # the Device of each row of devices_table
+        self.device_numbers = {}    # {device id: its # in devices_table}, for the port table
         self.devices_detail = _label()
         self.include_resistors = pya.QCheckBox("include resistors")
         self.include_resistors.setChecked(True)
         self.include_resistors.setToolTip("also replace rsil, rppd, rhigh by two via ports each (recommended); "
                                           "unreplaced, the stackup models them as sheet resistors of the drawn size, "
                                           "without the PDK's width offset and contact end resistance: R too low")
-        self.devices_step = Step("Devices", _details(self.devices_detail, [
+        self.devices_step = Step("Devices", _details(self.devices_table, self.devices_detail, [
             _button("Replace All", self._replace_devices,
                     "replace each PDK transistor (and, if ticked, each resistor) by ports at its pins: a "
                     "REF_FOR_TRANSISTOR patch and one via port per terminal; the export removes the device's "
@@ -141,13 +168,8 @@ class EMPanel(pya.QWidget):
         for step in (self.stackup_step, self.region_step, self.ground_step, self.devices_step, self.ports_step):
             column.addWidget(step)
 
-        self.table = pya.QTableWidget(0, len(COLUMNS))
-        self.table.setHorizontalHeaderLabels(list(COLUMNS))
-        self.table.setSelectionBehavior(pya.QAbstractItemView.SelectRows)
-        self.table.setEditTriggers(pya.QAbstractItemView.NoEditTriggers)
-        _get(self.table.verticalHeader).setVisible(False)
-        _get(self.table.horizontalHeader).setStretchLastSection(True)
-        self.table.setToolTip("click: highlight; double-click: settings (or create a proposed port); right-click: more")
+        self.table = _table(COLUMNS, "click: highlight; double-click: settings (or create a proposed port); "
+                            "right-click: more")
         self.table.itemSelectionChanged += self._rows_selected
         self.table.cellDoubleClicked += lambda row, col: self._activate(row)
         self.table.setContextMenuPolicy(pya.Qt.CustomContextMenu)
@@ -209,6 +231,8 @@ class EMPanel(pya.QWidget):
             for step in (self.stackup_step, self.region_step, self.ground_step, self.devices_step, self.ports_step):
                 step.set(ERROR, "no layout loaded")
             self.table.setRowCount(0)
+            self.devices_table.setRowCount(0)
+            self.device_rows, self.device_numbers = [], {}
             return
         self._bind(view)
         layout, cell = cv.layout(), cv.cell
@@ -278,27 +302,18 @@ class EMPanel(pya.QWidget):
             self.ground_detail.setText(self.result.summary())
 
     def _show_devices_step(self, stackup, layout, cell):
+        self._fill_devices([], layout)
         if stackup is None:
             self.devices_step.set(ERROR, "needs a stackup")
+            self.devices_detail.setText("")
             return
         technology, reason = gui.layout_technology(layout)
         self.devices_step.summary.setToolTip(f"technology: {technology.LABEL} ({reason})")
         devices, unknown = gui.find_layout_devices(layout, cell, stackup)
         transistors = [d for d in devices if not d.is_resistor]
         resistors = [d for d in devices if d.is_resistor]
-        lines = []
-        for d in devices:
-            name, at = d.id.split("@")
-            if d.replaced:
-                state = "replaced: " + ", ".join(f"{t} port {n}" for t, n in sorted(d.ports.items()))
-            elif d.problems:
-                state = "cannot be replaced: " + "; ".join(d.problems)
-            elif d.is_resistor:
-                state = "not replaced: " + technology.resistor_note(d)
-            else:
-                state = "not replaced: simulated as layout"
-            lines.append(f"{d.pcell} {name} {d.params}: {state}")
-        lines += [f"{count} x {qname}: not supported yet" for qname, count in unknown]
+        self._fill_devices(devices, layout, technology)
+        lines = [f"{count} x {qname}: not supported yet" for qname, count in unknown]
         from .devices import REF_NAME, orphaned_tags, touching_patches, unconnected_terminals
         # device ports end on the REF_FOR_TRANSISTOR sheet: a stackup without it cannot replace devices; Replace All
         # would only say so afterwards. Device replacement is for Palace only (gds2palace stackups have the layer).
@@ -316,7 +331,8 @@ class EMPanel(pya.QWidget):
         lines += [f"ports {', '.join(str(n) for _, n in sorted(p.items())) or '(none)'} and the REF patch of "
                   f"{i.split('@')[0]} at {i.split('@')[1]} dbu: that device is no longer there (moved or deleted); "
                   "Undo Replace, then Replace All" for i, p in sorted(orphans.items())]
-        self.devices_detail.setText("\n".join(lines) or technology.NO_DEVICES)
+        self.devices_detail.setText("\n".join(lines) or ("" if devices else technology.NO_DEVICES))
+        self.devices_detail.setVisible(bool(_get(self.devices_detail.text)))
         if not devices and not unknown and not orphans:
             self.devices_step.set(OK, "none" if technology.KLAYOUT_TECHNOLOGIES else "no device support")
             return
@@ -340,6 +356,54 @@ class EMPanel(pya.QWidget):
         state = (OK if all(d.replaced for d in devices) and not unknown and not touching and not loose and not orphans
                  else WARN)
         self.devices_step.set(state, ", ".join(parts))
+
+    def _fill_devices(self, devices, layout, technology=None):
+        """One row per device, ordered by device id. # is the device's number k in Create Circuit (X<k>, or R<k> for
+        a resistor from its label): the wrapper numbers the replaced devices of the port map in id order."""
+        self.device_rows = sorted(devices, key=lambda d: d.id)
+        self.devices_table.setRowCount(len(self.device_rows))
+        number = {i: k for k, i in enumerate(sorted(d.id for d in devices if d.replaced), start=1)}
+        self.device_numbers = number
+        dbu = layout.dbu
+        for row, d in enumerate(self.device_rows):
+            if d.replaced:
+                state, why = "replaced", "replaced by ports; Create Circuit puts the PDK model back"
+            elif d.problems:
+                state, why = "cannot be replaced", "; ".join(d.problems)
+            elif d.is_resistor:
+                state, why = "not replaced: R too low", technology.resistor_note(d)
+            else:
+                state, why = "not replaced", "simulated as drawn layout"
+            ports = ", ".join(f"{t} {n}" for t, n in sorted(d.ports.items(), key=lambda item: item[1]))
+            center = d.bbox.center()
+            where = f"{d.id.split('@')[0]} at ({center.x * dbu:.2f}, {center.y * dbu:.2f}) µm"
+            _set_row(self.devices_table, row, (str(number.get(d.id, "")), d.pcell, technology.describe(d), ports,
+                                               state), f"{where}\n{why}")
+        self.devices_table.resizeColumnsToContents()
+        # as high as its rows, up to DEVICE_ROWS_SHOWN; then it scrolls
+        rows = min(len(self.device_rows), DEVICE_ROWS_SHOWN)
+        height = (_get(_get(self.devices_table.horizontalHeader).height) + 2 * _get(self.devices_table.frameWidth)
+                  + sum(self.devices_table.rowHeight(r) for r in range(rows)))
+        self.devices_table.setFixedHeight(height)
+        self.devices_table.setVisible(bool(self.device_rows))
+
+    def _device_boxes(self):
+        return [self.device_rows[r].bbox for r in sorted({_get(i.row) for i in self.devices_table.selectedItems()})]
+
+    def _devices_selected(self):
+        """Highlight the selected devices (markers, not a selection) and bring them into view."""
+        self._clear_markers(self.highlight)
+        view, cv = self._view()
+        if view is None:
+            return
+        self._mark(view, cv.layout().dbu, self._device_boxes())
+
+    def _zoom_to_device(self, row):
+        view, cv = self._view()
+        if view is not None and row < len(self.device_rows):
+            box = self.device_rows[row].bbox.to_dtype(cv.layout().dbu)
+            margin = max(box.width(), box.height())
+            view.zoom_box(box.enlarged(margin, margin))
 
     def _replace_devices(self):
         view, cv = self._view()
@@ -376,7 +440,8 @@ class EMPanel(pya.QWidget):
                 text += " (not excited)"
             device = device_of(port)
             if device is not None:
-                text += f"  [{device[1]} of {device[0].split('@')[0]}]"
+                k = self.device_numbers.get(device[0])      # the device's # in the Devices table
+                text += f"  [{device[1]} of {'#' + str(k) + ' ' if k else ''}{device[0].split('@')[0]}]"
             self._add_row(("port", port), (str(port.number), str(layer), text, "", "; ".join(problems) or "ok"))
         proposed = [c for c in crossings if c.needs_port]
         unground = [c for c in crossings if not c.ground and c.port is None and c.ground_layer is None]
@@ -452,19 +517,23 @@ class EMPanel(pya.QWidget):
         view, cv = self._view()
         if view is None:
             return
-        dbu = cv.layout().dbu
-        box = pya.Box()
+        boxes = []
         for r in self._selected_rows():
             kind, item = self.rows[r]
-            shapes = ([s.bbox().transformed(t) for s, t, _ in item.items] if kind == "port" else [item.edge.bbox()])
-            for b in shapes:
-                marker = pya.Marker(view)
-                marker.set(b.to_dtype(dbu))
-                marker.color = 0xff00ff
-                marker.line_width = 4
-                marker.vertex_size = 6
-                self.highlight.append(marker)
-                box += b
+            boxes += ([s.bbox().transformed(t) for s, t, _ in item.items] if kind == "port" else [item.edge.bbox()])
+        self._mark(view, cv.layout().dbu, boxes)
+
+    def _mark(self, view, dbu, boxes):
+        """Highlight markers on boxes (in the cell, dbu); zoom out to them if they are not all in view."""
+        box = pya.Box()
+        for b in boxes:
+            marker = pya.Marker(view)
+            marker.set(b.to_dtype(dbu))
+            marker.color = 0xff00ff
+            marker.line_width = 4
+            marker.vertex_size = 6
+            self.highlight.append(marker)
+            box += b
         if box.empty():
             return
         dbox = box.to_dtype(dbu)
