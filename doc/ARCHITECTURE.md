@@ -53,7 +53,7 @@ modules only collect input and call the core.
 | `locate.py` | Finds metals at a point or port shape: `edge_at` (via port), `gap_at` (in-plane port), `metals_at`, `next_port_layer`. |
 | `ports.py` | Port settings as a shape property (`PortSettings`), collecting ports, checks, export numbering, via port directions, the `.simcfg` port list, the port map. |
 | `connectivity.py` | Traces metal through vias: the ground net (`check_ground`), shorted via ports, the net of each port (`port_nets`). Vias are traced as blocks (`via_blocks`). |
-| `density.py` | Density holes (cheesing) of ground planes: found with gds_prepare_for_EM's rule, filled in the layout by one tagged shape per hole, and removed again (EM > Fill Density Holes in Ground Planes / Restore Density Holes). |
+| `density.py` | EM > Fill Density Holes and Merge Metal: density holes (cheesing) filled with gds_prepare_for_EM's hole rule, then each metal layer of the cell merged, with the metal of plain subcells placed twice or more or holding filled holes (`plain_cells`). |
 | `boundary.py` | Where conductors cross the EM region box: proposed via ports on the cut. |
 | `devices.py` | Finds PDK devices (through the technology) and replaces them by a REF patch and via ports; the device shapes the export removes. |
 | `tech/` | The PDK specifics, one module per technology (see [Technologies](#technologies)): `ihp_sg13.py` (which cells are devices, their terminals, the device level for the ground check, panel texts; needs pya), `ihp_sg13_circuit.py` (device models, terminal order and model libraries for the circuit wrapper; plain Python, imported by `tools/spice_wrapper.py`), `generic.py` / `generic_circuit.py` (no device support). `tech.for_layout` chooses the technology. |
@@ -116,7 +116,6 @@ All of it survives a GDS round trip, so a saved layout keeps its EM setup.
 | Port shape | layers 201..299, datatype 0, without the stackup's own layers in that range (SUBGND 210 or 250, BACKSIDEGND 251) | via port: zero-width box along an edge; in-plane port: box across a gap. Port number = layer − 200. |
 | Port settings | GDS property 200 on the port shape | `port:dir=-Z;from=Metal3;to=TopMetal2;z0=50;v=1` (via port) or `port:dir=X;target=Metal5;z0=50;v=1` (in-plane). Kept short: some GDS tools cut values after 126 characters. |
 | Boundary port tag | GDS property 201 | `boundary`: made by Create Proposed Ports, found again when the box moves. |
-| Density hole fill | GDS property 203 (`density_fill`) on the fill shapes, on the metal layers in the cell | one shape per filled hole, added by Fill Density Holes in Ground Planes; Restore Density Holes deletes them (the shapes around the holes were never changed). They break the density rules: removed before tape-out. |
 | Device tag | GDS property 202 on the REF patch (`device:<id>`) and the ports (`device:<id>:<terminal>`) of a replaced device | The id is `<cell name>@<x>,<y>` (dbu), so it changes when the device moves: the old ports and patch are then orphaned, reported by `devices.orphaned_tags` in the Devices step and the export dialog. Undo Replace removes everything with this tag. |
 | REF patch | layer 300 (REF_FOR_TRANSISTOR in the stackup) | one box per replaced device: its pins' bounding box + 0.2 µm. |
 | EM region box | layer 800/0 | one box; Mark EM Region from Selection replaces it. |
@@ -278,14 +277,18 @@ polygons that hold it, and each overlap area lies in one polygon of each, so the
 connect (checked from every metal polygon of four layouts), with one polygon per via array: 1.8 s instead. Only
 for the checks: the export writes every via, and gds2palace corrects via arrays itself.
 
-### Density holes filled in the layout, on request
+### Holes filled and metal merged in the layout, on request
 
-Cheesed ground planes (density rule openings) are solid to the EM fields but add edges to mesh. They are filled
-once, in the layout, by a menu item, not by an export option: the user sees the result, the checks and the export
-need no option, and the hierarchy stays (one fill shape per hole in the cell itself, subcells untouched). The rule is
-gds_prepare_for_EM's (`gds_simplify_for_em.ground_plane_holes`), ported to KLayout regions; the two copies are kept in
-sync by hand. Running gds_prepare_for_EM first is no alternative: it flattens the layout and drops layers the
-plug-in needs (devices, ports).
+Cheesed metal (density rule openings) and metal drawn in many pieces are solid to the EM fields but add edges to
+mesh and polygons to trace. The layout is converted once, in place, by a menu item (one undo step), not by an export
+option: the user sees the result, and the checks and the export need nothing more. The hole rule is
+gds_prepare_for_EM's (`gds_simplify_for_em.ground_plane_holes`), ported to KLayout regions, but without its
+ground-plane test: any shape on a non-via stackup layer with a hole size found 20 times or more. The merge keeps the
+hierarchy where it matters: devices (recognition needs their cells), PDK pcells (KLayout regenerates them), subcells
+placed once without filled holes, and subcells also placed outside the cell stay; vias stay single for gds2palace's
+via array correction. The result is checked to be exactly the original metal plus the fill (`test_density.py`).
+Running gds_prepare_for_EM first is no alternative: it flattens the layout and drops layers the plug-in needs
+(devices, ports). The converted layout breaks the density rules: it must never go to tape-out.
 
 ### Resistors replaced by default
 
@@ -328,7 +331,7 @@ through `klayout_em_export_tests/pdk_env.py`.
 | Export, selection, simcfg | `test_export.py`, `test_selection.py`, `test_simcfg.py`, `test_modelcheck.py` (the last two also plain Python) |
 | Stackup parser | `test_stackup_drift.py` (plain Python): z positions against gds2palace's `util_stackup_reader.py` for every stackup in the sibling repos `gds2palace_ihp_sg13g2` and `EMStudio` |
 | Ports | `test_ports.py`, `test_locate.py`, `test_numbering.py`, `test_portlayers.py`, `test_boundary.py` |
-| Ground and nets | `test_ground.py`, `test_unconnected.py`, `test_density.py` (density holes: the rule, fill and removal, FMD layout if present) |
+| Ground and nets | `test_ground.py`, `test_unconnected.py`, `test_density.py` (Fill Density Holes and Merge Metal: the rule, what is merged and what stays, exact geometry on the FMD layouts if present) |
 | Devices | `test_devices.py`, `test_mosfets.py`, `test_resistors.py`, `test_replaced_devices.py` (selection patches, ground voting, moved devices) (PDK needed) |
 | GUI pieces in batch | `test_panel.py`, `test_reopen.py` (stand-in view, own settings file), `test_open_with.py` (setupEM / EMStudio command line, which stale scripts are reported) |
 | Technologies | `test_technology.py` (choice and generic fallback, SG13CMOS5L stackup, wrapper per port map technology) (PDK needed) |

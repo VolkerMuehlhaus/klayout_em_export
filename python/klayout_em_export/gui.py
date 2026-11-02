@@ -197,8 +197,8 @@ def clear_ground():
         _set_ground_seeds(cv.layout(), [])
 
 
-def fill_density_holes():
-    """Fill the density holes of the ground planes in the current cell, in one undo step (density.py)."""
+def fill_and_merge():
+    """Fill the density holes and merge the metal of the current cell, in one undo step (density.py)."""
     view, cv = _current()
     if view is None:
         return
@@ -207,36 +207,21 @@ def fill_density_holes():
     if stackup is None:
         pya.MessageBox.warning("EM Export", "Choose a stackup first.", pya.MessageBox.Ok)
         return
-    from .density import MINCOUNT, fill_density_holes as fill
-    view.transaction("Fill density holes")
+    from .density import MINCOUNT, fill_and_merge as convert
+    view.transaction("Fill density holes and merge metal")
     try:
-        found = fill(layout, cv.cell, stackup)
+        done, cells = convert(layout, cv.cell, stackup)
     finally:
         view.commit()
-    filled = {name: h for name, h in found.items() if h.fill}
-    if not filled:
-        pya.MessageBox.info("EM Export", f"No density holes found: no ground plane in {cv.cell.name} has {MINCOUNT} "
-                            "or more holes of one size.", pya.MessageBox.Ok)
-        return
-    lines = [f"{name}: {len(h.fill)} filled, {h.kept} other hole(s) kept" for name, h in filled.items()]
-    pya.MessageBox.info("EM Export", f"Filled {sum(len(h.fill) for h in filled.values())} density holes in "
-                        f"{cv.cell.name}:\n" + "\n".join(lines) + "\n\nThe fill breaks the density rules: remove it "
-                        "before tape-out with EM > Restore Density Holes (or Edit > Undo now).", pya.MessageBox.Ok)
-
-
-def restore_density_holes():
-    """Delete the density hole fill of the current cell, in one undo step: the holes are back."""
-    view, cv = _current()
-    if view is None:
-        return
-    from .density import restore_density_holes as restore
-    view.transaction("Restore density holes")
-    try:
-        removed = restore(cv.layout(), cv.cell)
-    finally:
-        view.commit()
-    _status(f"Restored {removed} density hole(s) in {cv.cell.name} (fill shapes deleted)" if removed else
-            f"No density hole fill in {cv.cell.name}: nothing to restore", 10)
+    lines = [f"{name}: {r.filled} holes filled" + (f" ({r.kept} other kept)" if r.kept else "") +
+             f", {r.before} -> {r.after} polygons" for name, r in done.items() if r.filled or r.after != r.before]
+    head = (f"{sum(r.filled for r in done.values())} density holes filled (a hole size found {MINCOUNT} times or "
+            f"more), metal merged in {cv.cell.name}" +
+            (f", with the metal of {cells} subcell(s) (repeated, or holding filled holes; their vias stay)"
+             if cells else "") + ":")
+    pya.MessageBox.info("EM Export", head + "\n" + ("\n".join(lines) or "nothing to change") +
+                        "\n\nEdit > Undo takes it back. Do not tape out this layout once saved: the fill breaks "
+                        "the density rules.", pya.MessageBox.Ok)
 
 
 def create_boundary_ports(view, cv, crossings):
@@ -910,8 +895,7 @@ def install_menu():
     entries = (("show_panel", "EM Panel", show_panel),
                None,
                ("choose_stackup", "Choose Stackup...", choose_stackup),
-               ("fill_density_holes", "Fill Density Holes in Ground Planes", fill_density_holes),
-               ("restore_density_holes", "Restore Density Holes", restore_density_holes),
+               ("fill_and_merge", "Fill Density Holes and Merge Metal", fill_and_merge),
                None,
                ("port_tool", "EM Port Tool (click edge: via port, Shift+click gap: in-plane port)", port_tool),
                ("port_settings", "Port Settings...", port_settings),

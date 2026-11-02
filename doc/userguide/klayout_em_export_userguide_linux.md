@@ -197,24 +197,24 @@ The stackup is stored with your layout, and used as the default for the next lay
 **What can go wrong:** use a stackup made for gds2palace (Palace). The openEMS stackups look similar but contain
 different modelling assumptions.
 
-### Cheesed ground planes
+### Cheesed metal and many small shapes
 
-Density rules put many small openings into wide metal ("cheesing"). To the EM fields such a ground plane is solid,
-but every opening adds edges that the mesh must follow, and the plug-in's checks get slower. If your layout has
-cheesed planes, fill the openings once, before you place ports: **EM > Fill Density Holes in Ground Planes**.
+Density rules put many small openings into wide metal ("cheesing"), and a layout is often drawn from many
+overlapping pieces: via stacks with their own metal pads, tiles, lines. To the EM fields this is solid metal, but
+every opening and every piece adds edges that the mesh must follow, and the plug-in's checks get slower. Convert the
+layout once, before you place ports: **EM > Fill Density Holes and Merge Metal**.
 
-- It looks at every metal of the stackup in the current cell. A ground plane covers at least 10 % of the cell and
-  is at least 60 % solid. An opening size found at least 20 times in it is cheesing and is filled; openings of
-  other sizes belong to your circuit and stay. A message lists what was filled per metal.
-- The fill is one shape per opening, added to the current cell on the metal layer. Subcells and other layers are
-  not changed. **Edit > Undo** takes it back.
-- **Before tape-out**, take the fill out again: **EM > Restore Density Holes**. The fill breaks the density rules.
-  The plug-in never changes your own shapes: it only adds the fill, each fill shape marked (GDS property 203).
-  Restore deletes the marked shapes, so the holes are back exactly as they were, also after saving and
-  reopening the layout, and after ports or devices were added since. It works on the current cell, the one the
-  fill was added to.
-
-Via arrays stay as they are: the export writes every via, and gds2palace corrects the via arrays itself.
+- **Holes:** on every metal of the stackup (not the vias), an opening size found at least 20 times is cheesing and
+  is filled, in any shape. Openings of other sizes belong to your circuit and stay.
+- **Merge:** then the metal of the current cell is merged into as few polygons as possible. The metal of subcells
+  placed at least twice (via stacks, MIM capacitors) is merged in too, and so is the metal of a subcell that holds
+  filled holes (a cheesed plane in a cell of its own).
+- **What stays:** devices, PDK cells, other subcells, cells that are also placed somewhere else, all vias (the export
+  writes every via, and gds2palace corrects the via arrays itself), texts and the plug-in's own marked shapes.
+- A message lists per metal the holes filled and the polygons before and after. On the 60 GHz PA of the examples:
+  2899 metal polygons before, 387 after.
+- **Edit > Undo** takes it back. Once you save and close the layout, the change stays: **never tape out a converted
+  layout**, the fill breaks the density rules. Convert a copy (File > Save As first) if you are unsure.
 
 ## Ports
 
@@ -732,7 +732,6 @@ Saving the layout keeps its EM setup. The export copies none of this into `<name
 | Port settings (metals, direction, Z0) | GDS property 200 on each port shape |
 | Boundary port mark | GDS property 201 on ports made by Create Proposed Ports |
 | Replaced device | GDS property 202 on the device's REF patch and ports |
-| Density hole fill | shapes on the metal layers in the cell, GDS property 203 (Fill Density Holes in Ground Planes) |
 | Stackup, last export, ground marks | layout meta info `klayout_em_export.stackup`, `.output`, `.ground` |
 
 KLayout saves meta info in an extra cell `$$$CONTEXT_INFO$$$` in the GDS file. KLayout hides it, but other GDS
@@ -740,8 +739,8 @@ tools may show it as an empty top cell. (KLayout writes this cell anyway for a l
 
 **Before you pass the layout on**, e.g. for tape-out, remove the EM setup:
 
-1. Delete the shapes on the port layers, on layer 300 and on 800/0 (see the layer table above). If you filled
-   density holes: **EM > Restore Density Holes**.
+1. Delete the shapes on the port layers, on layer 300 and on 800/0 (see the layer table above). A layout
+   converted with Fill Density Holes and Merge Metal must not be passed on at all: use the original.
 2. Remove the meta info in the Python console of the macro editor (**Macros > Macro Development**, F5), then
    save:
 
