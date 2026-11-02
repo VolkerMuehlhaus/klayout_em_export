@@ -47,6 +47,16 @@ def layer_regions(layout, cell, layers, box=None, datatype=0):
     return out
 
 
+def via_blocks(vias, below, above):
+    """vias as blocks for tracing: the areas where the metal below and above overlap that hold at least one via. A
+    via connects only the metal polygon below and the one above that hold it, and each overlap area lies in one
+    polygon of each, so the blocks connect exactly what the single vias connect - with one polygon per via array
+    instead of thousands of vias, which made tracing slow (77k vias per layer in a large PA). The metals are grown
+    by 1 dbu: a via touching a metal edge connects, as in flood.
+    For the checks only: the export keeps every via (gds2palace corrects merged via arrays itself)."""
+    return (below.sized(1) & above.sized(1)).interacting(vias)
+
+
 def _touching(small, large):
     """The polygons of small (merged, e.g. vias) that touch large: small.interacting(large), but a boolean AND first,
     which is much faster for many small polygons against a large one with many holes (77k vias against a cheesed
@@ -113,7 +123,7 @@ class GroundCheck:
         self.other_polygons = 0     # metal polygons not in the ground net
         self.other_nets = None      # number of separate other nets, None if not counted (too many polygons)
         self.metals = {}            # {GDS layer: merged Region} of the traced metals in the region
-        self.vias = {}              # {GDS layer: merged Region} of the vias between them
+        self.vias = {}              # {GDS layer: Region} of the vias between them, as blocks (via_blocks)
         self.connections = []       # [(via layer, layer below, layer above)]
         self.shorted = []           # numbers of via ports whose two ends are on the same net (a short circuit)
 
@@ -159,6 +169,9 @@ def check_ground(layout, cell, stackup, box=None, seeds=(), ports=None):
     metal_names, connections = wiring(stackup)
     metals = layer_regions(layout, cell, metal_names, box)
     vias = layer_regions(layout, cell, [c[0] for c in connections], box)
+    for via, below, above in connections:
+        if via in vias and below in metals and above in metals:
+            vias[via] = via_blocks(vias[via], metals[below], metals[above])
     result = GroundCheck()
     result.names = metal_names
     result.metals, result.vias, result.connections = metals, vias, connections

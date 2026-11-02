@@ -197,6 +197,48 @@ def clear_ground():
         _set_ground_seeds(cv.layout(), [])
 
 
+def fill_density_holes():
+    """Fill the density holes of the ground planes in the current cell, in one undo step (density.py)."""
+    view, cv = _current()
+    if view is None:
+        return
+    layout = cv.layout()
+    stackup = read_stackup(stackup_path(layout))[0] if stackup_path(layout) else None
+    if stackup is None:
+        pya.MessageBox.warning("EM Export", "Choose a stackup first.", pya.MessageBox.Ok)
+        return
+    from .density import MINCOUNT, fill_density_holes as fill
+    view.transaction("Fill density holes")
+    try:
+        found = fill(layout, cv.cell, stackup)
+    finally:
+        view.commit()
+    filled = {name: h for name, h in found.items() if h.fill}
+    if not filled:
+        pya.MessageBox.info("EM Export", f"No density holes found: no ground plane in {cv.cell.name} has {MINCOUNT} "
+                            "or more holes of one size.", pya.MessageBox.Ok)
+        return
+    lines = [f"{name}: {len(h.fill)} filled, {h.kept} other hole(s) kept" for name, h in filled.items()]
+    pya.MessageBox.info("EM Export", f"Filled {sum(len(h.fill) for h in filled.values())} density holes in "
+                        f"{cv.cell.name}:\n" + "\n".join(lines) + "\n\nThe fill breaks the density rules: remove it "
+                        "before tape-out with EM > Remove Density Hole Fill (or Edit > Undo now).", pya.MessageBox.Ok)
+
+
+def remove_density_fill():
+    """Delete the density hole fill of the current cell, in one undo step."""
+    view, cv = _current()
+    if view is None:
+        return
+    from .density import remove_density_fill as remove
+    view.transaction("Remove density hole fill")
+    try:
+        removed = remove(cv.layout(), cv.cell)
+    finally:
+        view.commit()
+    _status(f"Removed {removed} density hole fill shape(s) from {cv.cell.name}" if removed else
+            f"No density hole fill in {cv.cell.name}", 10)
+
+
 def create_boundary_ports(view, cv, crossings):
     from .boundary import create_ports
     stackup = read_stackup(stackup_path(cv.layout()))[0]
@@ -868,6 +910,8 @@ def install_menu():
     entries = (("show_panel", "EM Panel", show_panel),
                None,
                ("choose_stackup", "Choose Stackup...", choose_stackup),
+               ("fill_density_holes", "Fill Density Holes in Ground Planes", fill_density_holes),
+               ("remove_density_fill", "Remove Density Hole Fill", remove_density_fill),
                None,
                ("port_tool", "EM Port Tool (click edge: via port, Shift+click gap: in-plane port)", port_tool),
                ("port_settings", "Port Settings...", port_settings),

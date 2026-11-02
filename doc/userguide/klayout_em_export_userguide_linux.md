@@ -197,6 +197,21 @@ The stackup is stored with your layout, and used as the default for the next lay
 **What can go wrong:** use a stackup made for gds2palace (Palace). The openEMS stackups look similar but contain
 different modelling assumptions.
 
+### Cheesed ground planes
+
+Density rules put many small openings into wide metal ("cheesing"). To the EM fields such a ground plane is solid,
+but every opening adds edges that the mesh must follow, and the plug-in's checks get slower. If your layout has
+cheesed planes, fill the openings once, before you place ports: **EM > Fill Density Holes in Ground Planes**.
+
+- It looks at every metal of the stackup in the current cell. A ground plane covers at least 10 % of the cell and
+  is at least 60 % solid. An opening size found at least 20 times in it is cheesing and is filled; openings of
+  other sizes belong to your circuit and stay. A message lists what was filled per metal.
+- The fill is one shape per opening, added to the current cell on the metal layer. Subcells and other layers are
+  not changed. **Edit > Undo** takes it back.
+- **Before tape-out**, remove the fill again: **EM > Remove Density Hole Fill**. The fill breaks the density rules.
+
+Via arrays stay as they are: the export writes every via, and gds2palace corrects the via arrays itself.
+
 ## Ports
 
 > **In this chapter:** what an EM port is, and how to place one.
@@ -713,6 +728,7 @@ Saving the layout keeps its EM setup. The export copies none of this into `<name
 | Port settings (metals, direction, Z0) | GDS property 200 on each port shape |
 | Boundary port mark | GDS property 201 on ports made by Create Proposed Ports |
 | Replaced device | GDS property 202 on the device's REF patch and ports |
+| Density hole fill | shapes on the metal layers in the cell, GDS property 203 (Fill Density Holes in Ground Planes) |
 | Stackup, last export, ground marks | layout meta info `klayout_em_export.stackup`, `.output`, `.ground` |
 
 KLayout saves meta info in an extra cell `$$$CONTEXT_INFO$$$` in the GDS file. KLayout hides it, but other GDS
@@ -720,7 +736,8 @@ tools may show it as an empty top cell. (KLayout writes this cell anyway for a l
 
 **Before you pass the layout on**, e.g. for tape-out, remove the EM setup:
 
-1. Delete the shapes on the port layers, on layer 300 and on 800/0 (see the layer table above).
+1. Delete the shapes on the port layers, on layer 300 and on 800/0 (see the layer table above). If you filled
+   density holes: **EM > Remove Density Hole Fill**.
 2. Remove the meta info in the Python console of the macro editor (**Macros > Macro Development**, F5), then
    save:
 
