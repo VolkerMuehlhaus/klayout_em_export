@@ -221,22 +221,22 @@ def fill_density_holes():
     lines = [f"{name}: {len(h.fill)} filled, {h.kept} other hole(s) kept" for name, h in filled.items()]
     pya.MessageBox.info("EM Export", f"Filled {sum(len(h.fill) for h in filled.values())} density holes in "
                         f"{cv.cell.name}:\n" + "\n".join(lines) + "\n\nThe fill breaks the density rules: remove it "
-                        "before tape-out with EM > Remove Density Hole Fill (or Edit > Undo now).", pya.MessageBox.Ok)
+                        "before tape-out with EM > Restore Density Holes (or Edit > Undo now).", pya.MessageBox.Ok)
 
 
-def remove_density_fill():
-    """Delete the density hole fill of the current cell, in one undo step."""
+def restore_density_holes():
+    """Delete the density hole fill of the current cell, in one undo step: the holes are back."""
     view, cv = _current()
     if view is None:
         return
-    from .density import remove_density_fill as remove
-    view.transaction("Remove density hole fill")
+    from .density import restore_density_holes as restore
+    view.transaction("Restore density holes")
     try:
-        removed = remove(cv.layout(), cv.cell)
+        removed = restore(cv.layout(), cv.cell)
     finally:
         view.commit()
-    _status(f"Removed {removed} density hole fill shape(s) from {cv.cell.name}" if removed else
-            f"No density hole fill in {cv.cell.name}", 10)
+    _status(f"Restored {removed} density hole(s) in {cv.cell.name} (fill shapes deleted)" if removed else
+            f"No density hole fill in {cv.cell.name}: nothing to restore", 10)
 
 
 def create_boundary_ports(view, cv, crossings):
@@ -911,7 +911,7 @@ def install_menu():
                None,
                ("choose_stackup", "Choose Stackup...", choose_stackup),
                ("fill_density_holes", "Fill Density Holes in Ground Planes", fill_density_holes),
-               ("remove_density_fill", "Remove Density Hole Fill", remove_density_fill),
+               ("restore_density_holes", "Restore Density Holes", restore_density_holes),
                None,
                ("port_tool", "EM Port Tool (click edge: via port, Shift+click gap: in-plane port)", port_tool),
                ("port_settings", "Port Settings...", port_settings),

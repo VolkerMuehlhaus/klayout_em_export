@@ -10,7 +10,7 @@ from testpaths import STACKUP, out_dir, palace_testcases
 import pya
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "python"))   # not via salt here
 from klayout_em_export.connectivity import check_ground
-from klayout_em_export.density import density_holes, fill_density_holes, remove_density_fill
+from klayout_em_export.density import density_holes, fill_density_holes, restore_density_holes
 from klayout_em_export.ports import PROP_KEY, PortSettings, collect_ports
 from klayout_em_export.stackup import Stackup
 
@@ -81,12 +81,12 @@ again = fill_density_holes(ly, top, st)
 check(not again["Metal3"].fill, f"a second run fills nothing: {len(again['Metal3'].fill)}")
 path = os.path.join(OUT, "filled.gds")
 ly.write(path)
-removed = remove_density_fill(ly, top)
+removed = restore_density_holes(ly, top)
 check(removed == 25 and holes_left(ly, top, 30) == 26 and top.shapes(ly.find_layer(201, 0)).size() == 1,
       f"remove: {removed} removed, holes back {holes_left(ly, top, 30)}, the port shape stays")
 back = pya.Layout()
 back.read(path)
-removed = remove_density_fill(back, back.cell("TOP"))
+removed = restore_density_holes(back, back.cell("TOP"))
 check(removed == 25 and holes_left(back, back.cell("TOP"), 30) == 26, f"remove after a GDS round trip: {removed}")
 
 # ---- the cheesed layout: holes found; the ground check gives the same results with the fill

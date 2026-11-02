@@ -116,8 +116,9 @@ The same steps are in the **EM** menu in the menu bar, top to bottom in workflow
      fields such a plane is solid, but each hole adds edges to mesh. The rule is that of gds_prepare_for_EM: a
      ground plane covers at least 10 % of the cell and is at least 60 % solid; a hole size found at least 20 times
      in it is cheesing, other holes stay. One fill shape per hole is added to the cell on the metal layer, tagged
-     with GDS property 203; subcells and other layers are not changed. **Remove Density Hole Fill** deletes the
-     fill again: do that before tape-out, the fill breaks the density rules.
+     with GDS property 203; subcells and other layers are not changed. **Restore Density Holes** deletes the fill
+     shapes again (the layout's own shapes were never changed, so the holes are back): do that before tape-out,
+     the fill breaks the density rules.
 2. **EM Port Tool** (also in the toolbar as "EM Port"): click a metal edge to create a via port, a zero-width line
    along that edge; Shift+click into the gap between two shapes of one metal to create an in-plane port, a box that
    bridges the gap. The edge or gap under the cursor is highlighted first. Only metals visible in the layer panel

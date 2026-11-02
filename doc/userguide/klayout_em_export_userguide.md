@@ -206,7 +206,11 @@ cheesed planes, fill the openings once, before you place ports: **EM > Fill Dens
   other sizes belong to your circuit and stay. A message lists what was filled per metal.
 - The fill is one shape per opening, added to the current cell on the metal layer. Subcells and other layers are
   not changed. **Edit > Undo** takes it back.
-- **Before tape-out**, remove the fill again: **EM > Remove Density Hole Fill**. The fill breaks the density rules.
+- **Before tape-out**, take the fill out again: **EM > Restore Density Holes**. The fill breaks the density rules.
+  The plug-in never changes your own shapes: it only adds the fill, each fill shape marked (GDS property 203).
+  Restore deletes the marked shapes, so the holes are back exactly as they were, also after saving and
+  reopening the layout, and after ports or devices were added since. It works on the current cell, the one the
+  fill was added to.
 
 Via arrays stay as they are: the export writes every via, and gds2palace corrects the via arrays itself.
 
@@ -735,7 +739,7 @@ tools may show it as an empty top cell. (KLayout writes this cell anyway for a l
 **Before you pass the layout on**, e.g. for tape-out, remove the EM setup:
 
 1. Delete the shapes on the port layers, on layer 300 and on 800/0 (see the layer table above). If you filled
-   density holes: **EM > Remove Density Hole Fill**.
+   density holes: **EM > Restore Density Holes**.
 2. Remove the meta info in the Python console of the macro editor (**Macros > Macro Development**, F5), then
    save:
 

@@ -4,7 +4,8 @@ layout on request (EM > Fill Density Holes in Ground Planes), once, before ports
 To the EM fields, a ground plane with a thousand small slots is a solid plane, but every slot is a hole with its own
 edges: slow to mesh and slow to trace. The fill is added, not cut: one shape per hole, in the cell itself, on the
 metal layer, tagged with GDS property FILL_KEY; nothing else in the layout changes (hierarchy, subcells, other
-layers). The fill breaks the density rules, so it comes out again before tape-out (EM > Remove Density Hole Fill).
+layers). The fill breaks the density rules, so it comes out again before tape-out (EM > Restore Density Holes:
+deletes the tagged fill shapes; the layout's own shapes were never changed, so the holes are back).
 
 The rule is that of gds_prepare_for_EM (gds_simplify_for_em.ground_plane_holes, with shapely there), here with
 KLayout's regions; keep both in sync:
@@ -76,8 +77,9 @@ def fill_density_holes(layout, cell, stackup):
     return out
 
 
-def remove_density_fill(layout, cell):
-    """Delete the fill shapes (FILL_KEY) that fill_density_holes added to cell. Returns their number."""
+def restore_density_holes(layout, cell):
+    """Delete the fill shapes (FILL_KEY) that fill_density_holes added to cell: the holes are back, as the shapes
+    around them were never changed. Returns the number of fill shapes deleted."""
     prop = layout.properties_id([[FILL_KEY, FILL_VALUE]])   # the same id as at insertion, in this layout
     removed = 0
     for li in layout.layer_indexes():
