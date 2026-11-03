@@ -5,7 +5,8 @@
 import os
 import sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "python"))
-from klayout_em_export.gui import TOOLS, launch_command, native_path, open_with, quick_exit_text, updated_on_open
+from klayout_em_export.gui import (TOOLS, launch_command, native_path, open_with, quick_exit_text, updated_on_open,
+                                   writable_output)
 
 failed = []
 
@@ -46,6 +47,16 @@ check(native_path("/home/user/guide/cascode_em.gds") == "/home/user/guide/cascod
 check(native_path("/home/user/odd\\name/x_em.gds") == "/home/user/odd\\name/x_em.gds",
       "Linux path with a backslash in a name unchanged")
 check(native_path("") == "", "empty")
+
+# a layout saved on another machine remembers that machine's output path: proposed only if it can be written here
+here = native_path(os.path.join(os.path.abspath(os.path.dirname(__file__)), "x_em.gds"))
+check(writable_output(here), "output in an existing folder")
+check(not writable_output("x_em.gds") and not writable_output(""), "relative or empty output")
+check(not writable_output(native_path(os.path.join(os.path.abspath(os.sep), "no_such_folder_em", "x_em.gds"))),
+      "output in a folder that does not exist")
+if os.name != "nt":
+    check(not writable_output(native_path("D:\\Palace_testcases\\klayout_export\\x_em.gds")),
+          "Windows path on Linux (a relative file name with backslashes)")
 
 # a program that ends at once with an error code is reported; one still running, or ended without error, is not
 check(quick_exit_text("EMStudio", 1) == "EMStudio ended at once (exit code 1): this EMStudio cannot open a .simcfg",

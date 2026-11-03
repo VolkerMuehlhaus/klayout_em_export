@@ -125,6 +125,13 @@ def native_path(path):
     return path
 
 
+def writable_output(path):
+    """True if path (native_path) is a file in an existing folder here. A layout saved on another machine remembers
+    that machine's output path: on Linux a Windows path D:\\... is a relative file name with backslashes, which the
+    export would write into KLayout's working folder."""
+    return bool(path) and os.path.isabs(path) and os.path.isdir(os.path.dirname(path))
+
+
 def _file_key(path):
     return os.path.normcase(os.path.abspath(path))
 
@@ -469,8 +476,9 @@ def quick_exit_text(tool, returncode):
 
 def last_simcfg(layout):
     """The .simcfg of this layout's last export, or None if there was none (or it is gone)."""
-    gds = layout_value(layout, META_OUTPUT)
-    path = os.path.splitext(gds)[0] + ".simcfg" if gds else None
+    gds = native_path(layout_value(layout, META_OUTPUT) or "")
+    # a path remembered on another machine (D:\... on Linux) is relative here: it must not find a file by chance
+    path = os.path.splitext(gds)[0] + ".simcfg" if gds and os.path.isabs(gds) else None
     return path if path and os.path.isfile(path) else None
 
 
@@ -596,9 +604,9 @@ class ExportDialog(pya.QDialog):
         return self.mode_shapes is not None and self.mode_shapes.isChecked()
 
     def _default_output(self, cv):
-        remembered = layout_value(self.em_layout, META_OUTPUT)
-        if remembered:
-            return native_path(remembered)
+        remembered = native_path(layout_value(self.em_layout, META_OUTPUT) or "")
+        if writable_output(remembered):     # not a path remembered on another machine
+            return remembered
         base = os.path.splitext(cv.filename())[0] if cv.filename() else os.path.join(os.path.expanduser("~"), self.cell.name)
         return native_path(base + "_em.gds")
 
@@ -686,6 +694,8 @@ def export_region():
         problem = None
         if not gds_path.lower().endswith(".gds"):
             problem = "The output file must end with .gds."
+        elif not writable_output(gds_path):
+            problem = f"{gds_path} is not in an existing folder. Choose the output file with Browse..."
         elif cv.filename() and os.path.normcase(os.path.abspath(gds_path)) == os.path.normcase(os.path.abspath(cv.filename())):
             problem = "The output file is the layout itself. Choose another file."
         if problem is None:
