@@ -2,7 +2,7 @@
 
 Volker Mühlhaus, volker@muehlhaus.com
 ---
-Document version: 2026-11-02 (v2), plug-in version 0.2.0
+Document version: 2026-11-03, plug-in version 0.2.0
 
 ## Contents
 [What the plug-in does](#what-the-plug-in-does)
@@ -39,12 +39,15 @@ The plug-in connects the two worlds:
 
 1. **In KLayout** you open your layout and mark what to simulate. The plug-in replaces each transistor by ports at
    its pins, places ports at the pads, and exports a clean layout for the EM simulation.
-2. **setupEM and Palace** simulate that layout. The result is an S-parameter file: the interconnect, seen from all
-   ports.
+2. **Palace** (set up in setupEM or EMStudio) or **openEMS** (set up in EMStudio) simulates that layout. The result
+   is an S-parameter file: the interconnect, seen from all ports.
 3. **Create Circuit** builds a circuit from it: the EM result, with the PDK transistor models connected again at
    their ports.
 4. **Your circuit simulator** (ngspice, VACASK, Xyce or Spectre) then simulates bias, gain and everything else, with
    the real wiring included.
+
+This guide follows the Palace flow with setupEM, the one that puts the transistors back. For openEMS, see
+[EMStudio instead of setupEM](#emstudio-instead-of-setupem) in chapter 11.
 
 ### What the plug-in does for you
 
@@ -192,8 +195,8 @@ At the start, the panel shows a red mark at **Stackup**:
 
 The stackup is stored with your layout, and used as the default for the next layout you open.
 
-**What can go wrong:** use a stackup made for gds2palace (Palace). The openEMS stackups look similar but contain
-different modelling assumptions.
+**What can go wrong:** use a stackup made for your simulator: from gds2palace for Palace, from gds2openEMS for
+openEMS. They look similar but contain different modelling assumptions.
 
 ### Dummy metal fill
 

@@ -3,8 +3,8 @@
  <name>klayout_em_export</name>
  <version>0.2.0</version>
  <api-version>0.28</api-version>
- <title>EM export for gds2palace</title>
- <doc>Exports part of a layout as a flat GDS with only the layers of a gds2palace stackup, plus a setupEM settings file (.simcfg). Menu: EM (in the menu bar), panel: EM Panel.</doc>
+ <title>RFIC EM export: layouts to Palace and openEMS EM models</title>
+ <doc>Exports part of a layout for EM simulation with Palace (gds2palace) or openEMS (gds2openEMS): a flat GDS with only the layers of the stackup and the ports, plus a settings file (.simcfg) for setupEM or EMStudio. Menu: EM (in the menu bar), panel: EM Panel.</doc>
  <doc-url/>
  <url/>
  <license/>

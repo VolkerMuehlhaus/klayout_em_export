@@ -1,12 +1,13 @@
 # klayout_em_export
 
-KLayout plug-in that exports part of a layout for EM simulation with
-[gds2palace](https://github.com/VolkerMuehlhaus/gds2palace_ihp_sg13g2) and hands it to setupEM or
-[EMStudio](https://github.com/IHP-GmbH/EMStudio). Work in progress.
+KLayout plug-in that exports part of a layout for EM simulation with Palace
+([gds2palace](https://github.com/VolkerMuehlhaus/gds2palace_ihp_sg13g2)) or openEMS
+([gds2openEMS](https://github.com/VolkerMuehlhaus/gds2openEMS)), and hands it to setupEM (Palace) or
+[EMStudio](https://github.com/IHP-GmbH/EMStudio) (Palace or openEMS). Work in progress.
 
 Made for the IHP SG13G2 PDK; SG13CMOS5L works the same way. Ports, the export and the checks work with any
-gds2palace stackup; replacing devices by ports needs a technology module for the PDK (see
-[Technologies](doc/ARCHITECTURE.md#technologies)).
+gds2palace or gds2openEMS stackup; replacing devices by ports needs a technology module for the PDK (see
+[Technologies](doc/ARCHITECTURE.md#technologies)) and is for Palace only.
 
 **User's guide** for RFIC designers, step by step with screenshots: [doc/userguide](doc/userguide/klayout_em_export_userguide.md) ([PDF](doc/userguide/klayout_em_export_userguide.pdf)).
 
@@ -108,7 +109,7 @@ summary; the arrow shows its details and buttons.
 
 The same steps are in the **EM** menu in the menu bar, top to bottom in workflow order:
 
-1. **Choose Stackup...**: the gds2palace stackup XML for this layout. It is chosen once and used by every step. It
+1. **Choose Stackup...**: the stackup XML for this layout (gds2palace for Palace, gds2openEMS for openEMS). It is chosen once and used by every step. It
    is stored in the layout (meta info, saved with it) and as the default for other layouts. The port dialog and the
    export dialog show it and can change it too.
    - **Remove Dummy Fill** (next in the menu, once, if the layout has fill): removes the dummy metal fill of the
