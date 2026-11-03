@@ -40,6 +40,10 @@ OUT=/d/tmp/out /d/KLayout/klayout_app.exe -z -nc -rx -r tests/test_export.py
   - The others (`test_boundary`, `test_ground`, `test_locate`, `test_numbering`, `test_panel`, `test_ports`,
     `test_reopen`, `test_selection`) import the plug-in from KLayout's salt folder: run them with the normal
     KLayout home. With an empty home they fail with `No module named 'klayout_em_export'`.
+  - `test_remote.py` is plain Python (e.g. `/d/venv/palace/Scripts/python tests/test_remote.py`): it starts a
+    KLayout of its own (own home with only `klayout_remote` installed, own user folder for the settings file, window
+    off screen on Windows, offscreen on Linux) and sends the plug-in over the link. Needs the sibling repo
+    `klayout_remote`.
   - The tests print `ok`/`FAIL` lines or plain results; there are few asserts. Compare the output with an earlier
     run rather than relying on the exit code.
 - Several tests read layouts outside the repo. `tests/testpaths.py` finds them: `KLAYOUT_EM_EXPORT_TESTDATA` names a
@@ -86,6 +90,13 @@ These crash KLayout without a Python error, or behave differently in the GUI:
   (0.30.5 kept it): rows vanished and a combo box covered the whole Export dialog. Add form rows with
   `gui.add_form_row(dialog, form, ...)`, which keeps them in the dialog. `addWidget` / `addLayout` of box layouts
   keep their arguments (the panel is fine).
+- Undo steps in KLayout 0.29.4 (found with tests/test_remote.py; 0.30.12 is fine):
+  - `view.add_missing_layers()` after `view.commit()` clears the whole undo list when the step created a layer:
+    Replace All, boundary ports and Mark Region could not be undone. Call it before `commit()`.
+  - After Undo and Redo of a step that created a layer, the next new layer gets the same layer index: Mark Region
+    then cleared the REF patches. Create new layers before the step opens (`locate.create_layers`).
+  - Do not nest undo steps: a function that opens its own step must not run inside another one (`remote.py` makes
+    its own steps; its client calls it without klayout_remote's `undo`).
 - KLayout 0.30.12's `Region.each()` yields `PolygonWithProperties`, whose `str()` ends in ` props={}`: a
   `str(polygon)` key never matches the plain `Polygon` it came from (Remove Dummy Fill removed nothing). Use
   `dummyfill._key`.

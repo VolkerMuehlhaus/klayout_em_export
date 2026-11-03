@@ -8,7 +8,7 @@ import os
 import pya
 
 from . import gui
-from .locate import edge_at, gap_at, metals_at, next_port_layer, via_layers
+from .locate import create_layers, edge_at, gap_at, metals_at, next_port_layer, via_layers
 from .ports import PortSettings
 from .stackup import Stackup
 
@@ -23,6 +23,53 @@ def _get(value, *args):
 
 
 HINT = "EM Port: click a metal edge for a via port, Shift+click into a gap between metals for an in-plane port (visible layers only)"
+
+
+def candidate(view, stackup, p, buttons, layers="visible"):
+    """('via', metal, Box) or ('plane', metal, Box, direction) at DPoint p in view, or None. Searches the visible
+    layers; layers=None searches all drawn metals. Shift in buttons: an in-plane port across a gap. Also used by
+    remote.py (Remote Pick)."""
+    cv = view.active_cellview()
+    if cv is None or cv.layout() is None or stackup is None:
+        return None
+    layout, cell = cv.layout(), cv.cell
+    if layers == "visible":
+        layers = visible_layers(view)
+    point = pya.Point(round(p.x / layout.dbu), round(p.y / layout.dbu))
+    shown = view.box()
+    tol = max(1, round(max(shown.width(), shown.height()) / 150 / layout.dbu))
+    if buttons & pya.ButtonState.ShiftKey:
+        found = gap_at(layout, cell, stackup, point, 20 * tol, layers)
+        return None if found is None else ("plane",) + tuple(found)
+    found = edge_at(layout, cell, stackup, point, tol, layers)
+    return None if found is None else ("via", found[0], found[1].bbox())
+
+
+def visible_layers(view):
+    """GDS layer numbers (datatype 0) shown in the layer panel for the current layout: a click picks only what the
+    designer sees. A hidden group hides its members (visible is the effective visibility, visible?(true))."""
+    index = _get(view.active_cellview_index)
+    layout = view.active_cellview().layout()
+    layers = set()
+    it = view.begin_layers()
+    while not it.at_end():
+        node = it.current()
+        li = _get(node.layer_index)
+        if not _get(node.has_children) and _get(node.cellview) == index and _get(node.visible, True) and li >= 0:
+            info = layout.get_info(li)
+            if info.datatype == 0:
+                layers.add(info.layer)
+        it.next()
+    return layers
+
+
+def hidden_hint(view, stackup, p, buttons):
+    """Status text when the only candidate under the cursor is on a hidden layer, else None."""
+    found = candidate(view, stackup, p, buttons, layers=None)
+    if found is None:
+        return None
+    kind = "gap" if found[0] == "plane" else "edge"
+    return f"{found[1]} {kind} here, but {found[1]} is hidden: show the layer to place a port on it"
 
 
 class PortTool(pya.Plugin):
@@ -55,48 +102,10 @@ class PortTool(pya.Plugin):
             self.marker = None
 
     def _candidate(self, p, buttons, layers="visible"):
-        """('via', metal, Box) or ('plane', metal, Box, direction) at DPoint p, or None. Searches the visible
-        layers; layers=None searches all drawn metals."""
-        cv = self.layout_view.active_cellview()
-        stackup = self.stackup()
-        if cv is None or cv.layout() is None or stackup is None:
-            return None
-        layout, cell = cv.layout(), cv.cell
-        if layers == "visible":
-            layers = self._visible_layers()
-        point = pya.Point(round(p.x / layout.dbu), round(p.y / layout.dbu))
-        shown = self.layout_view.box()
-        tol = max(1, round(max(shown.width(), shown.height()) / 150 / layout.dbu))
-        if buttons & pya.ButtonState.ShiftKey:
-            found = gap_at(layout, cell, stackup, point, 20 * tol, layers)
-            return None if found is None else ("plane",) + tuple(found)
-        found = edge_at(layout, cell, stackup, point, tol, layers)
-        return None if found is None else ("via", found[0], found[1].bbox())
-
-    def _visible_layers(self):
-        """GDS layer numbers (datatype 0) shown in the layer panel for the current layout: a click picks only what
-        the designer sees. A hidden group hides its members (visible is the effective visibility, visible?(true))."""
-        index = _get(self.layout_view.active_cellview_index)
-        layout = self.layout_view.active_cellview().layout()
-        layers = set()
-        it = self.layout_view.begin_layers()
-        while not it.at_end():
-            node = it.current()
-            li = _get(node.layer_index)
-            if not _get(node.has_children) and _get(node.cellview) == index and _get(node.visible, True) and li >= 0:
-                info = layout.get_info(li)
-                if info.datatype == 0:
-                    layers.add(info.layer)
-            it.next()
-        return layers
+        return candidate(self.layout_view, self.stackup(), p, buttons, layers)
 
     def _hidden_hint(self, p, buttons):
-        """Status text when the only candidate under the cursor is on a hidden layer, else None."""
-        found = self._candidate(p, buttons, layers=None)
-        if found is None:
-            return None
-        kind = "gap" if found[0] == "plane" else "edge"
-        return f"{found[1]} {kind} here, but {found[1]} is hidden: show the layer to place a port on it"
+        return hidden_hint(self.layout_view, self.stackup(), p, buttons)
 
     def mouse_moved_event(self, p, buttons, prio):
         if not prio:
@@ -137,12 +146,13 @@ class PortTool(pya.Plugin):
             pya.MessageBox.warning("EM Export", "All port layers 201..299 are used in this cell.", pya.MessageBox.Ok)
             return True
         gui.backup_original(layout)
+        create_layers(layout, [(layer, 0)])         # before the undo step (locate.create_layers)
         self.layout_view.transaction("Add port")
         try:
             shape = cell.shapes(layout.layer(layer, 0)).insert(found[2])
+            self.layout_view.add_missing_layers()  # inside the step: after it, KLayout 0.29.4 clears the undo list
         finally:
             self.layout_view.commit()
-        self.layout_view.add_missing_layers()
         if found[0] == "via":   # from the clicked metal down to the next metal at the port (hidden ones count)
             current = PortSettings("Z", *via_layers(metals_at(layout, cell, self.stackup(), found[2]), found[1]))
         else:

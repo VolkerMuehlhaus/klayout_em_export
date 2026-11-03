@@ -15,7 +15,7 @@ npn emitter pin is a Metal2 strip on one Metal1 island per finger, joined by Via
 import pya
 
 from .connectivity import wiring
-from .locate import next_port_layer
+from .locate import create_layers, free_port_layers, next_port_layer
 from .ports import DEVICE_KEY, PROP_KEY, PortSettings
 from .tech import for_layout
 
@@ -182,6 +182,10 @@ def replace(view, cell, stackup, devices, include_resistors=False):
     names = {l.layer: l.name for l in stackup.layers}
     margin = round(REF_MARGIN_UM / layout.dbu)
     done = {}
+    todo = [d for d in devices if not (d.replaced or d.problems or (d.is_resistor and not include_resistors))]
+    terminals = sum(len(d.terminals) for d in todo)
+    create_layers(layout, [(ref.layer, 0)] + [(l, 0) for l in free_port_layers(layout, cell, terminals,
+                                                                                    stackup=stackup)])
     view.transaction("Replace devices by ports")
     try:
         for device in devices:
@@ -202,9 +206,9 @@ def replace(view, cell, stackup, devices, include_resistors=False):
                 device.ports[terminal] = layer - 200
             device.replaced = True
             done[device.id] = dict(device.ports)
+        view.add_missing_layers()  # inside the step: after it, KLayout 0.29.4 clears the undo list
     finally:
         view.commit()
-    view.add_missing_layers()
     return done
 
 

@@ -12,7 +12,7 @@ import subprocess
 import pya
 
 from .export import PORT_LAYERS, marker_box
-from .locate import drawn_metals, metals_at, via_layers
+from .locate import create_layers, drawn_metals, metals_at, via_layers
 from .pipeline import EM_REGION, META_GROUND, META_OUTPUT, META_STACKUP, export_checks, export_em
 from .ports import DIRECTIONS, PROP_KEY, PortSettings, check_ports, collect_ports, ports_of, settings_of
 from .selection import Selection
@@ -389,14 +389,15 @@ def mark_region():
         return
     layout = cv.layout()
     backup_original(layout)
+    create_layers(layout, [EM_REGION])          # before the undo step (locate.create_layers)
     view.transaction("Mark EM region")
     try:
         li = layout.layer(*EM_REGION)
         cv.cell.shapes(li).clear()
         cv.cell.shapes(li).insert(box)
+        view.add_missing_layers()  # inside the step: after it, KLayout 0.29.4 clears the undo list
     finally:
         view.commit()
-    view.add_missing_layers()
 
 
 # ---------- setupEM / EMStudio ----------

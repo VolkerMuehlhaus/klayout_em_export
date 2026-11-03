@@ -120,9 +120,24 @@ def _facing_edges(region, point, direction):
 def next_port_layer(layout, cell, datatype=0, stackup=None):
     """Lowest port layer (201..299, without the stackup's own layers, see export.port_layer_numbers) with no shapes
     in cell, or None if all are used."""
+    free = free_port_layers(layout, cell, 1, datatype, stackup)
+    return free[0] if free else None
+
+
+def free_port_layers(layout, cell, count, datatype=0, stackup=None):
+    """The count lowest port layers with no shapes in cell (fewer if not enough are free)."""
     used = set()
     for li in layout.layer_indexes():
         info = layout.get_info(li)
         if info.layer in PORT_LAYERS and info.datatype == datatype and not cell.bbox_per_layer(li).empty():
             used.add(info.layer)
-    return next((layer for layer in port_layer_numbers(stackup) if layer not in used), None)
+    return [layer for layer in port_layer_numbers(stackup) if layer not in used][:count]
+
+
+def create_layers(layout, layers):
+    """Create the (layer, datatype) layers that do not exist yet. Call it before opening an undo step: in KLayout
+    0.29.4, after Undo and Redo of a step that created a layer, the next new layer gets the same layer index (Mark
+    Region then cleared the REF patches; 0.30.12 is fine). A layer created outside the step stays on Undo, empty."""
+    for layer, datatype in layers:
+        if layout.find_layer(layer, datatype) is None:
+            layout.layer(layer, datatype)

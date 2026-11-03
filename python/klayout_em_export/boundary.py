@@ -11,7 +11,7 @@ This needs a region that is kept with the layout, so it works on the EM region b
 import pya
 
 from .export import port_layer_numbers
-from .locate import next_port_layer
+from .locate import create_layers, free_port_layers, next_port_layer
 from .ports import PROP_KEY, PortSettings
 
 BOUNDARY_KEY = 201                  # property on ports made here: "boundary" (to find them again)
@@ -123,6 +123,8 @@ def create_ports(view, cell, stackup, crossings, z0=50.0):
     layout = cell.layout()
     z = {l.name: stackup.z_range(l) for l in stackup.layers}
     numbers = []
+    needed = sum(c.needs_port for c in crossings)
+    create_layers(layout, [(l, 0) for l in free_port_layers(layout, cell, needed, stackup=stackup)])
     view.transaction("Boundary ports")
     try:
         for crossing in crossings:
@@ -140,7 +142,7 @@ def create_ports(view, cell, stackup, crossings, z0=50.0):
             cell.shapes(layout.layer(layer, 0)).insert(crossing.edge.bbox(), properties)
             crossing.port = layer - 200
             numbers.append(layer - 200)
+        view.add_missing_layers()  # inside the step: after it, KLayout 0.29.4 clears the undo list
     finally:
         view.commit()
-    view.add_missing_layers()
     return numbers
