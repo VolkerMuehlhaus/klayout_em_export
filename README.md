@@ -202,8 +202,11 @@ when the layout is closed without saving. If `setupEM` or `EMStudio` is not on t
 
 ## Thermal export (setupThermal)
 
-**EM > Export for Thermal (setupThermal)...** (also a button in the EM panel) exports the same region as a model
-for setupThermal / gds2palace's Elmer thermal mode:
+**EM > Export for Thermal (setupThermal)...** exports the same region as a model for setupThermal / gds2palace's
+Elmer thermal mode. In the EM panel, switch to the **Thermal** tab at the top: it shows the heat sources of the
+region with their layers and schematic names, the LVS database, and the boundaries of the last thermal export, with
+**Export for Thermal...** and **Open in setupThermal** below (the EM steps, which a thermal model does not need, are
+hidden; device replacement is not needed for it). The export writes:
 
 - the layout with the devices as drawn (their metal, contacts and vias conduct heat); EM ports and REF patches
   are left out;
@@ -214,14 +217,17 @@ for setupThermal / gds2palace's Elmer thermal mode:
   device each heat source layer belongs to.
 
 **Instance names from LVS.** The powers of the devices come from your circuit simulation, per schematic instance.
-Give the dialog the LVS database (`.lvsdb`) of KLayout's LVS of this layout against your schematic (IHP's deck
+Choose the LVS database (`.lvsdb`, Thermal tab: Names, or the
+export dialog) of KLayout's LVS of this layout against your schematic (IHP's deck
 writes it), and each heat source gets the name of its schematic instance in the thermal map: `Q1`, `Xcore.Q1` for
 a device in a subcircuit. setupThermal's **Load powers...** then sets the powers from a file of your simulation, one
 line per instance (`Xcore.Q1, 2.5m`). LVS may have been run on the exported cell or on a cell that contains it
 once. A heat source without a matching LVS device keeps no name, and the export lists it.
 
-Boundaries (constant temperatures) are chosen in setupThermal; the region outline is on the first marker layer
-(201) for them. An export again keeps setupThermal's settings, the boundaries, and the power and instance name of
+Boundaries (constant temperatures) are chosen in setupThermal. The region outline is on the first marker layer
+(201); the first export puts a placeholder boundary there, a constant temperature (300 K) without a target layer.
+setupThermal lists it as "region outline: choose the target layer" and does not build the model until you choose
+the stackup layer where the temperature is fixed (e.g. the substrate backside). An export again keeps setupThermal's settings, the boundaries, and the power and instance name of
 every device still in the region. Headless: the CLI command `export_thermal` (`lvsdb` for the names).
 
 ## Circuit wrapper (ngspice, VACASK, Xyce, Spectre)

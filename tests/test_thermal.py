@@ -96,13 +96,15 @@ sources = [t for t in cfg["thermal"] if t["type"] == "source"]
 check(cfg["application"] == "setupThermal" and len(sources) == 5 and
       all(t["target_layername"] == "Activ" and t["power"] == 0.0 for t in sources),
       ".tsimcfg: 5 sources in Activ, power 0 W")
-check(not [t for t in cfg["thermal"] if t["type"] != "source"], ".tsimcfg: no boundaries from the export")
+check([t for t in cfg["thermal"] if t["type"] != "source"] ==
+      [{"source_layernum": thermal_map["outline_layer"], "target_layername": "", "type": "constanttemp", "temp": 300.0}],
+      ".tsimcfg: one placeholder boundary, on the region outline, without a target layer")
 
-# setupThermal: a boundary, powers and a setting; the map: an instance name; export again
+# setupThermal: the boundary's target, powers and a setting; the map: an instance name; export again
 for t in cfg["thermal"]:
-    t["power"] = 0.001 * (t["source_layernum"] - 200)
-cfg["thermal"].append({"source_layernum": 201, "target_layername": "BACKSIDEGND", "type": "constanttemp",
-                       "temp": 300.0})
+    if t["type"] == "source":
+        t["power"] = 0.001 * (t["source_layernum"] - 200)
+cfg["thermal"][-1]["target_layername"] = "BACKSIDEGND"
 cfg["saved_values"]["my_setting"] = 42
 json.dump(cfg, open(result["tsimcfg"], "w"))
 thermal_map["sources"][0]["instance"] = "XQ1"

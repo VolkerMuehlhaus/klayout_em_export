@@ -1,10 +1,13 @@
-"""EM panel: the EM export workflow as a checklist beside the layout.
+"""EM panel: the export workflow as a checklist beside the layout, for EM or (mode switch at the top) thermal.
 
-Each step is one line: status mark, summary, and details behind the arrow. The ports table holds the ports of the
-cell and the ports proposed where the EM region box cuts conductors. The ground and boundary checks run with every
-refresh (view or cell change, every action of the plug-in, Refresh); a very large region runs them on request.
+Each step is one line: status mark, summary, and details behind the arrow. Stackup and region are shared by both
+modes. EM: the ports table holds the ports of the cell and the ports proposed where the EM region box cuts conductors;
+the ground and boundary checks run with every refresh (view or cell change, every action of the plug-in, Refresh), a
+very large region runs them on request. Thermal: the heat sources of the region (thermal.py) with their schematic
+names from the LVS database, and the boundaries in the last thermal export's setupThermal file.
 Clicking a row only highlights it: selecting the port shape would make the export use it as the region.
 """
+import json
 import os
 
 import pya
@@ -13,11 +16,15 @@ from . import gui
 from .boundary import find_crossings
 from .connectivity import check_ground, wiring
 from .export import marker_box
+from .lvs import assign_names, read_lvs_devices
 from .ports import collect_ports, device_of, export_numbering, export_port_numbers, is_complete, port_problems
+from .thermal import heat_sources, heat_target, marker_layers
 
 OK, WARN, ERROR = gui.OK, gui.WARN, gui.ERROR
 COLUMNS = ("#", "Layer", "Port", "Export #", "Status")
 DEVICE_COLUMNS = ("#", "Type", "Value", "Ports", "Status")
+SOURCE_COLUMNS = ("Layer", "Device", "Instance", "Area µm²", "Heat area")
+MODES = ("EM", "Thermal")
 DEVICE_ROWS_SHOWN = 8               # the device table grows up to this many rows, then scrolls
 AUTO_CHECK_LIMIT = 50000            # metal shapes in the region; above, the checks run on request only
 MAX_MARKERS = 2000                  # ground outline: at most this many polygons
@@ -53,7 +60,7 @@ class Step(pya.QWidget):
         self.mark = pya.QLabel()
         self.mark.setFixedWidth(16)
         heading = pya.QLabel(f"<b>{title}</b>")
-        heading.setFixedWidth(56)
+        heading.setFixedWidth(64)
         self.summary = _label()
         row.addWidget(self.mark)
         row.addWidget(heading)
@@ -101,6 +108,17 @@ def _set_row(table, row, values, tip=""):
         table.setItem(row, col, item)
 
 
+def _row_widget(*widgets):
+    """The widgets side by side, left-aligned, in a widget of their own (which can be hidden as a whole)."""
+    box = pya.QWidget()
+    row = pya.QHBoxLayout(box)
+    row.setContentsMargins(0, 0, 0, 0)
+    for widget in widgets:
+        row.addWidget(widget)
+    row.addStretch(1)
+    return box
+
+
 def _details(*widgets):
     """A details widget: the given labels and button rows, indented under the step line."""
     box = pya.QWidget()
@@ -127,7 +145,18 @@ class EMPanel(pya.QWidget):
         self.ground_markers = []
         self.highlight = []
         self._bound = set()
+        self.source_rows = []       # the HeatSource of each row of sources_table
+        self._lvs_cache = {}        # {(lvsdb, mtime, layout, cell): (LVS devices, notes)}
         column = pya.QVBoxLayout(self)
+
+        self.mode_bar = pya.QTabBar()
+        for mode in MODES:
+            self.mode_bar.addTab(mode)
+        self.mode_bar.setToolTip("EM: ports and devices, for setupEM; Thermal: the devices as heat sources, for "
+                                 "setupThermal")
+        self.mode_bar.setCurrentIndex(1 if gui._load_settings().get("panel_mode") == "thermal" else 0)
+        self.mode_bar.currentChanged += self._mode_changed
+        column.addWidget(self.mode_bar)
 
         self.stackup_detail = _label()
         self.stackup_step = Step("Stackup", _details(self.stackup_detail, [_button("Change...", self._change_stackup)]))
@@ -166,7 +195,16 @@ class EMPanel(pya.QWidget):
             self.include_resistors,
             _button("Undo Replace", self._unreplace_devices, "remove the patches and ports made by Replace All")]))
         self.ports_step = Step("Ports")
-        for step in (self.stackup_step, self.region_step, self.ground_step, self.devices_step, self.ports_step):
+        self.sources_step = Step("Sources")
+        self.names_detail = _label()
+        self.names_step = Step("Names", _details(self.names_detail, [
+            _button("Choose...", self._choose_lvsdb, "the LVS database (.lvsdb) of KLayout's LVS of this layout "
+                    "against your schematic: each heat source gets its schematic instance name"),
+            _button("Clear", self._clear_lvsdb, "no LVS database: the export keeps the names of the last export")]))
+        self.boundary_detail = _label()
+        self.boundary_step = Step("Boundary", _details(self.boundary_detail))
+        for step in (self.stackup_step, self.region_step, self.ground_step, self.devices_step, self.ports_step,
+                     self.sources_step, self.names_step, self.boundary_step):
             column.addWidget(step)
 
         self.table = _table(COLUMNS, "click: highlight; double-click: settings (or create a proposed port); "
@@ -176,14 +214,21 @@ class EMPanel(pya.QWidget):
         self.table.setContextMenuPolicy(pya.Qt.CustomContextMenu)
         self.table.customContextMenuRequested += self._context_menu
         column.addWidget(self.table, 1)
+        self.sources_table = _table(SOURCE_COLUMNS, "click: highlight the device; double-click: zoom to it. Layer: "
+                                    "its marker layer in the export")
+        self.sources_table.itemSelectionChanged += self._sources_selected
+        self.sources_table.cellDoubleClicked += lambda row, col: self._zoom_to(self.source_rows[row].device.bbox)
+        column.addWidget(self.sources_table, 1)
         tool = _button("EM Port tool", lambda: self._run(gui.port_tool),
                        "click a metal edge: via port; Shift+click into a gap: in-plane port")
         tool.setIcon(pya.QIcon(gui.PORT_ICON))
         self.create_button = _button("Create Proposed Ports", self._create_proposed,
                                      "via ports where the EM region box cuts signal conductors")
+        self.tool_row = _row_widget(tool, self.create_button)
+        self.refresh_button = _button("Refresh", lambda: self.refresh())
         row = pya.QHBoxLayout()
-        for widget in (tool, self.create_button, _button("Refresh", lambda: self.refresh(), "e.g. after drawing ports by hand")):
-            row.addWidget(widget)
+        row.addWidget(self.tool_row)
+        row.addWidget(self.refresh_button)
         row.addStretch(1)
         column.addLayout(row)
 
@@ -191,12 +236,15 @@ class EMPanel(pya.QWidget):
         line.setFrameShape(pya.QFrame.HLine)
         column.addWidget(line)
         self.open_button = _button(f"Open in {gui.open_with()}", lambda: gui.open_last_export())
-        row = pya.QHBoxLayout()
-        row.addWidget(_button("Export for EM...", lambda: self._run(gui.export_region)))
-        row.addWidget(self.open_button)
-        row.addWidget(_button("Export for Thermal...", lambda: self._run(gui.export_thermal_region),
-                              "devices as heat sources, for setupThermal"))
-        column.addLayout(row)
+        self.em_buttons = _row_widget(_button("Export for EM...", lambda: self._run(gui.export_region)),
+                                      self.open_button)
+        self.open_thermal_button = _button(f"Open in {gui.THERMAL_TOOL}", lambda: gui.open_last_thermal_export())
+        self.thermal_buttons = _row_widget(_button("Export for Thermal...", lambda: self._run(gui.export_thermal_region),
+                                                   "the devices as heat sources, for setupThermal"),
+                                           self.open_thermal_button)
+        column.addWidget(self.em_buttons)
+        column.addWidget(self.thermal_buttons)
+        self._show_mode()
 
         main_window = pya.Application.instance().main_window()
         if main_window is not None:
@@ -204,6 +252,27 @@ class EMPanel(pya.QWidget):
         self.refresh()
 
     # ---------- state ----------
+
+    def _thermal(self):
+        return _get(self.mode_bar.currentIndex) == 1
+
+    def _show_mode(self):
+        """Show the steps, table and buttons of the current mode."""
+        thermal = self._thermal()
+        for widget in (self.ground_step, self.devices_step, self.ports_step, self.table, self.tool_row, self.em_buttons):
+            widget.setVisible(not thermal)
+        for widget in (self.sources_step, self.names_step, self.boundary_step, self.sources_table,
+                       self.thermal_buttons):
+            widget.setVisible(thermal)
+        self.refresh_button.setToolTip("e.g. after editing devices or running LVS again" if thermal else
+                                       "e.g. after drawing ports by hand")
+
+    def _mode_changed(self, index):
+        settings = gui._load_settings()
+        settings["panel_mode"] = "thermal" if index == 1 else "em"
+        gui._save_settings(settings)
+        self._show_mode()
+        self.refresh()
 
     def _view(self):
         main_window = pya.Application.instance().main_window()
@@ -231,10 +300,13 @@ class EMPanel(pya.QWidget):
         self.show_ground.setChecked(False)
         view, cv = self._view()
         if view is None:
-            for step in (self.stackup_step, self.region_step, self.ground_step, self.devices_step, self.ports_step):
+            for step in (self.stackup_step, self.region_step, self.ground_step, self.devices_step, self.ports_step,
+                         self.sources_step, self.names_step, self.boundary_step):
                 step.set(ERROR, "no layout loaded")
             self.table.setRowCount(0)
             self.devices_table.setRowCount(0)
+            self.sources_table.setRowCount(0)
+            self.source_rows = []
             self.device_rows, self.device_numbers, self.device_types = [], {}, {}
             return
         self._bind(view)
@@ -252,6 +324,13 @@ class EMPanel(pya.QWidget):
             else:
                 self.stackup_step.set(OK, os.path.basename(path), path)
             self.stackup_detail.setText(path)
+        if self._thermal():
+            self._update_region()           # with the heat sources of the region, the names and the boundaries
+            last = gui.last_tsimcfg(layout)
+            self.open_thermal_button.setEnabled(last is not None)
+            self.open_thermal_button.setToolTip(f"open {last} in {gui.THERMAL_TOOL}, without exporting again" if last
+                                                else "this layout has no thermal export yet")
+            return
 
         # ground and boundary: in the EM region box (else the whole cell), not in a selection - one selects metal
         # to mark it as ground
@@ -490,13 +569,20 @@ class EMPanel(pya.QWidget):
         box, source, selection = gui.region_source(view, cv)
         state = WARN if selection is not None else OK
         self.region_step.set(state, source + ("" if box is None else f": {box}"))
-        detail = ("The export uses the bounding box of the selection (or, chosen in the export dialog, the selected "
-                  "shapes only). Clear the selection to use the EM region box." if selection is not None else
-                  f"Keep the region with the layout: select shapes and Mark Region (layer {gui.EM_REGION[0]}/"
-                  f"{gui.EM_REGION[1]}). Ports proposed at the cut need this box.")
+        thermal = self._thermal()
+        if selection is not None:
+            detail = ("The export uses the bounding box of the selection" +
+                      (". " if thermal else " (or, chosen in the export dialog, the selected shapes only). ") +
+                      "Clear the selection to use the EM region box.")
+        else:
+            detail = (f"Keep the region with the layout: select shapes and Mark Region (layer {gui.EM_REGION[0]}/"
+                      f"{gui.EM_REGION[1]})." + ("" if thermal else " Ports proposed at the cut need this box."))
         self.region_detail.setText(detail + "\nA selection of port shapes only does not count as a region.")
         path = gui.stackup_path(layout)
         stackup = gui.read_stackup(path)[0] if path else None
+        if thermal:
+            self._show_thermal(layout, cell, stackup, box)
+            return
         clip = None if box is None else box.to_itype(layout.dbu)
         try:
             self.numbering = export_numbering(collect_ports(layout, cell, clip, stackup=stackup), stackup)
@@ -510,6 +596,181 @@ class EMPanel(pya.QWidget):
                 text = "– (outside)" if new is None else str(new)
                 cell_item.setText(text)
                 cell_item.setToolTip("number in the .simcfg and .snp" if new else "not in the region")
+
+    # ---------- thermal ----------
+
+    def _show_thermal(self, layout, cell, stackup, box):
+        """Sources, Names and Boundary steps and the heat source table, for the region box (DBox, None: whole cell)."""
+        self._clear_markers(self.highlight)
+        self.sources_table.setRowCount(0)
+        self.source_rows = []
+        if stackup is None:
+            for step in (self.sources_step, self.names_step):
+                step.set(ERROR, "needs a stackup")
+            self.names_detail.setText("")
+            self._show_boundary(layout, None)
+            return
+        technology = gui.layout_technology(layout)[0]
+        try:
+            target = heat_target(stackup, technology)
+        except ValueError as e:
+            self.sources_step.set(ERROR, "no layer for the heat sources", str(e))
+            target = False
+        sources = heat_sources(layout, cell, stackup, technology, box) if target else []
+        layers = marker_layers(stackup, len(sources) + 1)
+        names = self._show_names(layout, cell, sources, technology)
+        self._fill_sources(layout, technology, sources, layers[1:], names)
+        self._show_boundary(layout, layers[0])
+        if target is None:
+            self.sources_step.set(OK, "no device support for this technology")
+        elif target is False:
+            pass
+        elif not sources:
+            self.sources_step.set(WARN, "no devices in the region: the export has no heat sources")
+        else:
+            parts = [f"{len(sources)} heat source(s) in {target}"]
+            fallback = sum(not s.from_pdk for s in sources)
+            cut = sum(s.cut for s in sources)
+            if fallback:
+                parts.append(f"{fallback} without PDK heat shapes (bounding box)")
+            if cut:
+                parts.append(f"{cut} cut by the region")
+            self.sources_step.set(WARN if fallback or cut else OK, ", ".join(parts),
+                                  "one per device, on its own marker layer; power 0 W until set in setupThermal "
+                                  "(Load powers...)")
+
+    def _fill_sources(self, layout, technology, sources, layers, names):
+        self.source_rows = list(sources)
+        self.sources_table.setRowCount(len(sources))
+        dbu = layout.dbu
+        for row, (layer, s) in enumerate(zip(layers, sources)):
+            d = s.device
+            heat = "PDK heat shapes" if s.from_pdk else "bounding box (no PDK heat shapes)"
+            if s.cut:
+                heat += ", cut by the region"
+            center = d.bbox.center()
+            where = f"{d.id.split('@')[0]} at ({center.x * dbu:.2f}, {center.y * dbu:.2f}) µm"
+            _set_row(self.sources_table, row, (str(layer), f"{d.pcell} {technology.describe(d)}".strip(),
+                                               names.get(d.id, ""), f"{s.area.area() * dbu * dbu:.3g}", heat), where)
+        self.sources_table.resizeColumnsToContents()
+
+    def _last_map(self, layout):
+        """The thermal map of the layout's last thermal export, or {}."""
+        tsimcfg = gui.last_tsimcfg(layout)
+        if tsimcfg is None:
+            return {}
+        try:
+            with open(os.path.splitext(tsimcfg)[0] + "_thermalmap.json") as f:
+                data = json.load(f)
+        except (OSError, ValueError):
+            return {}
+        return data if isinstance(data, dict) else {}
+
+    def _lvs_devices(self, lvsdb, layout, cell):
+        """read_lvs_devices, kept until the file changes (else every refresh would read it again)."""
+        key = (lvsdb, os.path.getmtime(lvsdb), id(layout), cell.cell_index())
+        if key not in self._lvs_cache:
+            self._lvs_cache = {key: read_lvs_devices(lvsdb, layout, cell)}
+        return self._lvs_cache[key]
+
+    def _show_names(self, layout, cell, sources, technology):
+        """The Names step; returns {device id: schematic instance name} for the table."""
+        lvsdb = gui.lvsdb_path(layout)
+        about = ("The schematic instance name of each heat source, from KLayout's LVS of this layout against your "
+                 "schematic (LVS of this cell, or of a cell that contains it once). setupThermal's Load powers... "
+                 "assigns the powers of your circuit simulation by these names.")
+        if not lvsdb:
+            previous = {r.get("device"): r.get("instance") for r in self._last_map(layout).get("sources", [])
+                        if r.get("instance")}
+            names = {s.device.id: previous[s.device.id] for s in sources if s.device.id in previous}
+            self.names_step.set(OK, f"{len(names)} of {len(sources)} from the last export (no LVS database)" if names
+                                else "none: optional, from an LVS database (details)")
+            self.names_detail.setText(about)
+            return names
+        if not os.path.isfile(lvsdb):
+            self.names_step.set(ERROR, f"{os.path.basename(lvsdb)} not found", lvsdb)
+            self.names_detail.setText(f"{lvsdb}\n{about}")
+            return {}
+        try:
+            lvs_devices, notes = self._lvs_devices(lvsdb, layout, cell)
+        except ValueError as e:
+            self.names_step.set(ERROR, str(e), lvsdb)
+            self.names_detail.setText(f"{lvsdb}\n{about}")
+            return {}
+        instances, report = assign_names(sources, lvs_devices, technology, layout.dbu)
+        problems = list(notes)
+        if report["unnamed"]:
+            problems.append("no LVS device: " + ", ".join(i.split("@")[0] for i in report["unnamed"]))
+        if report["conflicts"]:
+            problems.append("several LVS devices with different names (none used): " + "; ".join(report["conflicts"]))
+        self.names_step.set(WARN if problems else OK,
+                            f"{len(instances)} of {len(sources)} from {os.path.basename(lvsdb)}" +
+                            (": " + "; ".join(problems) if problems else ""), lvsdb)
+        self.names_detail.setText("\n".join([lvsdb] + problems + [about]))
+        return {device: name for device, (name, _) in instances.items()}
+
+    def _show_boundary(self, layout, outline_layer):
+        """The Boundary step: the constant temperatures in the last thermal export's setupThermal file."""
+        tsimcfg = gui.last_tsimcfg(layout)
+        about = ("Constant temperatures are chosen in setupThermal. The export writes the region outline on a marker "
+                 "layer of its own; without a boundary yet, it adds a placeholder there whose target layer (the height "
+                 "of the fixed temperature, e.g. the substrate backside) you choose in setupThermal. The side faces "
+                 "of the model are adiabatic.")
+        rows = []
+        if tsimcfg is not None:
+            try:
+                with open(tsimcfg) as f:
+                    rows = [t for t in json.load(f).get("thermal", [])
+                            if "SOURCE" not in str(t.get("type", "")).upper()]
+            except (OSError, ValueError, AttributeError):
+                tsimcfg = None
+        if tsimcfg is None:
+            where = f" (layer {outline_layer})" if outline_layer else ""
+            self.boundary_step.set(OK, f"chosen in setupThermal; the export adds the region outline{where} as a "
+                                   "placeholder")
+            self.boundary_detail.setText(about)
+            return
+        outline = self._last_map(layout).get("outline_layer")
+        parts = []
+        for t in rows:
+            layer = t.get("source_layernum")
+            name = f"layer {layer}" + (" (region outline)" if layer == outline else "")
+            temp = t.get("temp")
+            parts.append(f"{name} → {t.get('target_layername') or 'no target layer yet'}, "
+                         f"{format(temp, 'g') if isinstance(temp, (int, float)) else '?'} K")
+        open_target = any(not t.get("target_layername") for t in rows)
+        if not rows:
+            self.boundary_step.set(WARN, "none in the last export: add one in setupThermal", tsimcfg)
+        else:
+            self.boundary_step.set(WARN if open_target else OK, "; ".join(parts) +
+                                   (": choose the target layer in setupThermal" if open_target else ""), tsimcfg)
+        self.boundary_detail.setText(f"From {tsimcfg}\n{about}")
+
+    def _sources_selected(self):
+        self._clear_markers(self.highlight)
+        view, cv = self._view()
+        if view is None:
+            return
+        rows = sorted({_get(i.row) for i in self.sources_table.selectedItems()})
+        self._mark(view, cv.layout().dbu, [self.source_rows[r].device.bbox for r in rows if r < len(self.source_rows)])
+
+    def _zoom_to(self, bbox):
+        view, cv = self._view()
+        if view is not None:
+            box = bbox.to_dtype(cv.layout().dbu)
+            margin = max(box.width(), box.height())
+            view.zoom_box(box.enlarged(margin, margin))
+
+    def _choose_lvsdb(self):
+        view, cv = self._view()
+        if view is not None and gui.ask_lvsdb(cv.layout()):
+            self.refresh()
+
+    def _clear_lvsdb(self):
+        view, cv = self._view()
+        if view is not None:
+            gui.clear_lvsdb(cv.layout())
+            self.refresh()
 
     # ---------- table ----------
 

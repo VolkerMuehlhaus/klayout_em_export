@@ -70,7 +70,7 @@ modules only collect input and call the core.
 | `cli.py` | Headless JSON interface, run by KLayout in batch mode (`-zz`); one command per request (status, ports, region, ground, devices, export, export_thermal). Writes changed layouts to an explicit output file, never the settings file. |
 | `tools/em_cli.py` | Plain-Python launcher for `cli.py`: finds KLayout, passes the request, prints the result. |
 | `gui.py` | Menu, dialogs (export, port settings), persistence (layout meta info and settings file), setupEM / EMStudio launch (`open_simcfg`, `launch_command`). |
-| `panel.py` | The docked EM panel: the workflow as a checklist (Stackup, Region, Ground, Devices, Ports). |
+| `panel.py` | The docked EM panel: the workflow as a checklist. A tab bar switches the mode (remembered in the settings file): EM (Stackup, Region, Ground, Devices, Ports) or Thermal (Stackup, Region, Sources, Names, Boundary, with the heat source table). |
 | `tool.py` | The EM Port tool (`pya.Plugin`): hover preview, click for a via port, Shift+click for an in-plane port. |
 | `circuit.py` | Create Circuit dialog; runs `tools/spice_wrapper.py`. |
 | `tools/spice_wrapper.py` | Port map + `.sNp` -> netlist with the PDK devices, per simulator. |
@@ -218,8 +218,11 @@ resistor of its label value), 1 mH ties per net, 1 µF DC blocks when the `.sNp`
   heat is generated that has a thickness. The export stops if the stackup lacks it or it has no thickness.
 - **Marker layers from 201 upward**, skipping every layer the stackup uses (also derived and boundary layers),
   past 299 if there are many devices: the region outline first, then one per heat source.
-- **No boundaries.** No default fits every assembly (backside on a heat sink, flip-chip through bumps, ...): they
-  are chosen in setupThermal. The region outline on the first marker layer is geometry a boundary can use.
+- **No boundary chosen for the user.** No default fits every assembly (backside on a heat sink, flip-chip through
+  bumps, ...): they are chosen in setupThermal. The region outline on the first marker layer is geometry a boundary
+  can use; without a boundary in the `.tsimcfg` yet, the export adds a placeholder on it (constant temperature,
+  `target_layername` empty). setupThermal lists it and refuses to build the model until a target is chosen, so the
+  outline cannot be missed and no assembly is assumed.
 - **Export again keeps** setupThermal's settings, the boundaries, and for every device still in the region its
   power and schematic instance name (matched by device id through the previous `_thermalmap.json`).
 
@@ -404,6 +407,7 @@ through `klayout_em_export_tests/pdk_env.py`.
 | Ports | `test_ports.py`, `test_locate.py`, `test_numbering.py`, `test_portlayers.py`, `test_boundary.py` |
 | Ground and nets | `test_ground.py`, `test_unconnected.py`, `test_density.py` (Fill Density Holes and Merge Metal: the rule, what is merged and what stays, exact geometry on the FMD layouts if present), `test_dummyfill.py` (Remove Dummy Fill: what is fill and what stays, vias and devices unchanged on the FMD layouts) |
 | Devices | `test_devices.py`, `test_mosfets.py`, `test_resistors.py`, `test_replaced_devices.py` (selection patches, ground voting, moved devices) (PDK needed) |
+| Thermal panel | `test_panel_thermal.py`: the Thermal tab on the cascode: EM steps hidden, the heat sources with the export's layers, names from the LVS database or else the last export, a missing LVS database, the placeholder boundary and a chosen one, the EM region box (PDK and `lvs_cascode` needed) |
 | GUI pieces in batch | `test_panel.py`, `test_reopen.py` (stand-in view, own settings file), `test_open_with.py` (setupEM / EMStudio command line, which stale scripts are reported), `test_backup.py` (backup of the original layout: when, and when not) |
 | Technologies | `test_technology.py` (choice and generic fallback, SG13CMOS5L stackup, wrapper per port map technology) (PDK needed) |
 | Create Circuit | `test_circuit.py` (needs a Python with snp2le), `tests/simulators/` (Docker, Linux) |

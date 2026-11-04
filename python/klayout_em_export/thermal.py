@@ -5,8 +5,9 @@ heat source: its heat area (the technology's heat_area, for IHP the PDK's HeatTr
 layer of its own, in the z range of the technology's HEAT_TARGET stackup layer. One power per device: gds2palace
 spreads a source's power over all its polygons by volume, so a device's fingers share it by area.
 
-Boundaries (constant temperatures) are chosen in setupThermal, since no default fits every assembly. The export only
-writes the region outline on the first marker layer, as geometry a boundary can use.
+Boundaries (constant temperatures) are chosen in setupThermal, since no default fits every assembly. The export
+writes the region outline on the first marker layer, as geometry a boundary can use, and a constant-temperature row on
+it without a target layer: a placeholder that setupThermal lists and refuses to mesh until the target is chosen.
 
 Writes <name>.gds, <name>.tsimcfg (setupThermal) and <name>_thermalmap.json: which device each heat source layer
 belongs to, for the powers from a circuit simulation and the temperatures back. With an LVS database, each heat
@@ -113,9 +114,20 @@ def _previous(base):
     return powers, instances, old_map.get("lvsdb"), old_cfg
 
 
-def write_tsimcfg(path, gds_file, stackup_file, cellname, sources, previous_cfg=None, purpose=(0,)):
+PLACEHOLDER_TEMP = 300.0     # K
+
+
+def placeholder_boundary(layer):
+    """The boundary row the export writes when there is none yet: the region outline at a constant temperature, with
+    no target layer (the height of the fixed temperature), which only the user can choose."""
+    return {"source_layernum": layer, "target_layername": "", "type": "constanttemp", "temp": PLACEHOLDER_TEMP}
+
+
+def write_tsimcfg(path, gds_file, stackup_file, cellname, sources, previous_cfg=None, purpose=(0,),
+                  outline_layer=None):
     """Write path: the files, the cell, the purpose and the heat sources [(layer, target, power)]; from
-    previous_cfg (an earlier setupThermal file) everything else, including the boundaries."""
+    previous_cfg (an earlier setupThermal file) everything else, including the boundaries. Without boundaries there,
+    a placeholder boundary on outline_layer (if given): constant temperature, no target layer yet."""
     data = previous_cfg or {"application": "setupThermal", "data_format": "1.0", "saved_values": {"unit": 1e-06}}
     data["saved_values"].update({
         "purpose": list(purpose),
@@ -124,6 +136,8 @@ def write_tsimcfg(path, gds_file, stackup_file, cellname, sources, previous_cfg=
         "cellname": cellname,
     })
     boundaries = [t for t in data.get("thermal", []) if "SOURCE" not in str(t.get("type", "")).upper()]
+    if not boundaries and outline_layer is not None:
+        boundaries = [placeholder_boundary(outline_layer)]
     data["thermal"] = [{"source_layernum": layer, "target_layername": target, "type": "source", "power": power}
                        for layer, target, power in sources] + boundaries
     with open(path, "w") as f:
@@ -160,7 +174,7 @@ def export_thermal(layout, cell, stackup, gds_path, technology, box=None, lvsdb=
 
     write_tsimcfg(base + ".tsimcfg", gds_path, stackup.path, result.cellname,
                   [(layer, target, float(powers.get(s.device.id, 0.0))) for layer, s in zip(source_layers, sources)],
-                  previous_cfg=old_cfg)
+                  previous_cfg=old_cfg, outline_layer=outline_layer)
     um2 = layout.dbu ** 2
     rows = [{"layer": layer, "device": s.device.id, "pcell": s.device.pcell,
              "params": {k: str(v) for k, v in s.device.params.items()},

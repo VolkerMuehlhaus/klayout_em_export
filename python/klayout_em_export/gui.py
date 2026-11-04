@@ -488,6 +488,44 @@ def last_simcfg(layout):
     return path if path and os.path.isfile(path) else None
 
 
+def last_tsimcfg(layout):
+    """The .tsimcfg of this layout's last thermal export, or None if there was none (or it is gone)."""
+    gds = native_path(layout_value(layout, META_THERMAL_OUTPUT) or "")
+    path = os.path.splitext(gds)[0] + ".tsimcfg" if gds and os.path.isabs(gds) else None
+    return path if path and os.path.isfile(path) else None
+
+
+def open_last_thermal_export():
+    """Open the last thermal export of the current layout in setupThermal, without exporting again."""
+    view, cv = _current()
+    if view is None:
+        return
+    path = last_tsimcfg(cv.layout())
+    if path is None:
+        pya.MessageBox.warning("EM Export", "This layout has no thermal export yet (or its .tsimcfg is gone). "
+                               "Use Export for Thermal first.", pya.MessageBox.Ok)
+        return
+    open_simcfg(path, THERMAL_TOOL)
+    _status(f"{THERMAL_TOOL}: {path}", 10)
+
+
+def lvsdb_path(layout):
+    """The layout's LVS database for the thermal export's instance names, or "" if none is set."""
+    return native_path(layout_value(layout, META_LVSDB) or "")
+
+
+def ask_lvsdb(layout):
+    """Ask for the layout's LVS database; returns the path, or "" if cancelled."""
+    path = pya.FileDialog.ask_open_file_name("LVS database", lvsdb_path(layout), "LVS database (*.lvsdb);;All files (*)")
+    if path:
+        set_layout_value(layout, META_LVSDB, native_path(path), "LVS database for the thermal export's instance names")
+    return path
+
+
+def clear_lvsdb(layout):
+    set_layout_value(layout, META_LVSDB, "", "LVS database for the thermal export's instance names")
+
+
 def open_last_export(tool=None):
     """Open the last export of the current layout in tool (default: open_with()), without exporting again."""
     view, cv = _current()
@@ -759,23 +797,19 @@ class ThermalExportDialog(pya.QDialog):
         self.sources = pya.QLabel()
         self.sources.setWordWrap(True)
         add_form_row(self, form, "<b>Heat sources</b>", self.sources)
-        self.lvsdb = pya.QLineEdit(native_path(layout_value(self.em_layout, META_LVSDB) or ""))
-        self.lvsdb.setPlaceholderText("LVS database (.lvsdb), optional")
-        self.lvsdb.setToolTip("From KLayout's LVS of this layout against your schematic: each heat source gets the "
-                              "name of its schematic instance, so the powers of your circuit simulation can be "
-                              "assigned by name")
-        browse_lvs = pya.QPushButton("Browse...")
-        browse_lvs.clicked += self._browse_lvsdb
+        self.lvsdb = pya.QLabel()
+        self.lvsdb.setWordWrap(True)
+        change_lvs = pya.QPushButton("Change...")
+        change_lvs.clicked += self._change_lvsdb
+        clear_lvs = pya.QPushButton("Clear")
+        clear_lvs.clicked += self._clear_lvsdb
         row = pya.QHBoxLayout()
         row.addWidget(self.lvsdb, 1)
-        row.addWidget(browse_lvs)
+        row.addWidget(change_lvs)
+        row.addWidget(clear_lvs)
         add_form_row(self, form, "<b>Instance names</b>", row)
-        names_note = pya.QLabel('<span style="color:#777">The schematic name of each device, for the powers from a '
-                                'circuit simulation. Empty: the names of an earlier export are kept.</span>')
-        names_note.setWordWrap(True)
-        add_form_row(self, form, "", names_note)
-        boundaries = pya.QLabel('<span style="color:#777">Boundaries (constant temperatures) are chosen in '
-                                'setupThermal; the region outline is on the first marker layer for them.</span>')
+        boundaries = pya.QLabel('<span style="color:#777">Chosen in setupThermal. Without one yet, the export adds a '
+                                'placeholder on the region outline whose target layer you choose there.</span>')
         boundaries.setWordWrap(True)
         add_form_row(self, form, "<b>Boundaries</b>", boundaries)
         line = pya.QFrame()
@@ -808,17 +842,29 @@ class ThermalExportDialog(pya.QDialog):
         if path:
             self.output.setText(native_path(path))
 
-    def _browse_lvsdb(self):
-        path = pya.FileDialog.ask_open_file_name("LVS database", self.lvsdb.text,
-                                                 "LVS database (*.lvsdb);;All files (*)")
-        if path:
-            self.lvsdb.setText(native_path(path))
+    def _change_lvsdb(self):
+        if ask_lvsdb(self.em_layout):
+            self._refresh()
+
+    def _clear_lvsdb(self):
+        clear_lvsdb(self.em_layout)
+        self._refresh()
 
     def _change_stackup(self):
         if ask_stackup(self.em_layout):
             self._refresh()
 
     def _refresh(self):
+        lvsdb = lvsdb_path(self.em_layout)
+        if not lvsdb:
+            self.lvsdb.setText(_marked(OK, "none (optional)"))
+        elif os.path.isfile(lvsdb):
+            self.lvsdb.setText(_marked(OK, os.path.basename(lvsdb)))
+        else:
+            self.lvsdb.setText(_marked(ERROR, f"{os.path.basename(lvsdb)} not found"))
+        self.lvsdb.setToolTip(lvsdb or "From KLayout's LVS of this layout against your schematic: each heat source "
+                              "gets the name of its schematic instance, so the powers of your circuit simulation can "
+                              "be assigned by name. Without it, the names of an earlier export are kept.")
         head, _, rest = self.source.partition(" (")
         detail = rest.rstrip(")")
         if self.box is not None:
@@ -884,7 +930,7 @@ def export_thermal_region():
                 continue
             break
         pya.MessageBox.warning("EM Export", problem, pya.MessageBox.Ok)
-    lvsdb = native_path(dialog.lvsdb.text.strip())
+    lvsdb = lvsdb_path(layout)
     if lvsdb and not os.path.isfile(lvsdb):
         pya.MessageBox.warning("EM Export", f"The LVS database {lvsdb} does not exist.", pya.MessageBox.Ok)
         return
@@ -895,7 +941,6 @@ def export_thermal_region():
         pya.MessageBox.warning("EM Export", str(e), pya.MessageBox.Ok)
         return
     set_layout_value(layout, META_THERMAL_OUTPUT, gds_path, "thermal export output file")
-    set_layout_value(layout, META_LVSDB, lvsdb, "LVS database for the thermal export's instance names")
     lvs = result["lvs"]
     if lvs and (lvs["unnamed"] or lvs["conflicts"] or lvs["notes"]):
         lines = [f"{lvs['named']} of {result['sources']} heat source(s) got their schematic name from LVS."]
@@ -1227,6 +1272,7 @@ def install_menu():
                ("export_thermal", "Export for Thermal (setupThermal)...", export_thermal_region),
                ("open_setupem", "Open Last Export in setupEM", lambda: open_last_export("setupEM")),
                ("open_emstudio", "Open Last Export in EMStudio", lambda: open_last_export("EMStudio")),
+               ("open_setupthermal", "Open Last Thermal Export in setupThermal", open_last_thermal_export),
                ("create_circuit", "Create Circuit (EM Result with Devices)...", _create_circuit))
     for n, entry in enumerate(entries):
         if entry is None:
