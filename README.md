@@ -111,7 +111,9 @@ The same steps are in the **EM** menu in the menu bar, top to bottom in workflow
 
 1. **Choose Stackup...**: the stackup XML for this layout (gds2palace for Palace, gds2openEMS for openEMS). It is chosen once and used by every step. It
    is stored in the layout (meta info, saved with it) and as the default for other layouts. The port dialog and the
-   export dialog show it and can change it too.
+   export dialog show it and can change it too. Until you choose one for a layout, the plug-in takes the stackup of
+   your own setupThermal / setupEM file for it (a `.tsimcfg` / `.simcfg` next to it with this GDS file), else the
+   last one you chose; then the Stackup row says "last used, not chosen for this layout".
    - **Remove Dummy Fill** (next in the menu, once, if the layout has fill): removes the dummy metal fill of the
      current cell, one undo step. Process independent, told by what it is, not by datatype or cell names: a shape
      on a conductor or sheet layer of the stackup (any datatype) that floats (merged with the drawn metal of its
