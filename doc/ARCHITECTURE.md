@@ -64,6 +64,7 @@ modules only collect input and call the core.
 | `export.py` | Writes one flat cell with only the stackup's layers and the port layers, clipped and merged. |
 | `simcfg.py` | Writes or updates setupEM's `.simcfg`. |
 | `thermal.py` | The thermal export for setupThermal / gds2palace's Elmer thermal mode: the devices stay as drawn, each gets one heat source (the technology's `heat_area`) on a marker layer of its own; writes the `.tsimcfg` and `_thermalmap.json`. See [Thermal export](#thermal-export). |
+| `lvs.py` | The schematic instance names of the heat sources, from a KLayout LVS database (`.lvsdb`). |
 | `modelcheck.py` | Finds model scripts that read an exported GDS but have other ports (stale after a re-export). |
 | `pipeline.py` | The workflow without the GUI, as data: `export_em` (the whole export), `export_checks` (what the export dialog reports), `layout_devices`, `region_ports`, the `NoUndo` view stand-in, the meta info keys. Reads no settings file: the caller passes stackup, ground marks and technology. Used by `gui.py`, the batch tests and `cli.py`. |
 | `cli.py` | Headless JSON interface, run by KLayout in batch mode (`-zz`); one command per request (status, ports, region, ground, devices, export, export_thermal). Writes changed layouts to an explicit output file, never the settings file. |
@@ -222,9 +223,19 @@ resistor of its label value), 1 mH ties per net, 1 µF DC blocks when the `.sNp`
 - **Export again keeps** setupThermal's settings, the boundaries, and for every device still in the region its
   power and schematic instance name (matched by device id through the previous `_thermalmap.json`).
 
+- **Instance names from LVS** (`lvs.py`, optional `.lvsdb`): the layout netlist has each device with its position,
+  the cross-reference its schematic device. A layout device belongs to the heat source whose device box contains
+  its position and whose LVS class fits (`technology.lvs_classes`: the pcell name, for a MOSFET the deck's base
+  model); a substrate tap or capacitor inside a transistor's box does not count. Subcircuits are walked with their
+  transformations, so deep and flat LVS runs both work. KLayout's SPICE reader drops element letters and LVS is
+  upper case (`Xcore.Q1` is `CORE.1`): the name is rebuilt with X per subcircuit and `technology.lvs_element` for
+  the device. LVS may be run on a cell that contains the exported one once (not several times: the names would not
+  be unique). Heat sources without an LVS device, or with several of different names, are reported, never guessed.
+
 `<name>_thermalmap.json`: per heat source its marker layer, device id (as in the port map), pcell and parameters,
-bounding box, heat area (µm²), polygon count, `from_pdk`, `cut_by_region` and `instance` (the schematic name, for
-the powers from a circuit simulation; filled from LVS later). Powers live in the `.tsimcfg` only.
+bounding box, heat area (µm²), polygon count, `from_pdk`, `cut_by_region`, `instance` (the schematic name, for the
+powers from a circuit simulation) and `lvs_name` (as in the LVS database), plus the `lvsdb` path. Powers live in
+the `.tsimcfg` only; gds2palace's `util_thermal_map` and setupThermal's **Load powers...** set them by name.
 
 ## 7. Design decisions
 
@@ -387,7 +398,7 @@ through `klayout_em_export_tests/pdk_env.py`.
 | Area | Tests |
 | --- | --- |
 | Export, selection, simcfg | `test_export.py`, `test_selection.py`, `test_simcfg.py`, `test_modelcheck.py` (the last two also plain Python) |
-| Thermal export | `test_thermal.py`: the cascode, one heat source per device equal to the PDK's heat shapes, marker layers past 299 around the stackup's, no ports or REF patches, export again keeps powers, boundaries and instance names (PDK needed) |
+| Thermal export | `test_thermal.py`: the cascode, one heat source per device equal to the PDK's heat shapes, marker layers past 299 around the stackup's, no ports or REF patches, export again keeps powers, boundaries and instance names; names from IHP's LVS deck, flat and with a subcircuit (PDK and `klayout_em_export_tests/testcases/lvs_cascode` needed) |
 | Version | `test_version.py` (plain Python): `grain.xml` and `__version__` agree (the EM panel's title shows it), the user's guide names it |
 | Stackup parser | `test_stackup_drift.py` (plain Python): z positions against gds2palace's `util_stackup_reader.py` for every stackup in the sibling repos `gds2palace_ihp_sg13g2` and `EMStudio` |
 | Ports | `test_ports.py`, `test_locate.py`, `test_numbering.py`, `test_portlayers.py`, `test_boundary.py` |

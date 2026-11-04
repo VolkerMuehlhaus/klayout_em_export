@@ -34,6 +34,9 @@ DEVICE_LEVEL = {"Activ"}            # diffusion, below Metal1: not traced as wir
 # MOS gate finger and npn emitter (HeatTrans) and over each resistor body stripe (HeatRes)
 HEAT_LAYERS = ((51, 0), (52, 0))    # HeatTrans.drawing, HeatRes.drawing
 HEAT_TARGET = "Activ"               # stackup layer whose z range holds the heat sources (thermal export)
+LVS_MOS_CLASSES = {"nmos": "sg13_lv_nmos", "pmos": "sg13_lv_pmos", "nmosHV": "sg13_hv_nmos", "pmosHV": "sg13_hv_pmos",
+                   "rfnmos": "sg13_lv_nmos", "rfpmos": "sg13_lv_pmos", "rfnmosHV": "sg13_hv_nmos",
+                   "rfpmosHV": "sg13_hv_pmos"}      # pcell -> device class of IHP's LVS deck (lvs.py)
 NO_DEVICES = "no PDK devices (SG13_dev pcells) in the cell"
 
 
@@ -133,6 +136,17 @@ def heat_area(layout, device):
     if area.is_empty():
         return pya.Region(device.bbox), False
     return area.merged(), True
+
+
+def lvs_classes(device):
+    """The device classes IHP's KLayout LVS deck extracts for this device (lower case): the pcell name, for a MOSFET
+    the base model (the deck maps rfnmos & co. to it)."""
+    return {device.pcell.lower(), LVS_MOS_CLASSES.get(device.pcell, device.pcell).lower()}
+
+
+def lvs_element(device):
+    """The SPICE element letter of the device in a schematic netlist that the LVS deck reads."""
+    return "M" if device.pcell in LVS_MOS_CLASSES else "R" if device.pcell in RESISTOR_PCELLS else "Q"
 
 
 def describe(device):

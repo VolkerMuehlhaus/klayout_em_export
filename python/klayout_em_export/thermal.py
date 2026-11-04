@@ -9,8 +9,9 @@ Boundaries (constant temperatures) are chosen in setupThermal, since no default 
 writes the region outline on the first marker layer, as geometry a boundary can use.
 
 Writes <name>.gds, <name>.tsimcfg (setupThermal) and <name>_thermalmap.json: which device each heat source layer
-belongs to, for the powers from a circuit simulation and the temperatures back. An export again keeps setupThermal's
-own settings, the boundaries, and the power and instance name of every device that is still in the region.
+belongs to, for the powers from a circuit simulation and the temperatures back. With an LVS database, each heat
+source gets the name of its schematic instance (lvs.py). An export again keeps setupThermal's own settings, the
+boundaries, and the power and instance name of every device that is still in the region.
 """
 import json
 import os
@@ -19,12 +20,14 @@ import pya
 
 from .devices import REF_NAME
 from .export import export_flat
+from .lvs import assign_names, read_lvs_devices
 from .pipeline import _clip, layout_devices
 
 FIRST_LAYER = 201           # marker layers: the region outline, then one per heat source, skipping stackup layers
 MAP_FORMAT = 1
 MAP_NOTE = ("layer = marker layer of the heat source in the exported GDS and the .tsimcfg; device = the layout "
-            "device (pcell name@x,y in dbu of its cell); instance = its name in the schematic (from LVS), if known. "
+            "device (pcell name@x,y in dbu of its cell); instance = its name in the schematic (from LVS), if known, "
+            "lvs_name = the same as in the LVS database (no element letters, upper case). "
             "area_um2 = heat area; from_pdk false: the device has no PDK heat shapes, its bounding box is used. "
             "outline_layer: the region outline, for boundaries chosen in setupThermal.")
 
@@ -92,7 +95,8 @@ def _read_json(path):
 
 
 def _previous(base):
-    """From an earlier export to the same name: ({device id: power}, {device id: instance}, settings file data)."""
+    """From an earlier export to the same name: ({device id: power}, {device id: (instance, lvs_name)}, LVS database
+    path, settings file data)."""
     old_map = _read_json(base + "_thermalmap.json") or {}
     old_cfg = _read_json(base + ".tsimcfg")
     if not isinstance(old_cfg, dict) or old_cfg.get("application") != "setupThermal" or \
@@ -105,8 +109,8 @@ def _previous(base):
         if power_of_layer.get(row.get("layer")) is not None:
             powers[row["device"]] = power_of_layer[row["layer"]]
         if row.get("instance"):
-            instances[row["device"]] = row["instance"]
-    return powers, instances, old_cfg
+            instances[row["device"]] = (row["instance"], row.get("lvs_name"))
+    return powers, instances, old_map.get("lvsdb"), old_cfg
 
 
 def write_tsimcfg(path, gds_file, stackup_file, cellname, sources, previous_cfg=None, purpose=(0,)):
@@ -126,13 +130,24 @@ def write_tsimcfg(path, gds_file, stackup_file, cellname, sources, previous_cfg=
         json.dump(data, f, indent=4)
 
 
-def export_thermal(layout, cell, stackup, gds_path, technology, box=None):
+def export_thermal(layout, cell, stackup, gds_path, technology, box=None, lvsdb=None):
     """Export the region (box, a DBox in µm, else the whole cell) to gds_path, with <name>.tsimcfg and
-    <name>_thermalmap.json next to it. Returns a dict: gds, tsimcfg, thermalmap, cellname, sources (count),
-    bounding_box (device ids without PDK heat shapes), cut (device ids partly outside the region), kept_settings,
-    report. Raises ValueError if the stackup has no usable layer for the heat sources."""
+    <name>_thermalmap.json next to it. lvsdb: an LVS database of the layout, for the schematic instance names (lvs.py);
+    without it, the names of an earlier export are kept. Returns a dict: gds, tsimcfg, thermalmap, cellname, sources
+    (count), bounding_box (device ids without PDK heat shapes), cut (device ids partly outside the region),
+    kept_settings, lvs (None without lvsdb, else named (count), unnamed, conflicts, outside, notes), report.
+    Raises ValueError if the stackup has no usable layer for the heat sources or lvsdb is unusable."""
     target = heat_target(stackup, technology)
     sources = heat_sources(layout, cell, stackup, technology, box)
+    base = os.path.splitext(gds_path)[0]
+    powers, instances, old_lvsdb, old_cfg = _previous(base)
+    lvs_report = None
+    if lvsdb:
+        lvs_devices, notes = read_lvs_devices(lvsdb, layout, cell)
+        instances, lvs_report = assign_names(sources, lvs_devices, technology, layout.dbu)
+        lvs_report.update(named=len(instances), notes=notes)
+    else:
+        lvsdb = old_lvsdb
     layers = marker_layers(stackup, len(sources) + 1)
     outline_layer, source_layers = layers[0], layers[1:]
     clip = _clip(layout, box)
@@ -143,8 +158,6 @@ def export_thermal(layout, cell, stackup, gds_path, technology, box=None):
     result = export_flat(layout, cell, stackup, gds_path, box=box, with_ports=False,
                          drop=(ref.layer,) if ref is not None else (), extra=extra)
 
-    base = os.path.splitext(gds_path)[0]
-    powers, instances, old_cfg = _previous(base)
     write_tsimcfg(base + ".tsimcfg", gds_path, stackup.path, result.cellname,
                   [(layer, target, float(powers.get(s.device.id, 0.0))) for layer, s in zip(source_layers, sources)],
                   previous_cfg=old_cfg)
@@ -154,15 +167,17 @@ def export_thermal(layout, cell, stackup, gds_path, technology, box=None):
              "bbox_um": [round(v * layout.dbu, 4) for v in (s.device.bbox.left, s.device.bbox.bottom,
                                                             s.device.bbox.right, s.device.bbox.top)],
              "area_um2": round(s.area.area() * um2, 6), "polygons": s.area.count(), "from_pdk": s.from_pdk,
-             "cut_by_region": s.cut, "instance": instances.get(s.device.id)}
+             "cut_by_region": s.cut, "instance": instances.get(s.device.id, (None, None))[0],
+             "lvs_name": instances.get(s.device.id, (None, None))[1]}
             for layer, s in zip(source_layers, sources)]
     thermal_map = {"note": MAP_NOTE, "format": MAP_FORMAT, "technology": technology.NAME,
                    "gds": os.path.basename(gds_path), "cellname": result.cellname, "target_layer": target,
-                   "outline_layer": outline_layer, "sources": rows}
+                   "outline_layer": outline_layer, "lvsdb": lvsdb and os.path.abspath(lvsdb).replace("\\", "/"),
+                   "sources": rows}
     with open(base + "_thermalmap.json", "w") as f:
         json.dump(thermal_map, f, indent=2)
     return {"gds": gds_path, "tsimcfg": base + ".tsimcfg", "thermalmap": base + "_thermalmap.json",
             "cellname": result.cellname, "sources": len(sources),
             "bounding_box": [s.device.id for s in sources if not s.from_pdk],
             "cut": [s.device.id for s in sources if s.cut], "kept_settings": old_cfg is not None,
-            "report": result.report()}
+            "lvs": lvs_report, "report": result.report()}

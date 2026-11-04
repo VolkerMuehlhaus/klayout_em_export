@@ -131,10 +131,12 @@ for suffix in ("_portmap.json", ".simcfg"):
     check(a == b, f"CLI export == export_em: {suffix}")
 
 # thermal export through the CLI: one heat source per device, from the PDK's heat shapes
-r = run(command="export_thermal", gds=out("c3.gds"), cell=cell, pdk=PDK, out=out("cascode_cli_thermal.gds"))
+r = run(command="export_thermal", gds=out("c3.gds"), cell=cell, pdk=PDK, out=out("cascode_cli_thermal.gds"),
+        lvsdb=os.path.join(TESTS_DIR, "testcases", "lvs_cascode", "cascode.lvsdb"))
 check(r["ok"] and r["sources"] == 5 and not r["bounding_box"] and
       all(os.path.isfile(r[k]) for k in ("gds", "tsimcfg", "thermalmap")),
       f"thermal export: {r.get('sources')} heat sources, bounding box used for {r.get('bounding_box')}")
+check(r["lvs"]["named"] == 5, f"thermal export: names from LVS {r.get('lvs')}")
 
 # KLayout knows sg13g2 now (the PDK was loaded above): without "pdk", a layout still gets no technology from that
 r = run(command="status", gds=octa, stackup=STACKUP)

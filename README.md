@@ -213,9 +213,16 @@ for setupThermal / gds2palace's Elmer thermal mode:
 - `<name>.tsimcfg` for setupThermal (all powers 0 W until set) and `<name>_thermalmap.json`, which says which
   device each heat source layer belongs to.
 
+**Instance names from LVS.** The powers of the devices come from your circuit simulation, per schematic instance.
+Give the dialog the LVS database (`.lvsdb`) of KLayout's LVS of this layout against your schematic (IHP's deck
+writes it), and each heat source gets the name of its schematic instance in the thermal map: `Q1`, `Xcore.Q1` for
+a device in a subcircuit. setupThermal's **Load powers...** then sets the powers from a file of your simulation, one
+line per instance (`Xcore.Q1, 2.5m`). LVS may have been run on the exported cell or on a cell that contains it
+once. A heat source without a matching LVS device keeps no name, and the export lists it.
+
 Boundaries (constant temperatures) are chosen in setupThermal; the region outline is on the first marker layer
-(201) for them. An export again keeps setupThermal's settings, the boundaries and the power of every device still
-in the region. Headless: the CLI command `export_thermal`.
+(201) for them. An export again keeps setupThermal's settings, the boundaries, and the power and instance name of
+every device still in the region. Headless: the CLI command `export_thermal` (`lvsdb` for the names).
 
 ## Circuit wrapper (ngspice, VACASK, Xyce, Spectre)
 

@@ -116,6 +116,30 @@ check([t["power"] for t in cfg2["thermal"] if t["type"] == "source"] == [0.002, 
 check([t for t in cfg2["thermal"] if t["type"] == "constanttemp"] == [cfg["thermal"][-1]], "export again: boundary kept")
 check(map2["sources"][0]["instance"] == "XQ1", "export again: instance name kept")
 
+# schematic names from LVS: IHP's deck on this cell against a schematic written for the test (Q1, Q2, R1..R3; a
+# substrate tap inside Q2's box, a MIM capacitor), flat and with Q1, Q2 in a subcircuit instance Xcore
+lvs_dir = os.path.join(TESTS_DIR, "testcases", "lvs_cascode")
+for lvsdb, names in (("cascode.lvsdb", ["R1", "R2", "R3", "Q1", "Q2"]),
+                     ("cascode_hier.lvsdb", ["R1", "R2", "R3", "XCORE.Q1", "XCORE.Q2"])):
+    named = export_thermal(ly, cell, st, gds, technology, lvsdb=os.path.join(lvs_dir, lvsdb))
+    map3 = json.load(open(named["thermalmap"]))
+    check([r["instance"] for r in map3["sources"]] == names and named["lvs"]["named"] == 5 and
+          not named["lvs"]["unnamed"] and not named["lvs"]["conflicts"] and not named["lvs"]["notes"],
+          f"{lvsdb}: instance names {[r['instance'] for r in map3['sources']]}, {named['lvs']}")
+    check(map3["lvsdb"].endswith(lvsdb), f"{lvsdb}: the map records the LVS database")
+print("lvs_name:", [r["lvs_name"] for r in map3["sources"]])
+cfg3 = json.load(open(named["tsimcfg"]))
+check([t["power"] for t in cfg3["thermal"] if t["type"] == "source"] == [0.002, 0.003, 0.004, 0.005, 0.006],
+      "export with LVS names: powers kept")
+again = export_thermal(ly, cell, st, gds, technology)
+check([r["instance"] for r in json.load(open(again["thermalmap"]))["sources"]] == names,
+      "export again without the LVS database: its names kept")
+try:
+    export_thermal(ly, cell, st, gds, technology, lvsdb=os.path.join(lvs_dir, "cascode_extracted.cir"))
+    check(False, "an unreadable LVS database is refused")
+except ValueError as e:
+    check(True, f"an unreadable LVS database is refused: {e}")
+
 # the guide's EM region: the bias resistor and the transistors inside, the outline is the box
 box = pya.DBox(-28.9, -11.275, 21.595, 20.63)
 boxed = export_thermal(ly, cell, st, os.path.join(OUT, "cascode_thermal_region.gds"), technology, box=box)

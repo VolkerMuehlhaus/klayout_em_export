@@ -382,7 +382,8 @@ def cmd_export(request, layout, cell):
 
 def cmd_export_thermal(request, layout, cell):
     """Thermal export (thermal.py) of the region ('box', else the EM region, else the whole cell; 'whole': true
-    ignores the EM region) to 'out' (.gds), with the .tsimcfg and _thermalmap.json next to it."""
+    ignores the EM region) to 'out' (.gds), with the .tsimcfg and _thermalmap.json next to it. 'lvsdb': an LVS
+    database of the layout, for the schematic instance names (lvs.py)."""
     stackup = stackup_of(request, layout)
     technology = technology_of(request, layout)[0]
     out = request.get("out")
@@ -392,7 +393,7 @@ def cmd_export_thermal(request, layout, cell):
         raise RequestError("'out' is the layout itself")
     box = None if request.get("whole") else _region_box(request, layout, cell)
     try:
-        return export_thermal(layout, cell, stackup, out, technology, box=box)
+        return export_thermal(layout, cell, stackup, out, technology, box=box, lvsdb=request.get("lvsdb"))
     except ValueError as e:
         raise RequestError(str(e))
 
