@@ -18,6 +18,7 @@ Document version: 2026-11-04, plug-in version 0.2.1
 [setupEM and the Palace run](#setupem-and-the-palace-run)
 [Back to the circuit: Create Circuit](#back-to-the-circuit-create-circuit)
 [The cascode example: results](#the-cascode-example-results)
+[Thermal simulation](#thermal-simulation)
 [Troubleshooting](#troubleshooting)
 [Reference](#reference)
 
@@ -47,7 +48,8 @@ The plug-in connects the two worlds:
    the real wiring included.
 
 This guide follows the Palace flow with setupEM, the one that puts the transistors back. For openEMS, see
-[EMStudio instead of setupEM](#emstudio-instead-of-setupem) in chapter 11.
+[EMStudio instead of setupEM](#emstudio-instead-of-setupem) in chapter 11. The same layout can also go to a
+thermal simulation with setupThermal, for the temperature of each device: chapter 14.
 
 ### What the plug-in does for you
 
@@ -162,7 +164,7 @@ and contains `grain.xml`. If transistors are not recognized later (chapter 9), t
 
 Each line has an arrow on the right. It opens the details, with the buttons for that step. Below the table are the
 **EM Port tool**, **Create Proposed Ports** (chapter 8) and **Refresh**, and at the bottom **Export for EM...** and
-**Open in setupEM**.
+**Open in setupEM**. The switch at the top, **EM | Thermal**, changes the panel to the thermal export (chapter 14).
 
 The marks mean:
 
@@ -710,6 +712,182 @@ higher at 100 GHz, which comes from Xyce's version of the transistor model, not 
 **The cost of the simple wiring:** connecting the transistors directly to the EM model ties their REF patches to
 ground, which adds a few fF. In the cascode that lowers S21 by 0.06 dB at 10 GHz and 0.4 dB at 200 GHz.
 
+## Thermal simulation
+
+> **In this chapter:** the temperature of each transistor and resistor, from the same layout, and back to your
+> circuit.
+>
+> **Why it matters:** a transistor that dissipates power heats itself and its neighbours. Its temperature changes
+> its current, its gain and its lifetime. The self-heating in a compact model knows only the device itself: not the
+> neighbours, not the wiring that carries heat away, not the substrate and package below. A thermal simulation of
+> the layout includes all of that.
+
+The thermal flow starts from the same layout and region as the EM flow. It needs no ports, and the devices stay as
+they are:
+
+1. **In KLayout**, the EM panel's **Thermal** tab lists one heat source per transistor and resistor. **Export for
+   Thermal...** writes the model for setupThermal.
+2. **Your circuit simulation** gives the power of each device.
+3. **In setupThermal**, **Load powers...** sets these powers on the heat sources. You choose where the temperature
+   is fixed, and Elmer computes the temperatures.
+4. **The temperature of each device** comes back as a table with its schematic instance name, for your circuit
+   simulation.
+
+### The Thermal tab
+
+Switch the EM panel to **Thermal** at the top:
+
+![The EM panel in Thermal mode, with the heat sources of the cascode](images/15_panel_thermal.png)
+
+- **Stackup** and **Region**: as for EM (chapters 5 and 8). The stackup needs thermal data: the gds2palace stackups
+  for EM and thermal, e.g. `SG13G2_FEM_200um.xml`, have it.
+- **Sources**: the heat sources, one per device in the region, with its marker layer, device, schematic name, heat
+  area and where the heat area comes from.
+- **Names**: the schematic instance names, from your LVS run (see below). Optional.
+- **Boundary**: the fixed temperatures of the last thermal export. You choose them in setupThermal.
+
+The EM steps (ground, devices, ports) are hidden. A thermal model needs none of them.
+
+### Heat sources
+
+A transistor generates its heat in a small volume: at the emitter of an npn, under the gate of a MOSFET. A resistor
+heats along its body. The temperature is highest there and falls steeply around it. So the heat source must have
+the size of that volume, not the size of the whole device. A larger area spreads the heat and gives too low a
+temperature.
+
+The IHP PDK draws these areas itself, on **HeatTrans (51/0)** and **HeatRes (52/0)**: one rectangle per emitter
+or gate finger, and the body of each resistor. The export takes them. PDK cells without them (older PDK versions,
+or static cells) get the same rectangles from the device's own layers, as the PDK does it: each npn emitter window
+(EmWind, 33/0) grown by 0.05 µm, each MOS gate finger, each resistor body. The **Heat area** column says which one
+was used. Only a device with neither gets its bounding box, with a warning.
+
+Each heat source:
+
+- goes on a marker layer of its own, from 201 upward. Layers that the stackup or your own markers use are skipped;
+- sits in the height of **Activ**, the active silicon at the top of the substrate;
+- gets one power, which Elmer spreads over the device's fingers by their area.
+
+The metal, contacts and vias of the devices stay in the model, since they carry heat away.
+
+**Good to know:** the heat areas are small and lie under all the metal. To see them in KLayout, show all hierarchy
+levels (`*`), hide all layers, and switch on HeatTrans and HeatRes (or EmWind, for an npn without HeatTrans). In the
+exported layout they are on the marker layers.
+
+### Instance names from LVS
+
+The powers come from your circuit simulation, per schematic instance: `Q1`, or `Xcore.Q1` for a device in a
+subcircuit. To find each device's instance, the plug-in reads the database of a KLayout LVS run of this layout
+against your schematic. IHP's LVS deck writes it (`.lvsdb`).
+
+Choose the file in the **Names** step (or in the export dialog). Each heat source then gets its instance name. LVS
+may have been run on the exported cell, or on a cell that contains it once. A heat source without a matching LVS
+device gets no name, and the Names step lists it.
+
+Without LVS, the export still works. The heat sources then have only their layout names, e.g.
+`npn13G2@-7230,590`, and the powers file must use those.
+
+### Export for Thermal
+
+Press **Export for Thermal...**:
+
+![The thermal export dialog](images/15_export_thermal.png)
+
+- **Heat sources**: how many, and which of them have no heat area of their own.
+- **Boundaries**: your own boundaries in the layout, if any.
+- **Left out**: layers with shapes in the region that are not in the stackup.
+- **Instance names**: the LVS database.
+
+You get three files, e.g. for `cascode_thermal.gds`:
+
+| File | Content |
+| --- | --- |
+| `cascode_thermal.gds` | the flat layout: stackup layers with the devices as drawn, the heat sources and the region outline on marker layers |
+| `cascode_thermal.tsimcfg` | setupThermal's settings: layout, cell, stackup, one heat source per device (0 W) and a placeholder boundary |
+| `cascode_thermal_thermalmap.json` | which device and instance each heat source layer belongs to |
+
+**Exporting again** keeps everything you set in setupThermal: mesh, boundaries, and the power and name of every
+device still in the region.
+
+### Boundaries
+
+Heat must leave the model somewhere. Usually that is the backside of the chip, on a heat sink or a carrier. Which
+face is right depends on the assembly, so the export does not choose it. It writes the region outline on the first
+marker layer, with a placeholder: a fixed temperature of 300 K without a target layer.
+
+setupThermal lists it as **region outline: choose the target layer**, and does not build the model until you do. The
+target layer is the height of the fixed temperature: e.g. **BACKSIDEGND** for the substrate backside, if your
+stackup has it. Set the temperature too, e.g. the heat sink's.
+
+The side faces of the model are adiabatic: no heat leaves there. Choose the region with enough substrate around the
+devices, so that this does not matter.
+
+### Your own heat sources and boundaries
+
+You can also draw your own markers, e.g. a pad area with a fixed temperature, or the heat source of a block without
+PDK devices. The export keeps them on their layers. It recognizes them in two ways:
+
+- the layers your own setupThermal file for this layout uses (a `.tsimcfg` next to the layout, with this GDS file);
+- shapes on 201 ... 299 that are not EM ports.
+
+Their settings (power, temperature, target layer) go into the exported `.tsimcfg`.
+
+**EM ports and thermal markers in one layout:** give them different layer numbers. EM ports are on 201 ... 299. Put
+thermal markers e.g. on 401 ... 499, which no stackup of gds2palace uses.
+
+### In setupThermal
+
+**Open in setupThermal** in the panel opens the export. Then:
+
+1. **Powers:** in the **Thermal Sources + Boundaries** tab, **Load powers...** reads a file from your circuit
+   simulation, one line per device: instance name and power in W, separated by a comma, semicolon, tab or spaces.
+
+   ```text
+   instance, power
+   Xcore.Q1, 12.5m
+   Xcore.Q2, 12.5m
+   R1, 0.2m
+   ```
+
+   SPICE suffixes are fine (`12.5m`, `12.5mW`, `12.5e-3`), and so is a header line. setupThermal reports heat
+   sources without a power and names that match none. Nothing is set to 0 W silently.
+2. **Boundary:** choose the target layer of the region outline (see above).
+3. **Mesh:** the mesh at the heat sources must be fine. An npn's emitter is 0.17 µm wide, and a mesh that is too
+   coarse there, or grows too fast, gives too low a temperature. Set a fine value only where it is needed, with
+   **Advanced...** next to **Mesh size at heat sources**: e.g. 0.125 µm for the npn sources and the default for the
+   resistors. The setupEM guide explains the mesh settings (Mesh tab, setupThermal).
+4. **Solver:** for a large mesh, choose the iterative solver. The direct solver needs much more memory: on a laptop
+   it failed at about a million elements.
+5. **Create Model** and run.
+
+![setupThermal after Load powers..., with the boundary on BACKSIDEGND (example powers)](images/15_setupthermal_sources.png)
+
+### Temperatures back to the circuit
+
+After the run, setupThermal lists the temperature of each heat source in the log, and writes the same table to
+`<model>_temperatures.csv` next to the model script. The command line does the same without the GUI:
+`python -m setupEM.thermal_results <model>.tsimcfg`.
+
+| Column | Meaning |
+| --- | --- |
+| `instance` | the schematic instance name (from LVS) |
+| `device`, `pcell`, `layer` | the layout device and its heat source layer |
+| `power_W` | the power set for it |
+| `T_mean_K` | the average temperature over the heat source: the device temperature |
+| `T_max_K` | the hottest point of the heat source; depends more on the mesh |
+| `dT_mean_K`, `dT_max_K` | the rise above the lowest fixed temperature of the model |
+
+In your circuit simulator, set each instance's temperature rise to its `dT_mean_K` (e.g. `dtemp` in ngspice,
+`trise` in Spectre).
+
+**Good to know:**
+
+- The temperatures include the heat of all devices. For the self-heating of one device alone, set only its power.
+- If the device model computes self-heating too (IHP's npn13G2 model has a thermal resistance, `rth`), the
+  device's own heating counts twice. Then switch the model's self-heating off, or give it only the rise caused by
+  the other devices (a thermal run without this device's power).
+- A device's power depends on its temperature. If the temperatures change the powers noticeably, simulate the
+  circuit again with the new temperatures, load the new powers, and run the thermal model once more.
+
 ## Troubleshooting
 
 > **In this chapter:** the messages of the plug-in, what they mean, and what to do.
@@ -734,6 +912,13 @@ ground, which adds a few fF. In the cascode that lowers S21 by 0.06 dB at 10 GHz
 | This layout has not been exported yet | Open in setupEM or EMStudio needs an export first | press Export for EM... |
 | EMStudio ended at once (exit code 1): this EMStudio cannot open a .simcfg | your EMStudio has no .simcfg import yet (it ends on a .simcfg on its command line) | open the export with setupEM, or use an EMStudio with File > Import setupEM Config |
 | no 0 Hz point in the .sNp | the EM result has no DC point | start the sweep at 0 Hz (chapter 11) |
+| Thermal: the stackup ... has no layer Activ | the heat sources sit in Activ, which this stackup lacks | choose a stackup for EM and thermal (chapter 14) |
+| Thermal: no devices in the region | the export has no heat sources | choose another region, or draw your own heat sources |
+| Thermal: N without a heat area (bounding box) | a device has no heat shapes and no layers to derive them from | check the device: its whole box heats, the temperature comes out too low |
+| Thermal: N from the PDK's rule | the PDK cells draw no heat shapes (older PDK, static cells) | nothing: the rule gives the PDK's rectangles |
+| Thermal: N cut by the region | a device is partly outside the region: only the part inside heats | enlarge the region |
+| Names: no LVS device: ... | LVS has no device at this heat source | run LVS on this cell, or on a cell that contains it once |
+| region outline: choose the target layer (setupThermal) | the placeholder boundary has no height yet | choose its target layer, e.g. BACKSIDEGND (chapter 14) |
 
 ## Reference
 
@@ -744,6 +929,8 @@ ground, which adds a few fF. In the cascode that lowers S21 by 0.06 dB at 10 GHz
 | 201 ... 299 | ports: port number = layer − 200 (layers used by the stackup itself, e.g. SUBGND, are skipped) |
 | 300 | REF_FOR_TRANSISTOR: the transistors' and resistors' REF patches |
 | 800/0 | the EM region box |
+| 201 upward (thermal export) | in the exported layout: the region outline, then one heat source per device (stackup layers and your own markers skipped) |
+| 401 ... 499 (suggested) | your own thermal markers, apart from the EM ports |
 
 ### Stored in the layout
 
@@ -755,6 +942,7 @@ Saving the layout keeps its EM setup. The export copies none of this into `<name
 | Boundary port mark | GDS property 201 on ports made by Create Proposed Ports |
 | Replaced device | GDS property 202 on the device's REF patch and ports |
 | Stackup, last export, ground marks | layout meta info `klayout_em_export.stackup`, `.output`, `.ground` |
+| Last thermal export, LVS database | layout meta info `klayout_em_export.thermal_output`, `.lvsdb` |
 
 **Your original file is kept.** The first time the plug-in changes a layout that has none of its data yet (you
 place a port, choose a stackup, mark ground, replace devices, ...), it copies the layout file as it is on disk to
@@ -775,7 +963,8 @@ tools may show it as an empty top cell. (KLayout writes this cell anyway for a l
    ```python
    import pya
    ly = pya.CellView.active().layout()
-   for key in ("klayout_em_export.stackup", "klayout_em_export.output", "klayout_em_export.ground"):
+   for key in ("klayout_em_export.stackup", "klayout_em_export.output", "klayout_em_export.ground",
+               "klayout_em_export.thermal_output", "klayout_em_export.lvsdb"):
        ly.remove_meta_info(key)
    ```
 
@@ -789,6 +978,10 @@ It uses that copy only when the layout has none of its own.
 | `<name>_em.gds` | Export | flat layout for the EM simulation |
 | `<name>_em.simcfg` | Export | settings for setupEM and EMStudio |
 | `<name>_em_portmap.json` | Export | ports: layout number, device and terminal, net |
+| `<name>_thermal.gds` | Export for Thermal | flat layout for the thermal simulation |
+| `<name>_thermal.tsimcfg` | Export for Thermal | settings for setupThermal |
+| `<name>_thermal_thermalmap.json` | Export for Thermal | heat sources: layer, device, instance name, heat area |
+| `<model>_temperatures.csv` | setupThermal after Elmer | temperature per heat source and instance |
 | `<model>.sNp`, `<model>_dc.sNp` | gds2palace after Palace | S-parameters, without and with the 0 Hz point |
 | `..._<simulator>.cir` / `.inc` / `.scs` | Create Circuit | the circuit |
 | `..._le.cir` / `_le.inc` | Create Circuit (snp2le) | the EM model's equivalent circuit |
@@ -807,3 +1000,8 @@ It uses that copy only when the layout has none of its own.
   width offset and contact end resistance. rhigh and rppd are about 10 % to 13 % low, rsil up to about 2 %
   (chapter 9). A resistor of several segments cannot be replaced yet.
 - The REF patch adds a few fF per transistor when the device is wired directly (chapter 13).
+- Thermal: instance names from LVS are tested with npn transistors and resistors. MOSFETs are supported, but not
+  tested yet.
+- Thermal: for the cascode's Q1 (npn13G2, 8 emitters), the thermal model with a converged mesh gives about 25 %
+  more temperature rise than the `rth` of IHP's compact model. The reason is not known yet. Use the temperatures
+  as estimates, and for comparing devices and layouts.
