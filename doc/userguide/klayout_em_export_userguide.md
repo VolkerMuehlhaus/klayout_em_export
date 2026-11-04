@@ -767,6 +767,8 @@ Each heat source:
 - sits in the height of **Activ**, the active silicon at the top of the substrate;
 - gets one power, which Elmer spreads over the device's fingers by their area.
 
+**Resistors:** Resistor temperatures are not accurate yet. A resistor is polysilicon on oxide, which insulates it from the substrate. The model puts its heat source into the silicon at the height of Activ instead, so the resistor comes out too cool. Transistors are not affected.
+
 The metal, contacts and vias of the devices stay in the model, since they carry heat away. So does the silicon
 around each npn emitter, which the PDK draws on Activ.mask (1/20), not on Activ: the export keeps datatype 20
 too, and setupThermal reads it as Activ. Without it, the heat sources would sit in oxide, and the temperature
@@ -1003,6 +1005,7 @@ It uses that copy only when the layout has none of its own.
   width offset and contact end resistance. rhigh and rppd are about 10 % to 13 % low, rsil up to about 2 %
   (chapter 9). A resistor of several segments cannot be replaced yet.
 - The REF patch adds a few fF per transistor when the device is wired directly (chapter 13).
+- Thermal: resistor temperatures are not accurate yet. A resistor is polysilicon on oxide, which insulates it from the substrate. The model puts its heat source into the silicon at the height of Activ instead, so the resistor comes out too cool (chapter 14).
 - Thermal: instance names from LVS are tested with npn transistors and resistors. MOSFETs are supported, but not
   tested yet.
 - Thermal: the temperatures depend directly on the thermal conductivities in the stackup, above all of the
