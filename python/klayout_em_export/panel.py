@@ -630,9 +630,12 @@ class EMPanel(pya.QWidget):
         else:
             parts = [f"{len(sources)} heat source(s) in {target}"]
             fallback = sum(not s.from_pdk for s in sources)
+            from_rule = sum(s.how == "rule" for s in sources)
             cut = sum(s.cut for s in sources)
             if fallback:
-                parts.append(f"{fallback} without PDK heat shapes (bounding box)")
+                parts.append(f"{fallback} without a heat area (bounding box)")
+            if from_rule:
+                parts.append(f"{from_rule} from the PDK's rule (this PDK draws no heat shapes)")
             if cut:
                 parts.append(f"{cut} cut by the region")
             self.sources_step.set(WARN if fallback or cut else OK, ", ".join(parts),
@@ -645,7 +648,7 @@ class EMPanel(pya.QWidget):
         dbu = layout.dbu
         for row, (layer, s) in enumerate(zip(layers, sources)):
             d = s.device
-            heat = "PDK heat shapes" if s.from_pdk else "bounding box (no PDK heat shapes)"
+            heat = {"shapes": "PDK heat shapes", "rule": "PDK rule (no heat shapes)"}.get(s.how, "bounding box")
             if s.cut:
                 heat += ", cut by the region"
             center = d.bbox.center()

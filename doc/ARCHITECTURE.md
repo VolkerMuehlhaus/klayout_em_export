@@ -102,7 +102,10 @@ gds2palace stackup.
    `DEVICE_LEVEL` (stackup names of the diffusion and every other layer below the wiring that would join nets),
    `NO_DEVICES`, `devices_in(layout)`, `context`, `identify`, `is_device`, `is_resistor`, `terminals` (fill
    `device.terminals` as `{name: (GDS layer of the pin metal, [pin boxes])}`), `describe` (the panel's Value
-   column: size or value), `resistor_note`.
+   column: size or value), `resistor_note`; for the thermal export `HEAT_TARGET` (stackup layer of the heat
+   sources, None: no heat sources), `heat_area` (a device's heat area and how it was found: `shapes`, `rule`,
+   `bbox`), `lvs_classes` and `lvs_element` (matching LVS devices, see `lvs.py`). Every process fact (layers,
+   pcell names, rules) stays in the technology module; `generic.py` shows the neutral versions.
 2. `tech/<name>_circuit.py`, plain Python: `NAME`, `PDK_LABEL`, `PDK_HINT`, `PDK_BROWSE_TITLE`, `LIBRARIES`,
    `SPECTRE_NOTE`, `VACASK_HEADER`, `pcell_of`, `lib_path`, `instantiate` (the subcircuit or model per device with
    its terminal order).
@@ -209,8 +212,13 @@ resistor of its label value), 1 mH ties per net, 1 µF DC blocks when the `.sNp`
   replaced: no ports, no REF patches (`REF_FOR_TRANSISTOR` and the port layers are left out of the GDS).
 - **Heat area from the PDK.** IHP's pcells draw it themselves (`sg13g2_pycell_lib/ihp/thermal.py`): `HeatTrans`
   51/0 over each MOS gate finger and npn emitter (+0.05 µm), `HeatRes` 52/0 over each resistor body stripe;
-  `tech/ihp_sg13.heat_area` takes the device's shapes on these layers. A device without them (an older or static
-  cell) gets its bounding box, reported in the dialog and the result: a larger area, a lower peak temperature.
+  `tech/ihp_sg13.heat_area` takes the device's shapes on these layers. PDK versions before the heat shapes (March
+  2025 and older) and static cells from them have none: then the same rectangles come from the device's own layers,
+  as the pcells derive them (`rule`): each npn emitter window (`EmWind` 33/0) grown by 0.05 µm, each resistor body
+  (`PolyRes` 128/0), each nmos/pmos gate finger (the `GatPoly` line across `Activ`, with its end caps). The rf
+  MOSFETs draw no heat shapes in any PDK version, so there is no rule for them. Only a device with neither gets
+  its bounding box, reported in the dialog, the panel and the
+  result: a larger area, a lower peak temperature.
 - **One power per device.** gds2palace takes one power per marker layer and spreads it over the volume of all its
   polygons (Elmer `-distribute`), so a device's fingers share it by area. A circuit simulation gives one power per
   device, not per finger.
@@ -236,7 +244,8 @@ resistor of its label value), 1 mH ties per net, 1 µF DC blocks when the `.sNp`
   be unique). Heat sources without an LVS device, or with several of different names, are reported, never guessed.
 
 `<name>_thermalmap.json`: per heat source its marker layer, device id (as in the port map), pcell and parameters,
-bounding box, heat area (µm²), polygon count, `from_pdk`, `cut_by_region`, `instance` (the schematic name, for the
+bounding box, heat area (µm²), polygon count, `heat_area_from` (`shapes`, `rule` or `bbox`), `from_pdk` (not
+`bbox`), `cut_by_region`, `instance` (the schematic name, for the
 powers from a circuit simulation) and `lvs_name` (as in the LVS database), plus the `lvsdb` path. Powers live in
 the `.tsimcfg` only; gds2palace's `util_thermal_map` and setupThermal's **Load powers...** set them by name.
 

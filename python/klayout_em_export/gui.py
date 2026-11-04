@@ -895,8 +895,12 @@ class ThermalExportDialog(pya.QDialog):
         notes = [f"one per device, in the z range of {target}, power 0 W until set in setupThermal"]
         fallback = [s.device.id for s in sources if not s.from_pdk]
         if fallback:
-            notes.append("no PDK heat shapes, the bounding box is used (a larger area, a lower peak temperature): " +
+            notes.append("no heat area known, the bounding box is used (a larger area, a lower peak temperature): " +
                          ", ".join(fallback))
+        from_rule = [s.device.id for s in sources if s.how == "rule"]
+        if from_rule:
+            notes.append("this PDK draws no heat shapes, the PDK's rule gives the same rectangles from the device's "
+                         "layers: " + ", ".join(from_rule))
         cut = [s.device.id for s in sources if s.cut]
         if cut:
             notes.append("partly outside the region, only the part inside is exported: " + ", ".join(cut))

@@ -212,7 +212,10 @@ hidden; device replacement is not needed for it). The export writes:
   are left out;
 - one heat source per transistor and resistor: its heat area as drawn by the PDK (IHP: the `HeatTrans` and
   `HeatRes` shapes of the device), on a marker layer of its own from 201 upward (skipping the stackup's layers), in
-  the z range of `Activ`. A device without these shapes gets its bounding box, which the dialog lists;
+  the z range of `Activ`. PDK versions before these shapes (March 2025 and older) draw none: then the export
+  derives the same rectangles from the device's layers, as the PDK does (npn emitter windows grown by 0.05 µm,
+  resistor bodies, MOS gates). Only a device with neither gets its bounding box, which the dialog and the panel
+  list;
 - `<name>.tsimcfg` for setupThermal (all powers 0 W until set) and `<name>_thermalmap.json`, which says which
   device each heat source layer belongs to.
 

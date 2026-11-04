@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 from pdk_env import load_pdk
 from klayout_em_export import tech
 from klayout_em_export.stackup import Stackup
-from klayout_em_export.thermal import export_thermal, heat_target, marker_layers
+from klayout_em_export.thermal import export_thermal, heat_sources, heat_target, marker_layers
 
 OUT = out_dir("thermal")
 failed = []
@@ -72,7 +72,8 @@ thermal_map = json.load(open(result["thermalmap"]))
 rows = thermal_map["sources"]
 print("sources:", [(r["layer"], r["device"], r["area_um2"], r["polygons"]) for r in rows])
 check(result["sources"] == len(rows) == 5, f"one heat source per device: {len(rows)}")
-check(not result["bounding_box"] and all(r["from_pdk"] for r in rows), "every heat area from the PDK's shapes")
+check(not result["bounding_box"] and all(r["heat_area_from"] == "shapes" for r in rows),
+      "every heat area from the PDK's shapes")
 check(abs(sum(r["area_um2"] for r in rows) - pdk_heat.area() * ly.dbu ** 2) < 1e-6,
       "the heat areas add up to the PDK's heat shapes")
 check(thermal_map["outline_layer"] == 201 and [r["layer"] for r in rows] == list(range(202, 207)),
@@ -148,4 +149,43 @@ boxed = export_thermal(ly, cell, st, os.path.join(OUT, "cascode_thermal_region.g
 out_box, _ = shapes(boxed["gds"])
 check(out_box[(201, 0)].bbox() == box.to_itype(dbu), "region export: outline = region box")
 print("region export:", boxed["sources"], "source(s), cut by the region:", boxed["cut"])
+
+# a PDK before the heat shapes (March 2025 and older) draws none: the PDK's rule gives the same rectangles from the
+# device's own layers (npn emitter windows + 0.05 um, resistor bodies on PolyRes)
+with_shapes = heat_sources(ly, cell, st, technology)
+check(all(s.how == "shapes" for s in with_shapes), "with the PDK's heat shapes: how = shapes")
+for layer in technology.HEAT_LAYERS:
+    li = ly.find_layer(*layer)
+    for c in ly.each_cell():
+        c.shapes(li).clear()
+without = heat_sources(ly, cell, st, technology)
+check([s.how for s in without] == ["rule"] * 5, f"without them: from the rule ({[s.how for s in without]})")
+check(all((a.area ^ b.area).is_empty() for a, b in zip(with_shapes, without)),
+      "the rule gives exactly the PDK's heat shapes: " +
+      ", ".join(f"{b.device.pcell} {b.area.area() * dbu ** 2:.4g} um2" for b in without))
+ruled = export_thermal(ly, cell, st, os.path.join(OUT, "cascode_thermal_rule.gds"), technology)
+rows_rule = json.load(open(ruled["thermalmap"]))["sources"]
+check(ruled["from_rule"] == [s.device.id for s in without] and not ruled["bounding_box"] and
+      all(r["heat_area_from"] == "rule" and r["from_pdk"] for r in rows_rule), "the map and the result say so")
+
+# MOSFETs (none in the cascode): the rule equals the pcell's HeatTrans (gate fingers with end caps); the rf MOSFETs
+# draw none in any PDK version, so no rule: bounding box
+lib = pya.Library.library_by_name("SG13_dev", "sg13g2")
+mos_layout = pya.Layout()
+mos_layout.technology_name = "sg13g2"
+for pcell, params in (("nmos", {"ng": 2}), ("pmosHV", {"ng": 3}), ("rfnmos", {})):
+    ci = mos_layout.add_pcell_variant(lib, lib.layout().pcell_declaration(pcell).id(), params)
+    device = type("Device", (), {"pcell": pcell, "cell_index": ci, "trans": pya.Trans(),
+                                 "bbox": mos_layout.cell(ci).bbox()})
+    li = mos_layout.find_layer(51, 0)
+    # merged(): a copy, the Region reads the layout lazily
+    pdk_heat = pya.Region(mos_layout.cell(ci).begin_shapes_rec(li)).merged() if li is not None else pya.Region()
+    if li is not None:
+        mos_layout.cell(ci).shapes(li).clear()
+    area, how = technology.heat_area(mos_layout, device)
+    if pcell == "rfnmos":
+        check(pdk_heat.is_empty() and how == "bbox", "rfnmos: no PDK heat shapes, no rule: bounding box")
+    else:
+        check(how == "rule" and (area ^ pdk_heat).is_empty() and not area.is_empty(),
+              f"{pcell}: the rule gives the PDK's HeatTrans ({pdk_heat.count()} fingers)")
 print("all passed" if not failed else f"FAILED: {'; '.join(failed)}")

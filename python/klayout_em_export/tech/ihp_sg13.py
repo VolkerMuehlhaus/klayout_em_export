@@ -33,6 +33,12 @@ DEVICE_LEVEL = {"Activ"}            # diffusion, below Metal1: not traced as wir
 # where the PDK's pcells mark the heat a device dissipates (sg13g2_pycell_lib/ihp/thermal.py): rectangles over each
 # MOS gate finger and npn emitter (HeatTrans) and over each resistor body stripe (HeatRes)
 HEAT_LAYERS = ((51, 0), (52, 0))    # HeatTrans.drawing, HeatRes.drawing
+# PDK versions before the heat shapes (e.g. March 2025) and static cells from such a PDK do not draw them: the same
+# rectangles from the device's own layers, as the pcells derive them (npn*_code.py, rsil/rppd/rhigh_code.py)
+EMWIND_LAYER = (33, 0)              # EmWind.drawing: npn emitter window; HeatTrans = each window grown by 0.05 µm
+EMWIND_HEAT_GROW = 0.05             # µm
+POLYRES_LAYER = (128, 0)            # PolyRes.drawing: resistor body; HeatRes = the same rectangles
+ACTIV_LAYER = (1, 0)                # Activ.drawing: a MOS gate is GatPoly over Activ
 HEAT_TARGET = "Activ"               # stackup layer whose z range holds the heat sources (thermal export)
 LVS_MOS_CLASSES = {"nmos": "sg13_lv_nmos", "pmos": "sg13_lv_pmos", "nmosHV": "sg13_hv_nmos", "pmosHV": "sg13_hv_pmos",
                    "rfnmos": "sg13_lv_nmos", "rfpmos": "sg13_lv_pmos", "rfnmosHV": "sg13_hv_nmos",
@@ -124,18 +130,40 @@ def _size(value):
     return text[:-1] + " µm" if text.endswith("u") else text
 
 
+def _device_shapes(layout, c, layer):
+    li = layout.find_layer(*layer)
+    return pya.Region() if li is None else pya.Region(c.begin_shapes_rec(li))
+
+
+def _heat_rule(layout, c, device):
+    """The PDK's heat rectangles derived from the device cell's own layers (in the cell), or an empty Region:
+    npn: each emitter window grown by 0.05 µm; resistor: its body on PolyRes; nmos/pmos(HV): each gate finger, the
+    GatPoly line across Activ with its end caps. Only for the pcells that draw heat shapes in newer PDKs: the rf
+    MOSFETs draw none in any version, so there is no PDK rule to follow (they get their bounding box)."""
+    if device.pcell.startswith("npn"):
+        grow = int(round(EMWIND_HEAT_GROW / layout.dbu))
+        return _device_shapes(layout, c, EMWIND_LAYER).sized(grow, grow, 2)
+    if device.pcell in RESISTOR_PCELLS:
+        return _device_shapes(layout, c, POLYRES_LAYER)
+    if device.pcell in MOSFET_PCELLS:
+        return _device_shapes(layout, c, (POLY_LAYER, 0)).interacting(_device_shapes(layout, c, ACTIV_LAYER))
+    return pya.Region()
+
+
 def heat_area(layout, device):
-    """(Region in the searched cell, from_pdk) of the heat a device dissipates: its shapes on HEAT_LAYERS, or its
-    bounding box (from_pdk False) for a device cell without them (an older or static device)."""
+    """(Region in the searched cell, how) of the heat a device dissipates. how: 'shapes' (the PDK's heat shapes on
+    HEAT_LAYERS), 'rule' (no heat shapes, e.g. a PDK version before them: the same rectangles from the device's own
+    layers, _heat_rule) or 'bbox' (neither: the device's bounding box, a larger area and a lower peak temperature)."""
     c = layout.cell(device.cell_index)
     area = pya.Region()
-    for layer, datatype in HEAT_LAYERS:
-        li = layout.find_layer(layer, datatype)
-        if li is not None:
-            area += pya.Region(c.begin_shapes_rec(li)).transformed(device.trans)
+    for layer in HEAT_LAYERS:
+        area += _device_shapes(layout, c, layer)
+    how = "shapes"
     if area.is_empty():
-        return pya.Region(device.bbox), False
-    return area.merged(), True
+        area, how = _heat_rule(layout, c, device), "rule"
+    if area.is_empty():
+        return pya.Region(device.bbox), "bbox"
+    return area.transformed(device.trans).merged(), how
 
 
 def lvs_classes(device):

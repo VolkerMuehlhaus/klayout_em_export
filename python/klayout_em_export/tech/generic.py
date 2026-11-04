@@ -43,3 +43,17 @@ def describe(device):
 
 def resistor_note(device):
     return "simulated as drawn layout"
+
+
+def heat_area(layout, device):
+    """No device support, so no heat sources (HEAT_TARGET is None); the bounding box, should a device ever reach here."""
+    import pya
+    return pya.Region(device.bbox), "bbox"
+
+
+def lvs_classes(device):
+    return set()
+
+
+def lvs_element(device):
+    return "X"
