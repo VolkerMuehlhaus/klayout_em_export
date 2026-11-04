@@ -1002,6 +1002,6 @@ It uses that copy only when the layout has none of its own.
 - The REF patch adds a few fF per transistor when the device is wired directly (chapter 13).
 - Thermal: instance names from LVS are tested with npn transistors and resistors. MOSFETs are supported, but not
   tested yet.
-- Thermal: for the cascode's Q1 (npn13G2, 8 emitters), the thermal model with a converged mesh gives about 25 %
-  more temperature rise than the `rth` of IHP's compact model. The reason is not known yet. Use the temperatures
-  as estimates, and for comparing devices and layouts.
+- Thermal: the temperatures depend directly on the thermal conductivities in the stackup, above all of the
+  silicon and of the Activ layer that holds the heat sources. A comparison with the `rth` of IHP's npn13G2
+  model is not settled yet. Use the temperatures as estimates, and for comparing devices and layouts.
