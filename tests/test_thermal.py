@@ -199,20 +199,23 @@ check(power_again == [0.7] and again_m["markers_from"] is None,
       f"export again: the marker rows come from the export's own .tsimcfg ({power_again})")
 # an export from before the markers were kept: its map has no user_markers, its .tsimcfg the outline placeholder on
 # 410 and datatype 0 only; those are not the user's, so the rows and purposes come from the layout's file again
-old_map = json.load(open(again_m["thermalmap"]))
-del old_map["user_markers"]
-json.dump(old_map, open(again_m["thermalmap"], "w"))
-old_cfg_m = json.load(open(again_m["tsimcfg"]))
-old_cfg_m["thermal"] = [{"source_layernum": 410, "target_layername": "", "type": "constanttemp", "temp": 300.0}]
-old_cfg_m["saved_values"]["purpose"] = [0]
-json.dump(old_cfg_m, open(again_m["tsimcfg"], "w"))
-fixed = export_thermal(ly, cell, st, marked_gds, technology, layout_file=layout_file)
-cfg_f = json.load(open(fixed["tsimcfg"]))
-rows_f = {t["source_layernum"]: t for t in cfg_f["thermal"]}
-check(rows_f.get(410) == own_rows[0] and rows_f.get(420) == own_rows[1] and cfg_f["saved_values"]["purpose"] == [0, 35]
-      and fixed["markers_from"].endswith("markers_layout.tsimcfg"),
-      f"after an export from before: rows and purposes from the layout's file ({rows_f.get(410)}, "
-      f"{cfg_f['saved_values']['purpose']})")
+# (with and without user_markers in its map: the next export after one from before still has its rows)
+for keep_list in (False, True):
+    old_map = json.load(open(again_m["thermalmap"]))
+    if not keep_list:
+        old_map.pop("user_markers", None)
+    json.dump(old_map, open(again_m["thermalmap"], "w"))
+    old_cfg_m = json.load(open(again_m["tsimcfg"]))
+    old_cfg_m["thermal"] = [{"source_layernum": 410, "target_layername": "", "type": "constanttemp", "temp": 300.0}]
+    old_cfg_m["saved_values"]["purpose"] = [0]
+    json.dump(old_cfg_m, open(again_m["tsimcfg"], "w"))
+    fixed = export_thermal(ly, cell, st, marked_gds, technology, layout_file=layout_file)
+    cfg_f = json.load(open(fixed["tsimcfg"]))
+    rows_f = {t["source_layernum"]: t for t in cfg_f["thermal"]}
+    check(rows_f.get(410) == own_rows[0] and rows_f.get(420) == own_rows[1] and
+          cfg_f["saved_values"]["purpose"] == [0, 35] and fixed["markers_from"].endswith("markers_layout.tsimcfg"),
+          f"after an export from before (user_markers in its map: {keep_list}): rows and purposes from the "
+          f"layout's file ({rows_f.get(410)}, {cfg_f['saved_values']['purpose']})")
 print("left out:", marked["left_out"])
 check((204, 0) not in marked["left_out"] and all(l not in (203, 410, 420) for l, _ in marked["left_out"]),
       "left out: neither the EM port nor the markers")

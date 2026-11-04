@@ -109,16 +109,16 @@ def user_markers(layout, cell, stackup, box=None, layout_file=None, exclude=()):
 def marker_rows(markers, previous_cfg, layout_config, previous_markers=()):
     """(rows, any from the layout's file): the setupThermal rows (heat sources, boundaries) of the user's markers.
     A marker that the previous export already kept as the user's (previous_markers, from its map) takes its row from
-    the export's previous .tsimcfg, which holds the user's changes since (no row there: removed on purpose); any
-    other marker takes it from the layout's own setupThermal file. An export before the markers were kept wrote its
-    own rows on these layers (e.g. the region outline's placeholder), which are not the user's."""
-    previous = {t.get("source_layernum"): t for t in (previous_cfg or {}).get("thermal", [])}
+    the export's previous .tsimcfg, which holds the user's changes since; else, or without a usable row there, from
+    the layout's own setupThermal file. Not usable: a boundary without a target layer, i.e. the export's own
+    placeholder, which an export from before the markers were kept wrote on what was its region outline then."""
+    previous = {t.get("source_layernum"): t for t in (previous_cfg or {}).get("thermal", [])
+                if t.get("type") == "source" or t.get("target_layername")}
     own = {t.get("source_layernum"): t for t in (layout_config or {}).get("thermal", [])}
     rows, from_layout = [], False
     for layer in sorted(markers):
-        if previous_cfg is not None and layer in previous_markers:
-            if layer in previous:
-                rows.append(dict(previous[layer]))
+        if layer in previous_markers and layer in previous:
+            rows.append(dict(previous[layer]))
         elif layer in own:
             rows.append(dict(own[layer]))
             from_layout = True
