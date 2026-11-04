@@ -411,8 +411,11 @@ When the export opens EMStudio, the EMStudio model `<name>.py` next to the `.sim
 
 ## 8. Tests
 
-There is no test runner: each test is a KLayout batch script (`klayout_app.exe -z -nc -rx -r tests/<test>.py`),
-with inputs and outputs from environment variables. Several read layouts outside the repo; `tests/testpaths.py`
+Each test is a KLayout batch script (`klayout_app.exe -z -nc -rx -r tests/<test>.py`), with inputs and outputs
+from environment variables. `python tests/run_all.py [words]` runs them all (or those whose name contains a word)
+with an empty KLayout home, the repo's `python/` on the path and an output folder each, and prints one table:
+a FAIL/ERROR line, a traceback or an error exit fails a test, a missing input file only skips it, and
+`test_circuit` runs only with PORTMAP, SNP and PYTHON (an EM result). About 3 minutes on the Windows machine. Several read layouts outside the repo; `tests/testpaths.py`
 finds them on Windows and Linux (`KLAYOUT_EM_EXPORT_TESTDATA`, `GDS2PALACE`, `OUT`). The device tests need the PDK
 through `klayout_em_export_tests/pdk_env.py`.
 
