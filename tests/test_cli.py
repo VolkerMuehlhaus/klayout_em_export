@@ -130,6 +130,12 @@ for suffix in ("_portmap.json", ".simcfg"):
         d.get("saved_values", {}).pop("GdsFile", None)     # the file names differ
     check(a == b, f"CLI export == export_em: {suffix}")
 
+# thermal export through the CLI: one heat source per device, from the PDK's heat shapes
+r = run(command="export_thermal", gds=out("c3.gds"), cell=cell, pdk=PDK, out=out("cascode_cli_thermal.gds"))
+check(r["ok"] and r["sources"] == 5 and not r["bounding_box"] and
+      all(os.path.isfile(r[k]) for k in ("gds", "tsimcfg", "thermalmap")),
+      f"thermal export: {r.get('sources')} heat sources, bounding box used for {r.get('bounding_box')}")
+
 # KLayout knows sg13g2 now (the PDK was loaded above): without "pdk", a layout still gets no technology from that
 r = run(command="status", gds=octa, stackup=STACKUP)
 check(r["technology"] == "generic", f"no pdk in the request: technology {r['technology']} although KLayout knows "

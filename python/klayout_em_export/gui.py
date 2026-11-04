@@ -17,6 +17,7 @@ from .pipeline import EM_REGION, META_GROUND, META_OUTPUT, META_STACKUP, export_
 from .ports import DIRECTIONS, PROP_KEY, PortSettings, check_ports, collect_ports, ports_of, settings_of
 from .selection import Selection
 from .stackup import Stackup
+from .thermal import export_thermal, heat_sources, heat_target
 
 SETTINGS_FILE = os.path.join(os.path.expanduser("~"), ".klayout_em_export.json")
 PORT_ICON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icons", "em_port.png")
@@ -406,7 +407,10 @@ def mark_region():
 # File > Import setupEM Config);
 # when <name>.py exists next to it, EMStudio updates only that model's ports, layout file, stackup, cell and purpose.
 TOOLS = ("setupEM", "EMStudio")
+THERMAL_TOOL = "setupThermal"       # opens the thermal export's .tsimcfg (setupThermal -simcfg <file>)
+META_THERMAL_OUTPUT = "klayout_em_export.thermal_output"
 _TOOL_HINT = {"setupEM": "e.g. <venv>\\Scripts\\setupEM.exe or <venv>/bin/setupEM",
+              "setupThermal": "e.g. <venv>\\Scripts\\setupThermal.exe or <venv>/bin/setupThermal",
               "EMStudio": "e.g. C:\\Program Files\\EMStudio\\EMStudio.exe or <EMStudio folder>/EMStudio"}
 
 
@@ -418,7 +422,7 @@ def open_with(settings=None):
 
 def launch_command(tool, exe, simcfg_path):
     """Command line that opens simcfg_path in tool (setupEM: -simcfg <file>, EMStudio: the file itself)."""
-    return [exe, "-simcfg", simcfg_path] if tool == "setupEM" else [exe, simcfg_path]
+    return [exe, "-simcfg", simcfg_path] if tool in ("setupEM", THERMAL_TOOL) else [exe, simcfg_path]
 
 
 def _program(tool, settings):
@@ -723,6 +727,154 @@ def export_region():
     _warn_stale_scripts(gds_path, simcfg_path, port_list, tool if open_after else None)
     if open_after:
         open_simcfg(simcfg_path, tool)
+
+
+class ThermalExportDialog(pya.QDialog):
+    """The thermal export (thermal.py): region, stackup, output file, the heat sources, setupThermal."""
+
+    def __init__(self, cv, box, source):
+        super().__init__(pya.Application.instance().main_window())
+        self.em_layout, self.cell, self.box, self.source = cv.layout(), cv.cell, box, source
+        self.stackup = None
+        self.setWindowTitle("Export for Thermal")
+        self.resize(640, 0)
+        form = pya.QFormLayout(self)
+        form.setLabelAlignment(pya.Qt.AlignRight | pya.Qt.AlignTop)
+        self.region = pya.QLabel()
+        self.region.setWordWrap(True)
+        add_form_row(self, form, "<b>Region</b>", self.region)
+        self.stackup_label = _stackup_row(self, form, self._change_stackup, "<b>Stackup</b>")
+        self.output = pya.QLineEdit(self._default_output(cv))
+        self.output.setToolTip("The .tsimcfg (for setupThermal) and the thermal map are written next to it, "
+                               "with the same name")
+        browse = pya.QPushButton("Browse...")
+        browse.clicked += self._browse
+        row = pya.QHBoxLayout()
+        row.addWidget(self.output, 1)
+        row.addWidget(browse)
+        add_form_row(self, form, "<b>Output</b>", row)
+        companions = pya.QLabel('<span style="color:#777">+ .tsimcfg and _thermalmap.json with the same name</span>')
+        add_form_row(self, form, "", companions)
+        self.sources = pya.QLabel()
+        self.sources.setWordWrap(True)
+        add_form_row(self, form, "<b>Heat sources</b>", self.sources)
+        boundaries = pya.QLabel('<span style="color:#777">Boundaries (constant temperatures) are chosen in '
+                                'setupThermal; the region outline is on the first marker layer for them.</span>')
+        boundaries.setWordWrap(True)
+        add_form_row(self, form, "<b>Boundaries</b>", boundaries)
+        line = pya.QFrame()
+        line.setFrameShape(pya.QFrame.HLine)
+        line.setFrameShadow(pya.QFrame.Sunken)
+        add_form_row(self, form, line)
+        self.open_after = pya.QCheckBox(f"Open in {THERMAL_TOOL}")
+        self.open_after.setChecked(_load_settings().get("open_setupthermal", True))
+        buttons = pya.QDialogButtonBox(self)
+        self.export_button = buttons.addButton("Export", pya.QDialogButtonBox.AcceptRole)
+        buttons.addButton(pya.QDialogButtonBox.Cancel)
+        buttons.accepted += self.accept
+        buttons.rejected += self.reject
+        row = pya.QHBoxLayout()
+        row.addWidget(self.open_after)
+        row.addStretch(1)
+        row.addWidget(buttons)
+        add_form_row(self, form, row)
+        self._refresh()
+
+    def _default_output(self, cv):
+        remembered = native_path(layout_value(self.em_layout, META_THERMAL_OUTPUT) or "")
+        if writable_output(remembered):
+            return remembered
+        base = os.path.splitext(cv.filename())[0] if cv.filename() else os.path.join(os.path.expanduser("~"), self.cell.name)
+        return native_path(base + "_thermal.gds")
+
+    def _browse(self):
+        path = pya.FileDialog.ask_save_file_name("Export thermal layout", self.output.text, "GDSII (*.gds)")
+        if path:
+            self.output.setText(native_path(path))
+
+    def _change_stackup(self):
+        if ask_stackup(self.em_layout):
+            self._refresh()
+
+    def _refresh(self):
+        head, _, rest = self.source.partition(" (")
+        detail = rest.rstrip(")")
+        if self.box is not None:
+            detail = f"{self.box.width():g} × {self.box.height():g} µm at ({self.box.left:g}, {self.box.bottom:g})" + \
+                (f", {detail}" if detail else "")
+        self.region.setText(_marked(OK, head[:1].upper() + head[1:], detail))
+        path = stackup_path(self.em_layout)
+        self.stackup, error = read_stackup(path) if path else (None, "no stackup chosen yet")
+        self.export_button.setEnabled(False)
+        if self.stackup is None:
+            self.stackup_label.setText(_marked(ERROR, error))
+            self.sources.setText(_marked(ERROR, "choose a stackup first"))
+            return
+        self.stackup_label.setText(_marked(OK, os.path.basename(path)))
+        self.stackup_label.setToolTip(path)
+        technology = layout_technology(self.em_layout)[0]
+        try:
+            target = heat_target(self.stackup, technology)
+        except ValueError as e:
+            self.sources.setText(_marked(ERROR, "no layer for the heat sources", str(e)))
+            return
+        sources = heat_sources(self.em_layout, self.cell, self.stackup, technology, self.box)
+        self.export_button.setEnabled(True)
+        if not sources:
+            self.sources.setText(_marked(WARN, "no devices in the region",
+                                         "the layout is exported without heat sources; add them in setupThermal"))
+            return
+        notes = [f"one per device, in the z range of {target}, power 0 W until set in setupThermal"]
+        fallback = [s.device.id for s in sources if not s.from_pdk]
+        if fallback:
+            notes.append("no PDK heat shapes, the bounding box is used (a larger area, a lower peak temperature): " +
+                         ", ".join(fallback))
+        cut = [s.device.id for s in sources if s.cut]
+        if cut:
+            notes.append("partly outside the region, only the part inside is exported: " + ", ".join(cut))
+        self.sources.setText(_marked(WARN if fallback or cut else OK, f"{len(sources)} heat source(s)",
+                                     "\n".join("• " + n for n in notes)))
+
+
+def export_thermal_region():
+    """Export the region for setupThermal / gds2palace's Elmer thermal mode (thermal.py)."""
+    view, cv = _current()
+    if view is None:
+        return
+    layout, cell = cv.layout(), cv.cell
+    box, source, _selection = region_source(view, cv)       # a selection counts by its bounding box
+    dialog = ThermalExportDialog(cv, box, source)
+    while True:
+        if not dialog.exec_():
+            return
+        gds_path = native_path(dialog.output.text.strip())
+        problem = None
+        if not gds_path.lower().endswith(".gds"):
+            problem = "The output file must end with .gds."
+        elif not writable_output(gds_path):
+            problem = f"{gds_path} is not in an existing folder. Choose the output file with Browse..."
+        elif cv.filename() and os.path.normcase(os.path.abspath(gds_path)) == os.path.normcase(os.path.abspath(cv.filename())):
+            problem = "The output file is the layout itself. Choose another file."
+        if problem is None:
+            if (os.path.exists(gds_path) and gds_path != native_path(layout_value(layout, META_THERMAL_OUTPUT)) and
+                    pya.MessageBox.question("EM Export", f"{gds_path} exists. Overwrite it?",
+                                            pya.MessageBox.Yes | pya.MessageBox.No) != pya.MessageBox.Yes):
+                continue
+            break
+        pya.MessageBox.warning("EM Export", problem, pya.MessageBox.Ok)
+    try:
+        result = export_thermal(layout, cell, dialog.stackup, gds_path, layout_technology(layout)[0], box=box)
+    except ValueError as e:
+        pya.MessageBox.warning("EM Export", str(e), pya.MessageBox.Ok)
+        return
+    set_layout_value(layout, META_THERMAL_OUTPUT, gds_path, "thermal export output file")
+    settings = _load_settings()
+    settings["open_setupthermal"] = dialog.open_after.isChecked()
+    _save_settings(settings)
+    _status(f"Exported {gds_path} and {os.path.basename(result['tsimcfg'])} ({result['sources']} heat source(s)" +
+            ("; setupThermal's other settings kept" if result["kept_settings"] else "") + ")", 10)
+    if dialog.open_after.isChecked():
+        open_simcfg(result["tsimcfg"], THERMAL_TOOL)
 
 
 def updated_on_open(stale, simcfg_path, tool):
@@ -1034,6 +1186,7 @@ def install_menu():
                None,
                ("mark_region", "Mark EM Region from Selection", mark_region),
                ("export_region", "Export for EM...", export_region),
+               ("export_thermal", "Export for Thermal (setupThermal)...", export_thermal_region),
                ("open_setupem", "Open Last Export in setupEM", lambda: open_last_export("setupEM")),
                ("open_emstudio", "Open Last Export in EMStudio", lambda: open_last_export("EMStudio")),
                ("create_circuit", "Create Circuit (EM Result with Devices)...", _create_circuit))

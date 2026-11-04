@@ -30,6 +30,10 @@ LIBRARY = "SG13_dev"
 PIN_DATATYPE = 2                    # SG13G2 pin purpose, e.g. Metal1.pin = 8/2
 TEXT_LAYER = (63, 0)                # SG13G2 TEXT.drawing: the pin names
 DEVICE_LEVEL = {"Activ"}            # diffusion, below Metal1: not traced as wiring (see connectivity.py)
+# where the PDK's pcells mark the heat a device dissipates (sg13g2_pycell_lib/ihp/thermal.py): rectangles over each
+# MOS gate finger and npn emitter (HeatTrans) and over each resistor body stripe (HeatRes)
+HEAT_LAYERS = ((51, 0), (52, 0))    # HeatTrans.drawing, HeatRes.drawing
+HEAT_TARGET = "Activ"               # stackup layer whose z range holds the heat sources (thermal export)
 NO_DEVICES = "no PDK devices (SG13_dev pcells) in the cell"
 
 
@@ -115,6 +119,20 @@ def _size(value):
     """A pcell length for the panel: '0.9u' -> '0.9 µm'; numbers (pcell values in µm) as they are."""
     text = f"{value:g}" if isinstance(value, float) else str(value)
     return text[:-1] + " µm" if text.endswith("u") else text
+
+
+def heat_area(layout, device):
+    """(Region in the searched cell, from_pdk) of the heat a device dissipates: its shapes on HEAT_LAYERS, or its
+    bounding box (from_pdk False) for a device cell without them (an older or static device)."""
+    c = layout.cell(device.cell_index)
+    area = pya.Region()
+    for layer, datatype in HEAT_LAYERS:
+        li = layout.find_layer(layer, datatype)
+        if li is not None:
+            area += pya.Region(c.begin_shapes_rec(li)).transformed(device.trans)
+    if area.is_empty():
+        return pya.Region(device.bbox), False
+    return area.merged(), True
 
 
 def describe(device):

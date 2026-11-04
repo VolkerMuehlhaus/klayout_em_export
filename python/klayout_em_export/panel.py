@@ -194,6 +194,8 @@ class EMPanel(pya.QWidget):
         row = pya.QHBoxLayout()
         row.addWidget(_button("Export for EM...", lambda: self._run(gui.export_region)))
         row.addWidget(self.open_button)
+        row.addWidget(_button("Export for Thermal...", lambda: self._run(gui.export_thermal_region),
+                              "devices as heat sources, for setupThermal"))
         column.addLayout(row)
 
         main_window = pya.Application.instance().main_window()

@@ -9,6 +9,7 @@ NAME = "generic"
 LABEL = "generic (no device support)"
 KLAYOUT_TECHNOLOGIES = ()
 DEVICE_LEVEL = set()
+HEAT_TARGET = None                  # no devices, so no heat sources (see ihp_sg13.HEAT_TARGET)
 NO_DEVICES = "no device support for this layout's technology: devices are simulated as drawn layout"
 
 

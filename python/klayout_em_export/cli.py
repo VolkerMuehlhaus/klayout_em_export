@@ -18,7 +18,7 @@ info, so KLayout and the plug-in open it as if the steps were done by hand. The 
 (~/.klayout_em_export.json) is never read or written.
 
 Commands: status, add_via_port, add_inplane_port, set_port, remove_port, boundary_ports, set_region, mark_ground,
-devices, export. See README, "Headless use".
+devices, export, export_thermal. See README, "Headless use".
 """
 import json
 import os
@@ -41,6 +41,7 @@ from klayout_em_export.pipeline import (EM_REGION, META_GROUND, META_STACKUP, No
                                         export_em, layout_devices, region_ports)
 from klayout_em_export.ports import PROP_KEY, PortSettings, port_problems, is_complete            # noqa: E402
 from klayout_em_export.stackup import Stackup                            # noqa: E402
+from klayout_em_export.thermal import export_thermal                      # noqa: E402
 
 class RequestError(Exception):
     """A problem with the request: reported as the error, without a traceback."""
@@ -377,6 +378,23 @@ def cmd_export(request, layout, cell):
     result.pop("port_list")
     result["checks"] = checks
     return result
+
+
+def cmd_export_thermal(request, layout, cell):
+    """Thermal export (thermal.py) of the region ('box', else the EM region, else the whole cell; 'whole': true
+    ignores the EM region) to 'out' (.gds), with the .tsimcfg and _thermalmap.json next to it."""
+    stackup = stackup_of(request, layout)
+    technology = technology_of(request, layout)[0]
+    out = request.get("out")
+    if not out or not out.lower().endswith(".gds"):
+        raise RequestError("give 'out', the thermal layout to write (.gds)")
+    if os.path.abspath(out) == os.path.abspath(request["gds"]):
+        raise RequestError("'out' is the layout itself")
+    box = None if request.get("whole") else _region_box(request, layout, cell)
+    try:
+        return export_thermal(layout, cell, stackup, out, technology, box=box)
+    except ValueError as e:
+        raise RequestError(str(e))
 
 
 COMMANDS = {name[4:]: f for name, f in globals().items() if name.startswith("cmd_")}

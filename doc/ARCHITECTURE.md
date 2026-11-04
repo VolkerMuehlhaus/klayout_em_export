@@ -63,9 +63,10 @@ modules only collect input and call the core.
 | `selection.py` | The selected shapes, flattened, completed with connecting vias and touching port shapes. |
 | `export.py` | Writes one flat cell with only the stackup's layers and the port layers, clipped and merged. |
 | `simcfg.py` | Writes or updates setupEM's `.simcfg`. |
+| `thermal.py` | The thermal export for setupThermal / gds2palace's Elmer thermal mode: the devices stay as drawn, each gets one heat source (the technology's `heat_area`) on a marker layer of its own; writes the `.tsimcfg` and `_thermalmap.json`. See [Thermal export](#thermal-export). |
 | `modelcheck.py` | Finds model scripts that read an exported GDS but have other ports (stale after a re-export). |
 | `pipeline.py` | The workflow without the GUI, as data: `export_em` (the whole export), `export_checks` (what the export dialog reports), `layout_devices`, `region_ports`, the `NoUndo` view stand-in, the meta info keys. Reads no settings file: the caller passes stackup, ground marks and technology. Used by `gui.py`, the batch tests and `cli.py`. |
-| `cli.py` | Headless JSON interface, run by KLayout in batch mode (`-zz`); one command per request (status, ports, region, ground, devices, export). Writes changed layouts to an explicit output file, never the settings file. |
+| `cli.py` | Headless JSON interface, run by KLayout in batch mode (`-zz`); one command per request (status, ports, region, ground, devices, export, export_thermal). Writes changed layouts to an explicit output file, never the settings file. |
 | `tools/em_cli.py` | Plain-Python launcher for `cli.py`: finds KLayout, passes the request, prints the result. |
 | `gui.py` | Menu, dialogs (export, port settings), persistence (layout meta info and settings file), setupEM / EMStudio launch (`open_simcfg`, `launch_command`). |
 | `panel.py` | The docked EM panel: the workflow as a checklist (Stackup, Region, Ground, Devices, Ports). |
@@ -198,6 +199,32 @@ resistor of its label value), 1 mH ties per net, 1 µF DC blocks when the `.sNp`
 | Spectre | `.sNp` via `nport` | untested (no license). |
 
 `tests/simulators/` runs the cascode in ngspice, VACASK and Xyce in the IIC-OSIC-TOOLS image.
+
+### Thermal export
+
+`thermal.export_thermal` writes a model for setupThermal / gds2palace's Elmer thermal mode from the same region:
+
+- **Devices as drawn, one heat source each.** A device's metal, contacts and vias conduct heat, so nothing is
+  replaced: no ports, no REF patches (`REF_FOR_TRANSISTOR` and the port layers are left out of the GDS).
+- **Heat area from the PDK.** IHP's pcells draw it themselves (`sg13g2_pycell_lib/ihp/thermal.py`): `HeatTrans`
+  51/0 over each MOS gate finger and npn emitter (+0.05 µm), `HeatRes` 52/0 over each resistor body stripe;
+  `tech/ihp_sg13.heat_area` takes the device's shapes on these layers. A device without them (an older or static
+  cell) gets its bounding box, reported in the dialog and the result: a larger area, a lower peak temperature.
+- **One power per device.** gds2palace takes one power per marker layer and spreads it over the volume of all its
+  polygons (Elmer `-distribute`), so a device's fingers share it by area. A circuit simulation gives one power per
+  device, not per finger.
+- **In the z range of `HEAT_TARGET`** (IHP: `Activ`, a slab on top of EPI): the stackup layer nearest to where the
+  heat is generated that has a thickness. The export stops if the stackup lacks it or it has no thickness.
+- **Marker layers from 201 upward**, skipping every layer the stackup uses (also derived and boundary layers),
+  past 299 if there are many devices: the region outline first, then one per heat source.
+- **No boundaries.** No default fits every assembly (backside on a heat sink, flip-chip through bumps, ...): they
+  are chosen in setupThermal. The region outline on the first marker layer is geometry a boundary can use.
+- **Export again keeps** setupThermal's settings, the boundaries, and for every device still in the region its
+  power and schematic instance name (matched by device id through the previous `_thermalmap.json`).
+
+`<name>_thermalmap.json`: per heat source its marker layer, device id (as in the port map), pcell and parameters,
+bounding box, heat area (µm²), polygon count, `from_pdk`, `cut_by_region` and `instance` (the schematic name, for
+the powers from a circuit simulation; filled from LVS later). Powers live in the `.tsimcfg` only.
 
 ## 7. Design decisions
 
@@ -360,6 +387,7 @@ through `klayout_em_export_tests/pdk_env.py`.
 | Area | Tests |
 | --- | --- |
 | Export, selection, simcfg | `test_export.py`, `test_selection.py`, `test_simcfg.py`, `test_modelcheck.py` (the last two also plain Python) |
+| Thermal export | `test_thermal.py`: the cascode, one heat source per device equal to the PDK's heat shapes, marker layers past 299 around the stackup's, no ports or REF patches, export again keeps powers, boundaries and instance names (PDK needed) |
 | Version | `test_version.py` (plain Python): `grain.xml` and `__version__` agree (the EM panel's title shows it), the user's guide names it |
 | Stackup parser | `test_stackup_drift.py` (plain Python): z positions against gds2palace's `util_stackup_reader.py` for every stackup in the sibling repos `gds2palace_ihp_sg13g2` and `EMStudio` |
 | Ports | `test_ports.py`, `test_locate.py`, `test_numbering.py`, `test_portlayers.py`, `test_boundary.py` |

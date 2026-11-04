@@ -195,10 +195,27 @@ every save (File > Setup > Application > General, number of backup files).
 
 Remembered in `~/.klayout_em_export.json`: the last stackup, the last port settings (a port without settings of
 its own takes their direction, Z0 and excitation, not their layers), the setupEM and EMStudio
-programs, whether and where to open the export (`open_setupem`, `open_with`), the Create Circuit choices (Python with snp2le, PDK folder, simulator); and per layout file its stackup, last export and ground marks. These are also stored in the layout
+programs, whether and where to open the export (`open_setupem`, `open_with`; `open_setupthermal` for the thermal export), the Create Circuit choices (Python with snp2le, PDK folder, simulator); and per layout file its stackup, last export and ground marks. These are also stored in the layout
 itself (saved with it), but storing them does not mark the layout as modified, so the settings file keeps them
 when the layout is closed without saving. If `setupEM` or `EMStudio` is not on the `PATH` that KLayout sees, the plug-in asks once for the program (e.g.
 `<venv>\Scripts\setupEM.exe`, `<venv>/bin/setupEM`, `EMStudio.exe`).
+
+## Thermal export (setupThermal)
+
+**EM > Export for Thermal (setupThermal)...** (also a button in the EM panel) exports the same region as a model
+for setupThermal / gds2palace's Elmer thermal mode:
+
+- the layout with the devices as drawn (their metal, contacts and vias conduct heat); EM ports and REF patches
+  are left out;
+- one heat source per transistor and resistor: its heat area as drawn by the PDK (IHP: the `HeatTrans` and
+  `HeatRes` shapes of the device), on a marker layer of its own from 201 upward (skipping the stackup's layers), in
+  the z range of `Activ`. A device without these shapes gets its bounding box, which the dialog lists;
+- `<name>.tsimcfg` for setupThermal (all powers 0 W until set) and `<name>_thermalmap.json`, which says which
+  device each heat source layer belongs to.
+
+Boundaries (constant temperatures) are chosen in setupThermal; the region outline is on the first marker layer
+(201) for them. An export again keeps setupThermal's settings, the boundaries and the power of every device still
+in the region. Headless: the CLI command `export_thermal`.
 
 ## Circuit wrapper (ngspice, VACASK, Xyce, Spectre)
 

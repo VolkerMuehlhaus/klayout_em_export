@@ -64,7 +64,7 @@ def _is_kept(key, keep, purposes, ports):
 
 
 def export_flat(layout, cell, stackup, gds_path, box=None, purposes=(0,), cellname=None, selection=None,
-                port_layers=None, remove=None):
+                port_layers=None, remove=None, with_ports=True, drop=(), extra=None):
     """Write cell, flattened and clipped to box (DBox in um, None = whole cell), to gds_path. With a selection
     (selection.Selection), only its shapes are written, uncut, and box is ignored.
 
@@ -73,11 +73,13 @@ def export_flat(layout, cell, stackup, gds_path, box=None, purposes=(0,), cellna
     at the box edge; port shapes are copied unchanged if they touch the box. port_layers {layout port layer:
     exported layer} renumbers the ports (ports.export_numbering). remove {GDS layer: Region} is cut out of those
     layers (the replaced devices' own shapes below Metal1, devices.device_shapes).
+    Thermal export (thermal.py): with_ports False leaves the port shapes out, drop leaves out these stackup layer
+    numbers, extra {(layer, datatype): Region} is written as given (heat sources, region outline).
     """
     port_layers = port_layers or {}
     remove = remove or {}
-    keep = set(stackup.gds_layers())
-    ports = set(port_layer_numbers(stackup))
+    keep = set(stackup.gds_layers()) - set(drop)
+    ports = set(port_layer_numbers(stackup)) if with_ports else set()
     clip = None if box is None or selection is not None else box.to_itype(layout.dbu)
     result = ExportResult(gds_path, cellname or cell.name, None if selection is not None else box)
 
@@ -99,6 +101,7 @@ def export_flat(layout, cell, stackup, gds_path, box=None, purposes=(0,), cellna
             out = (port_layers.get(key[0], key[0]), key[1])
             _copy_port_shape(layout, shape, trans, top.shapes(em.layer(*out)), em)
             result.kept[out] = result.kept.get(out, 0) + 1
+        _insert_extra(em, top, extra, result)
         em.write(gds_path)
         return result
     for li in layout.layer_indexes():
@@ -127,5 +130,12 @@ def export_flat(layout, cell, stackup, gds_path, box=None, purposes=(0,), cellna
             count = region.count()
         if count:
             result.kept[key] = count
+    _insert_extra(em, top, extra, result)
     em.write(gds_path)
     return result
+
+
+def _insert_extra(em, top, extra, result):
+    for key, region in (extra or {}).items():
+        top.shapes(em.layer(*key)).insert(region)
+        result.kept[key] = result.kept.get(key, 0) + region.count()
