@@ -106,11 +106,23 @@ def user_markers(layout, cell, stackup, box=None, layout_file=None, exclude=()):
     return markers, config_path if config is not None and set(markers) & configured else None
 
 
-def marker_rows(markers, previous_cfg, layout_config):
-    """The setupThermal rows (heat sources, boundaries) of the user's markers: from the export's previous .tsimcfg if
-    there is one, else from the layout's own setupThermal file."""
-    data = previous_cfg if previous_cfg is not None else layout_config
-    return [dict(t) for t in (data or {}).get("thermal", []) if t.get("source_layernum") in markers]
+def marker_rows(markers, previous_cfg, layout_config, previous_markers=()):
+    """(rows, any from the layout's file): the setupThermal rows (heat sources, boundaries) of the user's markers.
+    A marker that the previous export already kept as the user's (previous_markers, from its map) takes its row from
+    the export's previous .tsimcfg, which holds the user's changes since (no row there: removed on purpose); any
+    other marker takes it from the layout's own setupThermal file. An export before the markers were kept wrote its
+    own rows on these layers (e.g. the region outline's placeholder), which are not the user's."""
+    previous = {t.get("source_layernum"): t for t in (previous_cfg or {}).get("thermal", [])}
+    own = {t.get("source_layernum"): t for t in (layout_config or {}).get("thermal", [])}
+    rows, from_layout = [], False
+    for layer in sorted(markers):
+        if previous_cfg is not None and layer in previous_markers:
+            if layer in previous:
+                rows.append(dict(previous[layer]))
+        elif layer in own:
+            rows.append(dict(own[layer]))
+            from_layout = True
+    return rows, from_layout
 
 
 def left_out_layers(layout, cell, stackup, box=None, markers=(), purposes=(0,)):
@@ -190,7 +202,7 @@ def _read_json(path):
 
 def _previous(base):
     """From an earlier export to the same name: ({device id: power}, {device id: (instance, lvs_name)}, LVS database
-    path, settings file data)."""
+    path, settings file data, the layers it kept as the user's markers)."""
     old_map = _read_json(base + "_thermalmap.json") or {}
     old_cfg = _read_json(base + ".tsimcfg")
     if not isinstance(old_cfg, dict) or old_cfg.get("application") != "setupThermal" or \
@@ -204,7 +216,7 @@ def _previous(base):
             powers[row["device"]] = power_of_layer[row["layer"]]
         if row.get("instance"):
             instances[row["device"]] = (row["instance"], row.get("lvs_name"))
-    return powers, instances, old_map.get("lvsdb"), old_cfg
+    return powers, instances, old_map.get("lvsdb"), old_cfg, set(old_map.get("user_markers") or ())
 
 
 PLACEHOLDER_TEMP = 300.0     # K
@@ -217,11 +229,12 @@ def placeholder_boundary(layer):
 
 
 def write_tsimcfg(path, gds_file, stackup_file, cellname, sources, previous_cfg=None, purpose=(0,),
-                  outline_layer=None, user_rows=()):
+                  outline_layer=None, user_rows=(), marker_layers=()):
     """Write path: the files, the cell, the purpose and the heat sources [(layer, target, power)]; from
     previous_cfg (an earlier setupThermal file) everything else, including the boundaries. user_rows: the rows of
-    the user's own markers (marker_rows), written as they are. Without any boundary, a placeholder boundary on
-    outline_layer (if given): constant temperature, no target layer yet."""
+    the user's own markers (marker_rows), written as they are; previous rows on the marker_layers are not kept.
+    Without any boundary, a placeholder boundary on outline_layer (if given): constant temperature, no target layer
+    yet."""
     data = previous_cfg or {"application": "setupThermal", "data_format": "1.0", "saved_values": {"unit": 1e-06}}
     data["saved_values"].update({
         "purpose": list(purpose),
@@ -229,7 +242,7 @@ def write_tsimcfg(path, gds_file, stackup_file, cellname, sources, previous_cfg=
         "SubstrateFile": os.path.abspath(stackup_file).replace("\\", "/"),
         "cellname": cellname,
     })
-    user_layers = {t.get("source_layernum") for t in user_rows}
+    user_layers = {t.get("source_layernum") for t in user_rows} | set(marker_layers)
     boundaries = [t for t in data.get("thermal", []) if "SOURCE" not in str(t.get("type", "")).upper()
                   and t.get("source_layernum") not in user_layers]
     rows = [{"source_layernum": layer, "target_layername": target, "type": "source", "power": power}
@@ -255,11 +268,12 @@ def export_thermal(layout, cell, stackup, gds_path, technology, box=None, lvsdb=
     target = heat_target(stackup, technology)
     sources = heat_sources(layout, cell, stackup, technology, box)
     base = os.path.splitext(gds_path)[0]
-    powers, instances, old_lvsdb, old_cfg = _previous(base)
+    powers, instances, old_lvsdb, old_cfg, old_markers = _previous(base)
     markers, markers_from = user_markers(layout, cell, stackup, box, layout_file, exclude=(base + ".tsimcfg",))
-    user_rows = marker_rows(markers, old_cfg, _read_json(markers_from) if markers_from else None)
-    if old_cfg is not None:
-        markers_from = None         # the rows come from the export's own earlier .tsimcfg
+    user_rows, from_layout = marker_rows(markers, old_cfg, _read_json(markers_from) if markers_from else None,
+                                         old_markers)
+    if not from_layout:
+        markers_from = None         # no row came from the layout's own setupThermal file
     purposes = export_purposes(old_cfg, layout_thermal_config(layout_file, (base + ".tsimcfg",))[1])
     left_out = left_out_layers(layout, cell, stackup, box, markers, purposes)
     lvs_report = None
@@ -283,7 +297,8 @@ def export_thermal(layout, cell, stackup, gds_path, technology, box=None, lvsdb=
 
     write_tsimcfg(base + ".tsimcfg", gds_path, stackup.path, result.cellname,
                   [(layer, target, float(powers.get(s.device.id, 0.0))) for layer, s in zip(source_layers, sources)],
-                  previous_cfg=old_cfg, purpose=purposes, outline_layer=outline_layer, user_rows=user_rows)
+                  previous_cfg=old_cfg, purpose=purposes, outline_layer=outline_layer, user_rows=user_rows,
+                  marker_layers=markers)
     um2 = layout.dbu ** 2
     rows = [{"layer": layer, "device": s.device.id, "pcell": s.device.pcell,
              "params": {k: str(v) for k, v in s.device.params.items()},
@@ -313,13 +328,14 @@ def marker_preview(layout, cell, stackup, box, layout_file, gds_path):
     """What an export to gds_path would keep and leave out, for the dialog and the panel: (markers {layer: kind, see
     marker_kinds}, where their rows come from (text), left_out [(layer, datatype)])."""
     base = os.path.splitext(gds_path)[0] if gds_path else None
-    old_cfg = _previous(base)[3] if base else None
+    old_cfg, old_markers = _previous(base)[3:] if base else (None, set())
     exclude = (base + ".tsimcfg",) if base else ()
     markers, markers_from = user_markers(layout, cell, stackup, box, layout_file, exclude)
-    rows = marker_rows(markers, old_cfg, _read_json(markers_from) if markers_from else None)
+    rows, from_layout = marker_rows(markers, old_cfg, _read_json(markers_from) if markers_from else None,
+                                    old_markers)
     purposes = export_purposes(old_cfg, layout_thermal_config(layout_file, exclude)[1])
-    origin = ("the earlier export" if old_cfg is not None else
-              os.path.basename(markers_from) if markers_from else None)
+    origin = (os.path.basename(markers_from) if from_layout and markers_from else
+              "the earlier export" if rows else None)
     return marker_kinds(markers, rows), origin, left_out_layers(layout, cell, stackup, box, markers, purposes)
 
 
@@ -332,13 +348,15 @@ def describe_markers(kinds, origin):
 
 
 def export_purposes(previous_cfg, layout_config):
-    """The datatypes the export keeps: setupThermal's purpose of the export's previous .tsimcfg, else of the layout's
-    own setupThermal file (e.g. [0, 35] for CuPillar shapes on 41/35), else (0,)."""
+    """The datatypes the export keeps: the purposes of the export's previous .tsimcfg and of the layout's own
+    setupThermal file together (e.g. [0, 35, 4] for CuPillar shapes on 41/35), (0,) without either. Together, since an
+    earlier export may have written only [0] before the layout's purposes were taken over."""
+    purposes = set()
     for data in (previous_cfg, layout_config):
         purpose = ((data or {}).get("saved_values") or {}).get("purpose")
-        if isinstance(purpose, list) and purpose and all(isinstance(p, int) for p in purpose):
-            return tuple(purpose)
-    return (0,)
+        if isinstance(purpose, list) and all(isinstance(p, int) for p in purpose):
+            purposes |= set(purpose)
+    return tuple(sorted(purposes)) or (0,)
 
 
 def marker_kinds(markers, rows):
