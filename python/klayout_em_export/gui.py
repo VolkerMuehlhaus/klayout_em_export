@@ -563,6 +563,16 @@ def add_form_row(dialog, form, *args):
     form.addRow(*args)
 
 
+def fit_height(dialog, width=640):
+    """Give the dialog the height its form needs at its width (at least width). Qt sizes a row with a word-wrapped
+    label before its text is final, so the grey second lines were cut (KLayout 0.30.12 on Windows and Linux)."""
+    layout = dialog.layout() if callable(dialog.layout) else dialog.layout
+    layout.invalidate()
+    layout.activate()
+    width = max(dialog.width() if callable(dialog.width) else dialog.width, width)
+    dialog.resize(width, layout.heightForWidth(width))
+
+
 def _stackup_row(dialog, form, on_change, title="Stackup"):
     """Stackup label + Change... button as a form row; returns the label."""
     label = pya.QLabel()
@@ -673,6 +683,10 @@ class ExportDialog(pya.QDialog):
         return head[:1].upper() + head[1:], detail
 
     def _refresh(self):
+        self._fill()
+        fit_height(self)
+
+    def _fill(self):
         shapes_only = self.shapes_only()
         head, detail = ("Selected shapes", "") if shapes_only else self._region_text()
         self.region.setText(_marked(OK, head, detail))
@@ -855,6 +869,10 @@ class ThermalExportDialog(pya.QDialog):
             self._refresh()
 
     def _refresh(self):
+        self._fill()
+        fit_height(self)
+
+    def _fill(self):
         lvsdb = lvsdb_path(self.em_layout)
         if not lvsdb:
             self.lvsdb.setText(_marked(OK, "none (optional)"))
