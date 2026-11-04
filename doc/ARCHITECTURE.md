@@ -141,7 +141,10 @@ settings).
 
 ## 5. From layout to export
 
-`pipeline.export_em` is the whole flow; `gui.export_region` adds the dialog (region, output file, stackup), the
+`pipeline.export_em` is the whole flow; the datatypes it keeps (`simcfg.em_export_purposes`) are those of the export's
+previous `.simcfg` (setupEM's purpose setting) and of the user's own setup files for the layout (`own_setup_files`,
+shared with the stackup lookup and the thermal export) together, else 0. `gui.export_region` adds the dialog
+(region, output file, stackup), the
 settings file and opening setupEM / EMStudio, and `cli.py` the request handling. The steps:
 
 1. **Region** (`gui.region_source`): the selection, else the EM region box, else the whole cell. With a selection,

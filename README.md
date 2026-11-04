@@ -157,6 +157,8 @@ The same steps are in the **EM** menu in the menu bar, top to bottom in workflow
      their shapes.
    - Without a selection: everything inside the box on layer 800/0, else the whole cell.
    - Stackup (Change...), output GDS (Browse...; default `<layout>_em.gds`, then the last output of this layout).
+   - Datatypes: the GDS datatypes exported, those of setupEM's `.simcfg` for this export and of your own
+     setupEM / setupThermal files for the layout together, else 0 (e.g. 0, 4, 35 for copper pillars on 41/35).
    - The ports with their problems. Ports without complete settings are exported as shapes but left out of the
      `.simcfg`, because setupEM cannot load them. Only the stackup's layers are exported; the others are dropped.
    - "Open in setupEM / EMStudio". The `.simcfg` is written next to the GDS. If the program ends at once with an

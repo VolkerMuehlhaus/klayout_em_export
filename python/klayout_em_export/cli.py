@@ -374,7 +374,7 @@ def cmd_export(request, layout, cell):
                            seeds, box)
     if checks["numbering_error"]:
         raise RequestError(checks["numbering_error"])
-    result = export_em(layout, cell, stackup, out, technology, box=box, seeds=seeds)
+    result = export_em(layout, cell, stackup, out, technology, box=box, seeds=seeds, layout_file=request["gds"])
     result.pop("port_list")
     result["checks"] = checks
     return result

@@ -16,6 +16,7 @@ from .locate import create_layers, drawn_metals, metals_at, via_layers
 from .pipeline import EM_REGION, META_GROUND, META_OUTPUT, META_STACKUP, export_checks, export_em
 from .ports import DIRECTIONS, PROP_KEY, PortSettings, check_ports, collect_ports, ports_of, settings_of
 from .selection import Selection
+from .simcfg import em_export_purposes, own_setup_files
 from .stackup import Stackup
 from .thermal import describe_markers, export_thermal, heat_sources, heat_target, marker_preview
 
@@ -166,24 +167,11 @@ STACKUP_CHOSEN, STACKUP_LAST = "chosen", "last used"
 def _config_stackup(layout_file, suffix):
     """(SubstrateFile, file name) of the newest setupEM (.simcfg) / setupThermal (.tsimcfg) file next to the layout
     file whose GdsFile is that file, or None."""
-    if not layout_file:
-        return None
-    key = os.path.normcase(os.path.abspath(layout_file))
-    folder = os.path.dirname(key)
-    found = []
-    for name in os.listdir(folder) if os.path.isdir(folder) else ():
-        if not name.lower().endswith(suffix):
-            continue
-        path = os.path.join(folder, name)
-        try:
-            with open(path, encoding="utf-8") as f:
-                values = json.load(f).get("saved_values", {})
-            gds, xml = values.get("GdsFile"), values.get("SubstrateFile")
-        except (OSError, ValueError, AttributeError):
-            continue
-        if gds and xml and os.path.normcase(os.path.abspath(gds)) == key and os.path.isfile(xml):
-            found.append((os.path.getmtime(path), xml, name))
-    return max(found)[1:] if found else None
+    for path, data in own_setup_files(layout_file, (suffix,)):
+        xml = (data.get("saved_values") or {}).get("SubstrateFile")
+        if xml and os.path.isfile(xml):
+            return xml, os.path.basename(path)
+    return None
 
 
 def stackup_source(layout, kind="em", layout_file=None):
@@ -647,6 +635,7 @@ class ExportDialog(pya.QDialog):
     def __init__(self, cv, box, source, selection=None):
         super().__init__(pya.Application.instance().main_window())
         self.em_layout, self.cell, self.box, self.source = cv.layout(), cv.cell, box, source
+        self.layout_file = cv.filename() or None     # for the datatypes of the user's own setup files
         self.selection = selection if selection is not None and not selection.is_empty() else None
         self.completed = None       # the selection with vias and ports added, for the current stackup
         self.stackup = None
@@ -669,6 +658,10 @@ class ExportDialog(pya.QDialog):
         self.region.setWordWrap(True)
         add_form_row(self, form, "<b>Region</b>", self.region)
         self.stackup_label = _stackup_row(self, form, self._change_stackup, "<b>Stackup</b>")
+        self.datatypes = pya.QLabel()
+        self.datatypes.setToolTip("The GDS datatypes (purposes) the export keeps: those of setupEM's file for this "
+                                  "export and of your own setupEM / setupThermal files for this layout")
+        add_form_row(self, form, "<b>Datatypes</b>", self.datatypes)
         self.output = pya.QLineEdit(self._default_output(cv))
         self.output.setToolTip("The .simcfg (for setupEM and EMStudio) and the port map are written next to it, "
                                "with the same name")
@@ -755,6 +748,10 @@ class ExportDialog(pya.QDialog):
         state, text, tip = stackup_label(self.em_layout)
         self.stackup_label.setText(_marked(state, text))
         self.stackup_label.setToolTip(tip)
+        purposes, sources = em_export_purposes(os.path.splitext(native_path(self.output.text.strip()))[0] + ".simcfg",
+                                               self.layout_file)
+        from_file = f" (from {sources[0]})" if sources else ""
+        self.datatypes.setText(_marked(OK, ", ".join(map(str, purposes)) + from_file))
         if shapes_only:
             self.completed = self.selection.completed(self.stackup)
             ports = ports_of(self.em_layout, self.cell, self.completed.ports, stackup=self.stackup)
@@ -821,7 +818,8 @@ def export_region():
         pya.MessageBox.warning("EM Export", problem, pya.MessageBox.Ok)
 
     result = export_em(layout, cell, dialog.stackup, gds_path, layout_technology(layout)[0], box=box,
-                       selection=dialog.completed if dialog.shapes_only() else None, seeds=ground_seeds(layout))
+                       selection=dialog.completed if dialog.shapes_only() else None, seeds=ground_seeds(layout),
+                       layout_file=cv.filename() or None)
     simcfg_path, port_list, kept = result["simcfg"], result["port_list"], result["kept_settings"]
     set_layout_value(layout, META_OUTPUT, gds_path, "EM export output file")
     settings = _load_settings()

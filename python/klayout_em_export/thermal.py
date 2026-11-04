@@ -24,6 +24,7 @@ from .export import PORT_LAYERS, export_flat
 from .lvs import assign_names, read_lvs_devices
 from .pipeline import EM_REGION, _clip, layout_devices
 from .ports import settings_of
+from .simcfg import merged_purposes, own_setup_files
 
 FIRST_LAYER = 201           # marker layers: the region outline, then one per heat source, skipping stackup layers
 MAP_FORMAT = 1
@@ -56,24 +57,10 @@ def marker_layers(stackup, count, start=FIRST_LAYER, avoid=()):
 def layout_thermal_config(layout_file, exclude=()):
     """(path, data) of the layout's own setupThermal file: the newest .tsimcfg next to layout_file whose GdsFile is
     that file, not one of exclude (the export's own); (None, None) if there is none."""
-    if not layout_file:
-        return None, None
-    key = os.path.normcase(os.path.abspath(layout_file))
-    folder = os.path.dirname(key)
-    skip = {os.path.normcase(os.path.abspath(p)) for p in exclude}
-    found = []
-    for name in os.listdir(folder) if os.path.isdir(folder) else ():
-        path = os.path.join(folder, name)
-        if not name.lower().endswith(".tsimcfg") or os.path.normcase(path) in skip:
-            continue
-        data = _read_json(path)
-        gds = (data or {}).get("saved_values", {}).get("GdsFile") if isinstance(data, dict) else None
-        if gds and os.path.normcase(os.path.abspath(gds)) == key and isinstance(data.get("thermal"), list):
-            found.append((os.path.getmtime(path), path, data))
-    if not found:
-        return None, None
-    _, path, data = max(found)
-    return path, data
+    for path, data in own_setup_files(layout_file, (".tsimcfg",), exclude):
+        if isinstance(data.get("thermal"), list):
+            return path, data
+    return None, None
 
 
 def user_markers(layout, cell, stackup, box=None, layout_file=None, exclude=()):
@@ -349,14 +336,9 @@ def describe_markers(kinds, origin):
 
 def export_purposes(previous_cfg, layout_config):
     """The datatypes the export keeps: the purposes of the export's previous .tsimcfg and of the layout's own
-    setupThermal file together (e.g. [0, 35, 4] for CuPillar shapes on 41/35), (0,) without either. Together, since an
+    setupThermal file together (e.g. [0, 4, 35] for CuPillar shapes on 41/35), (0,) without either. Together, since an
     earlier export may have written only [0] before the layout's purposes were taken over."""
-    purposes = set()
-    for data in (previous_cfg, layout_config):
-        purpose = ((data or {}).get("saved_values") or {}).get("purpose")
-        if isinstance(purpose, list) and all(isinstance(p, int) for p in purpose):
-            purposes |= set(purpose)
-    return tuple(sorted(purposes)) or (0,)
+    return merged_purposes(previous_cfg, layout_config)
 
 
 def marker_kinds(markers, rows):

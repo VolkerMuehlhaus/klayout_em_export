@@ -222,6 +222,22 @@ check((204, 0) not in marked["left_out"] and all(l not in (203, 410, 420) for l,
 m1 = st.layer("Metal1").layer
 check((m1, 35) in out_m and cfg_m["saved_values"]["purpose"] == [0, 35] and (m1, 35) not in marked["left_out"],
       "the purposes of the layout's setupThermal file ([0, 35]): Metal1/35 is kept, and the .tsimcfg says so")
+# the EM export takes the same purposes: the layout's own setup files, plus what setupEM keeps in its .simcfg
+from klayout_em_export.pipeline import export_em
+em_gds = os.path.join(OUT, "markers_em.gds")
+for suffix in (".simcfg", "_portmap.json"):
+    if os.path.exists(em_gds[:-4] + suffix):
+        os.remove(em_gds[:-4] + suffix)
+em = export_em(ly, cell, st, em_gds, technology, layout_file=layout_file)
+out_em, _ = shapes(em_gds)
+em_cfg = json.load(open(em["simcfg"]))
+check((m1, 35) in out_em and em["purposes"] == [0, 35] and em_cfg["saved_values"]["purpose"] == [0, 35],
+      f"EM export: Metal1/35 kept, purposes {em['purposes']} from the layout's setupThermal file")
+em_cfg["saved_values"]["purpose"] = [0, 7, 35]      # changed in setupEM
+json.dump(em_cfg, open(em["simcfg"], "w"))
+em2 = export_em(ly, cell, st, em_gds, technology, layout_file=layout_file)
+check(json.load(open(em2["simcfg"]))["saved_values"]["purpose"] == [0, 7, 35],
+      "EM export again: the purposes set in setupEM are kept (before, every export reset them to [0])")
 for layer in marker_boxes:
     cell.shapes(ly.layer(layer, 0)).clear()
 cell.shapes(ly.layer(m1, 35)).clear()

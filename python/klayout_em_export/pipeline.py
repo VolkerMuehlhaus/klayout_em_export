@@ -11,7 +11,7 @@ from .devices import device_shapes, find_devices, mark_replaced, orphaned_tags, 
 from .export import export_flat
 from .ports import (check_ports, collect_ports, export_directions, export_numbering, export_port_numbers,
                     is_complete, port_map, ports_of, simcfg_ports)
-from .simcfg import write_simcfg
+from .simcfg import em_export_purposes, write_simcfg
 
 EM_REGION = (800, 0)      # marker layer: a box on it keeps the export region in the layout
 # persisted layout meta info, saved with the layout (gui.py also mirrors it into the settings file)
@@ -81,29 +81,32 @@ def export_checks(layout, cell, stackup, ports, devices, seeds=(), box=None):
     return result
 
 
-def export_em(layout, cell, stackup, gds_path, technology, box=None, selection=None, seeds=()):
+def export_em(layout, cell, stackup, gds_path, technology, box=None, selection=None, seeds=(), layout_file=None):
     """Export the region (selection: a completed selection.Selection, else box, a DBox in µm, else the whole cell)
     to gds_path, with <name>.simcfg and <name>_portmap.json next to it. technology: the tech module (its NAME goes
     into the port map, Create Circuit reads it). Returns a dict: gds, simcfg, portmap, cellname, ports (in the
     region), simcfg_ports (complete ones, in the .simcfg), kept_settings (setupEM's own settings kept),
-    port_list (the .simcfg ports), report (what export_flat kept and dropped).
+    port_list (the .simcfg ports), purposes (the datatypes kept, em_export_purposes: the previous .simcfg's and those of
+    the user's own setup files for layout_file), report (what export_flat kept and dropped).
     Raises ValueError if the ports can't be numbered (export_numbering)."""
     ports = region_ports(layout, cell, stackup, box, selection)
     numbering = export_numbering(ports, stackup)     # ports 1..N without gaps, see export_numbering
     devices = layout_devices(layout, cell, stackup, technology)[0]
     remove = device_shapes(layout, devices, stackup)    # replaced devices: their shapes below the pins
+    base = os.path.splitext(gds_path)[0]
+    purposes = em_export_purposes(base + ".simcfg", layout_file)[0]
     if selection is not None:
-        result = export_flat(layout, cell, stackup, gds_path, selection=selection, port_layers=numbering,
-                             remove=remove)
+        result = export_flat(layout, cell, stackup, gds_path, selection=selection, purposes=purposes,
+                             port_layers=numbering, remove=remove)
     else:
-        result = export_flat(layout, cell, stackup, gds_path, box=box, port_layers=numbering, remove=remove)
+        result = export_flat(layout, cell, stackup, gds_path, box=box, purposes=purposes, port_layers=numbering,
+                             remove=remove)
     nets = port_nets(ports, check_ground(layout, cell, stackup, _clip(layout, box), seeds, ports))
     directions = export_directions(ports, nets, stackup)    # every via port: signal metal on the same end
-    base = os.path.splitext(gds_path)[0]
     port_list = simcfg_ports(ports, numbering, directions)
-    kept = write_simcfg(base + ".simcfg", gds_path, stackup.path, result.cellname, ports=port_list)
+    kept = write_simcfg(base + ".simcfg", gds_path, stackup.path, result.cellname, ports=port_list, purpose=purposes)
     with open(base + "_portmap.json", "w") as f:
         json.dump(port_map(ports, numbering, devices, nets, directions, technology.NAME), f, indent=2)
     return {"gds": gds_path, "simcfg": base + ".simcfg", "portmap": base + "_portmap.json",
             "cellname": result.cellname, "ports": len(ports), "simcfg_ports": len(port_list),
-            "kept_settings": kept, "port_list": port_list, "report": result.report()}
+            "kept_settings": kept, "port_list": port_list, "purposes": list(purposes), "report": result.report()}
