@@ -143,6 +143,63 @@ try:
 except ValueError as e:
     check(True, f"an unreadable LVS database is refused: {e}")
 
+# the user's own thermal markers stay: a heat source on 410 and a boundary on 420 from the layout's setupThermal file,
+# an unmarked shape on 203 (EM port range, no port settings); an EM port with settings on 204 is left out
+from klayout_em_export.ports import PROP_KEY, PortSettings
+from klayout_em_export.thermal import user_markers
+marker_boxes = {410: pya.DBox(-40, -10, -35, -5), 420: pya.DBox(-60, -40, 40, 30), 203: pya.DBox(-45, -10, -42, -7),
+                204: pya.DBox(-20, 15, -18, 17)}
+for layer, b in marker_boxes.items():
+    s = cell.shapes(ly.layer(layer, 0)).insert(b.to_itype(dbu))
+    if layer == 204:
+        s.set_property(PROP_KEY, PortSettings("Z", "Metal1", "Metal2").encode())
+layout_file = os.path.join(OUT, "markers_layout.gds")
+ly.write(layout_file)
+own_rows = [{"source_layernum": 410, "target_layername": "Activ", "type": "source", "power": 0.3},
+            {"source_layernum": 420, "target_layername": "BACKSIDEGND", "type": "constanttemp", "temp": 300.0},
+            {"source_layernum": 999, "target_layername": "Activ", "type": "source", "power": 1.0}]   # not drawn
+json.dump({"application": "setupThermal", "data_format": "1.0", "thermal": own_rows,
+           "saved_values": {"GdsFile": layout_file, "sim_path": "/elsewhere", "model_basename": "own"}},
+          open(os.path.join(OUT, "markers_layout.tsimcfg"), "w"))
+markers, markers_from = user_markers(ly, cell, st, None, layout_file)
+check(sorted(markers) == [203, 410, 420] and markers_from.endswith("markers_layout.tsimcfg"),
+      f"user markers 203, 410, 420 (not the EM port on 204): {sorted(markers)}")
+marked_gds = os.path.join(OUT, "markers_thermal.gds")
+for suffix in (".tsimcfg", "_thermalmap.json"):
+    if os.path.exists(marked_gds[:-4] + suffix):
+        os.remove(marked_gds[:-4] + suffix)
+marked = export_thermal(ly, cell, st, marked_gds, technology, layout_file=layout_file)
+check(marked["markers"] == {203: None, 410: "source", 420: "constanttemp"} and
+      marked["markers_from"].endswith("markers_layout.tsimcfg"), f"result: markers {marked['markers']}")
+out_m, _ = shapes(marked_gds)
+check(all(out_m.get((l, 0)) is not None and (out_m[(l, 0)] ^ pya.Region(marker_boxes[l].to_itype(dbu))).is_empty()
+          for l in (203, 410, 420)), "the markers are in the exported GDS on their layers, unchanged")
+port_box = marker_boxes[204].to_itype(dbu)
+check(not any(p.bbox() == port_box for p in out_m.get((204, 0), pya.Region()).each()),
+      "the EM port on 204 is left out (204 may carry one of the export's own heat sources)")
+map_m = json.load(open(marked["thermalmap"]))
+used = {map_m["outline_layer"]} | {r["layer"] for r in map_m["sources"]}
+check(not used & {203, 410, 420} and map_m["user_markers"] == [203, 410, 420],
+      f"the export's own layers avoid the markers: outline {map_m['outline_layer']}, sources "
+      f"{[r['layer'] for r in map_m['sources']]}")
+cfg_m = json.load(open(marked["tsimcfg"]))
+rows_m = {t["source_layernum"]: t for t in cfg_m["thermal"]}
+check(rows_m[410] == own_rows[0] and rows_m[420] == own_rows[1] and 999 not in rows_m and
+      not any(t["type"] == "constanttemp" and not t["target_layername"] for t in cfg_m["thermal"]) and
+      cfg_m["saved_values"].get("sim_path") is None,
+      "the .tsimcfg has the markers' rows from the layout's file (not its model folder), no placeholder")
+rows_m[410]["power"] = 0.7
+json.dump(cfg_m, open(marked["tsimcfg"], "w"))
+again_m = export_thermal(ly, cell, st, marked_gds, technology, layout_file=layout_file)
+power_again = [t["power"] for t in json.load(open(again_m["tsimcfg"]))["thermal"] if t["source_layernum"] == 410]
+check(power_again == [0.7] and again_m["markers_from"] is None,
+      f"export again: the marker rows come from the export's own .tsimcfg ({power_again})")
+print("left out:", marked["left_out"])
+check((204, 0) not in marked["left_out"] and all(l not in (203, 410, 420) for l, _ in marked["left_out"]),
+      "left out: neither the EM port nor the markers")
+for layer in marker_boxes:
+    cell.shapes(ly.layer(layer, 0)).clear()
+
 # the guide's EM region: the bias resistor and the transistors inside, the outline is the box
 box = pya.DBox(-28.9, -11.275, 21.595, 20.63)
 boxed = export_thermal(ly, cell, st, os.path.join(OUT, "cascode_thermal_region.gds"), technology, box=box)

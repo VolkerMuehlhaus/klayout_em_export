@@ -226,6 +226,12 @@ resistor of its label value), 1 mH ties per net, 1 µF DC blocks when the `.sNp`
   heat is generated that has a thickness. The export stops if the stackup lacks it or it has no thickness.
 - **Marker layers from 201 upward**, skipping every layer the stackup uses (also derived and boundary layers),
   past 299 if there are many devices: the region outline first, then one per heat source.
+- **The user's own markers stay** (`thermal.user_markers`): the layers that the layout's own setupThermal file
+  uses (the newest `.tsimcfg` next to the layout whose GdsFile is it, any layer number), and shapes without EM port
+  settings on 201..299. Stackup layers and EM port shapes (GDS property 200) are never markers. They are written on
+  their layers, the export's own marker layers skip them, and their rows go into the exported `.tsimcfg`: from its
+  previous version, else from the layout's file (rows only, not its settings, whose model folder would be the
+  user's). The dialog and the Thermal tab count them; `left_out_layers` counts the layers outside the stackup.
 - **No boundary chosen for the user.** No default fits every assembly (backside on a heat sink, flip-chip through
   bumps, ...): they are chosen in setupThermal. The region outline on the first marker layer is geometry a boundary
   can use; without a boundary in the `.tsimcfg` yet, the export adds a placeholder on it (constant temperature,

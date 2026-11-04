@@ -227,6 +227,12 @@ a device in a subcircuit. setupThermal's **Load powers...** then sets the powers
 line per instance (`Xcore.Q1, 2.5m`). LVS may have been run on the exported cell or on a cell that contains it
 once. A heat source without a matching LVS device keeps no name, and the export lists it.
 
+**Your own heat sources and boundaries.** Markers you drew yourself for setupThermal stay on their layers: the
+layers your setupThermal file for this layout uses (a `.tsimcfg` next to it with this GDS file), and shapes without
+EM port settings on 201..299. Their rows (power, temperature, target layer) go into the exported `.tsimcfg`, and the
+export's own layers skip their numbers. EM ports and thermal markers can share one layout when their layer numbers
+differ: EM ports on 201..299, thermal markers e.g. on 401..499, which no stackup in these repositories uses.
+
 Boundaries (constant temperatures) are chosen in setupThermal. The region outline is on the first marker layer
 (201); the first export puts a placeholder boundary there, a constant temperature (300 K) without a target layer.
 setupThermal lists it as "region outline: choose the target layer" and does not build the model until you choose

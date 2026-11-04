@@ -18,7 +18,7 @@ from .connectivity import check_ground, wiring
 from .export import marker_box
 from .lvs import assign_names, read_lvs_devices
 from .ports import collect_ports, device_of, export_numbering, export_port_numbers, is_complete, port_problems
-from .thermal import heat_sources, heat_target, marker_layers
+from .thermal import describe_markers, heat_sources, heat_target, marker_layers, marker_preview
 
 OK, WARN, ERROR = gui.OK, gui.WARN, gui.ERROR
 COLUMNS = ("#", "Layer", "Port", "Export #", "Status")
@@ -617,7 +617,12 @@ class EMPanel(pya.QWidget):
             self.sources_step.set(ERROR, "no layer for the heat sources", str(e))
             target = False
         sources = heat_sources(layout, cell, stackup, technology, box) if target else []
-        layers = marker_layers(stackup, len(sources) + 1)
+        kinds, origin, _ = marker_preview(layout, cell, stackup, box, gui._layout_file(layout) or None,
+                                          gui.native_path(gui.layout_value(layout, gui.META_THERMAL_OUTPUT) or ""))
+        own_sources = sum(k == "source" for k in kinds.values())
+        own = f", {own_sources} from your layout" if own_sources else ""
+        own_tip = f"\nYour own markers stay on their layers: {describe_markers(kinds, origin)}" if kinds else ""
+        layers = marker_layers(stackup, len(sources) + 1, avoid=kinds)
         names = self._show_names(layout, cell, sources, technology)
         self._fill_sources(layout, technology, sources, layers[1:], names)
         self._show_boundary(layout, layers[0])
@@ -626,7 +631,8 @@ class EMPanel(pya.QWidget):
         elif target is False:
             pass
         elif not sources:
-            self.sources_step.set(WARN, "no devices in the region: the export has no heat sources")
+            self.sources_step.set(OK if own_sources else WARN, f"no devices{own}" if own_sources else
+                                  "no devices in the region: the export has no heat sources", own_tip.strip())
         else:
             parts = [f"{len(sources)} heat source(s) in {target}"]
             fallback = sum(not s.from_pdk for s in sources)
@@ -638,9 +644,9 @@ class EMPanel(pya.QWidget):
                 parts.append(f"{from_rule} from the PDK's rule (this PDK draws no heat shapes)")
             if cut:
                 parts.append(f"{cut} cut by the region")
-            self.sources_step.set(WARN if fallback or cut else OK, ", ".join(parts),
+            self.sources_step.set(WARN if fallback or cut else OK, ", ".join(parts) + own,
                                   "one per device, on its own marker layer; power 0 W until set in setupThermal "
-                                  "(Load powers...)")
+                                  "(Load powers...)" + own_tip)
 
     def _fill_sources(self, layout, technology, sources, layers, names):
         self.source_rows = list(sources)

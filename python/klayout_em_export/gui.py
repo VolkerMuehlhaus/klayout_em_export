@@ -17,7 +17,7 @@ from .pipeline import EM_REGION, META_GROUND, META_OUTPUT, META_STACKUP, export_
 from .ports import DIRECTIONS, PROP_KEY, PortSettings, check_ports, collect_ports, ports_of, settings_of
 from .selection import Selection
 from .stackup import Stackup
-from .thermal import export_thermal, heat_sources, heat_target
+from .thermal import describe_markers, export_thermal, heat_sources, heat_target, marker_preview
 
 SETTINGS_FILE = os.path.join(os.path.expanduser("~"), ".klayout_em_export.json")
 PORT_ICON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icons", "em_port.png")
@@ -563,6 +563,11 @@ def add_form_row(dialog, form, *args):
     form.addRow(*args)
 
 
+def _count(n, word):
+    """'1 device', '5 devices'."""
+    return f"{n} {word}" + ("" if n == 1 else "s")
+
+
 def fit_height(dialog, width=640):
     """Give the dialog the height its form needs at its width (at least width). Qt sizes a row with a word-wrapped
     label before its text is final, so the grey second lines were cut (KLayout 0.30.12 on Windows and Linux)."""
@@ -788,6 +793,7 @@ class ThermalExportDialog(pya.QDialog):
     def __init__(self, cv, box, source):
         super().__init__(pya.Application.instance().main_window())
         self.em_layout, self.cell, self.box, self.source = cv.layout(), cv.cell, box, source
+        self.layout_file = cv.filename() or None     # for the layout's own setupThermal file (its markers)
         self.stackup = None
         self.setWindowTitle("Export for Thermal")
         self.resize(640, 0)
@@ -806,11 +812,12 @@ class ThermalExportDialog(pya.QDialog):
         row.addWidget(self.output, 1)
         row.addWidget(browse)
         add_form_row(self, form, "<b>Output</b>", row)
-        companions = pya.QLabel('<span style="color:#777">+ .tsimcfg and _thermalmap.json with the same name</span>')
-        add_form_row(self, form, "", companions)
         self.sources = pya.QLabel()
-        self.sources.setWordWrap(True)
         add_form_row(self, form, "<b>Heat sources</b>", self.sources)
+        self.boundaries = pya.QLabel()
+        add_form_row(self, form, "<b>Boundaries</b>", self.boundaries)
+        self.left_out = pya.QLabel()
+        add_form_row(self, form, "<b>Left out</b>", self.left_out)
         self.lvsdb = pya.QLabel()
         self.lvsdb.setWordWrap(True)
         change_lvs = pya.QPushButton("Change...")
@@ -822,10 +829,6 @@ class ThermalExportDialog(pya.QDialog):
         row.addWidget(change_lvs)
         row.addWidget(clear_lvs)
         add_form_row(self, form, "<b>Instance names</b>", row)
-        boundaries = pya.QLabel('<span style="color:#777">Chosen in setupThermal. Without one yet, the export adds a '
-                                'placeholder on the region outline whose target layer you choose there.</span>')
-        boundaries.setWordWrap(True)
-        add_form_row(self, form, "<b>Boundaries</b>", boundaries)
         line = pya.QFrame()
         line.setFrameShape(pya.QFrame.HLine)
         line.setFrameShadow(pya.QFrame.Sunken)
@@ -888,10 +891,14 @@ class ThermalExportDialog(pya.QDialog):
         if self.box is not None:
             detail = f"{self.box.width():g} × {self.box.height():g} µm at ({self.box.left:g}, {self.box.bottom:g})" + \
                 (f", {detail}" if detail else "")
-        self.region.setText(_marked(OK, head[:1].upper() + head[1:], detail))
+        self.region.setText(_marked(OK, head[:1].upper() + head[1:]))
+        self.region.setToolTip(detail)
         path = stackup_path(self.em_layout)
         self.stackup, error = read_stackup(path) if path else (None, "no stackup chosen yet")
         self.export_button.setEnabled(False)
+        for label in (self.sources, self.boundaries, self.left_out):
+            label.setText("")
+            label.setToolTip("")
         if self.stackup is None:
             self.stackup_label.setText(_marked(ERROR, error))
             self.sources.setText(_marked(ERROR, "choose a stackup first"))
@@ -902,28 +909,48 @@ class ThermalExportDialog(pya.QDialog):
         try:
             target = heat_target(self.stackup, technology)
         except ValueError as e:
-            self.sources.setText(_marked(ERROR, "no layer for the heat sources", str(e)))
+            self.sources.setText(_marked(ERROR, "no layer for the heat sources"))
+            self.sources.setToolTip(str(e))
             return
         sources = heat_sources(self.em_layout, self.cell, self.stackup, technology, self.box)
         self.export_button.setEnabled(True)
-        if not sources:
-            self.sources.setText(_marked(WARN, "no devices in the region",
-                                         "the layout is exported without heat sources; add them in setupThermal"))
-            return
-        notes = [f"one per device, in the z range of {target}, power 0 W until set in setupThermal"]
+        kinds, origin, left_out = marker_preview(self.em_layout, self.cell, self.stackup, self.box,
+                                                 self.layout_file, native_path(self.output.text.strip()))
+        # one short line per row; the details are in the tooltips
+        own_sources = [l for l, k in kinds.items() if k == "source"]
+        own_boundaries = [l for l, k in kinds.items() if k == "constanttemp"]
+        unset = [l for l, k in kinds.items() if k is None]
         fallback = [s.device.id for s in sources if not s.from_pdk]
+        cut = [s.device.id for s in sources if s.cut]
+        parts = [_count(len(sources), "device")] if sources else []
+        if own_sources:
+            parts.append(f"{len(own_sources)} from your layout")
         if fallback:
-            notes.append("no heat area known, the bounding box is used (a larger area, a lower peak temperature): " +
-                         ", ".join(fallback))
+            parts.append(f"{len(fallback)} without heat area")
+        if cut:
+            parts.append(f"{len(cut)} cut by the region")
+        if unset:
+            parts.append(_count(len(unset), "marker") + " without settings")
+        tips = [f"One per device, in the z range of {target}; power 0 W until set in setupThermal."]
+        if fallback:
+            tips.append("Without heat area, the bounding box is used (a lower peak temperature): " + ", ".join(fallback))
         from_rule = [s.device.id for s in sources if s.how == "rule"]
         if from_rule:
-            notes.append("this PDK draws no heat shapes, the PDK's rule gives the same rectangles from the device's "
-                         "layers: " + ", ".join(from_rule))
-        cut = [s.device.id for s in sources if s.cut]
+            tips.append("From the PDK's rule (this PDK draws no heat shapes): " + ", ".join(from_rule))
         if cut:
-            notes.append("partly outside the region, only the part inside is exported: " + ", ".join(cut))
-        self.sources.setText(_marked(WARN if fallback or cut else OK, f"{len(sources)} heat source(s)",
-                                     "\n".join("• " + n for n in notes)))
+            tips.append("Partly outside the region: " + ", ".join(cut))
+        if kinds:
+            tips.append("Your own markers stay on their layers: " + describe_markers(kinds, origin))
+        self.sources.setText(_marked(WARN if fallback or cut or unset or not parts else OK,
+                                     ", ".join(parts) or "none: add them in setupThermal"))
+        self.sources.setToolTip("\n".join(tips))
+        self.boundaries.setText(_marked(OK, f"{len(own_boundaries)} from your layout" if own_boundaries else
+                                        "set in setupThermal"))
+        self.boundaries.setToolTip("Without a boundary, the export adds a placeholder on the region outline; choose "
+                                   "its target layer in setupThermal.")
+        self.left_out.setText(_marked(OK, _count(len(left_out), "layer") + " not in the stackup" if left_out else "none"))
+        self.left_out.setToolTip(", ".join(f"{l}/{d}" for l, d in left_out) +
+                                 " (many here can mean the wrong stackup)" if left_out else "")
 
 
 def export_thermal_region():
@@ -958,7 +985,7 @@ def export_thermal_region():
         return
     try:
         result = export_thermal(layout, cell, dialog.stackup, gds_path, layout_technology(layout)[0], box=box,
-                                lvsdb=lvsdb or None)
+                                lvsdb=lvsdb or None, layout_file=cv.filename() or None)
     except ValueError as e:
         pya.MessageBox.warning("EM Export", str(e), pya.MessageBox.Ok)
         return

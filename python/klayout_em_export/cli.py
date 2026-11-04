@@ -393,7 +393,8 @@ def cmd_export_thermal(request, layout, cell):
         raise RequestError("'out' is the layout itself")
     box = None if request.get("whole") else _region_box(request, layout, cell)
     try:
-        return export_thermal(layout, cell, stackup, out, technology, box=box, lvsdb=request.get("lvsdb"))
+        return export_thermal(layout, cell, stackup, out, technology, box=box, lvsdb=request.get("lvsdb"),
+                              layout_file=request["gds"])
     except ValueError as e:
         raise RequestError(str(e))
 
