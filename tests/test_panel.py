@@ -21,6 +21,8 @@ ly = cv.layout()
 ly.add_meta_info(pya.LayoutMetaInfo(META_STACKUP, STACKUP, "", True))   # not set_stackup: keeps ~/.klayout_em_export.json
 
 
+_load_settings = gui._load_settings
+gui._load_settings = lambda: dict(_load_settings(), panel_mode="em")    # the EM steps, whatever the user last chose
 gui.create_boundary_ports = lambda v, c, crossings: create_ports(NoUndo(), c.cell, Stackup(STACKUP), crossings)
 EMPanel._view = lambda self: (view, view.active_cellview())
 
