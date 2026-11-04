@@ -160,13 +160,63 @@ def set_layout_value(layout, meta_name, value, description):
 
 # ---------- stackup, one per layout ----------
 
-def stackup_path(layout):
-    """The layout's stackup, else the last one used, or "" if there is none (or the file is gone)."""
+STACKUP_CHOSEN, STACKUP_LAST = "chosen", "last used"
+
+
+def _config_stackup(layout_file, suffix):
+    """(SubstrateFile, file name) of the newest setupEM (.simcfg) / setupThermal (.tsimcfg) file next to the layout
+    file whose GdsFile is that file, or None."""
+    if not layout_file:
+        return None
+    key = os.path.normcase(os.path.abspath(layout_file))
+    folder = os.path.dirname(key)
+    found = []
+    for name in os.listdir(folder) if os.path.isdir(folder) else ():
+        if not name.lower().endswith(suffix):
+            continue
+        path = os.path.join(folder, name)
+        try:
+            with open(path, encoding="utf-8") as f:
+                values = json.load(f).get("saved_values", {})
+            gds, xml = values.get("GdsFile"), values.get("SubstrateFile")
+        except (OSError, ValueError, AttributeError):
+            continue
+        if gds and xml and os.path.normcase(os.path.abspath(gds)) == key and os.path.isfile(xml):
+            found.append((os.path.getmtime(path), xml, name))
+    return max(found)[1:] if found else None
+
+
+def stackup_source(layout, kind="em", layout_file=None):
+    """(path, how) of the stackup the plug-in uses for layout. how: STACKUP_CHOSEN (chosen for this layout), the file
+    name of the layout's own setupThermal / setupEM file whose stackup it is (kind 'thermal' looks at .tsimcfg first,
+    'em' at .simcfg), STACKUP_LAST (the last one chosen, for another layout); ("", "") if there is none.
+    layout_file: the layout's file (default: found through the open views)."""
     path = layout_value(layout, META_STACKUP)
     if path and os.path.isfile(path):
-        return path
+        return path, STACKUP_CHOSEN
+    layout_file = layout_file or _layout_file(layout)
+    for suffix in ((".tsimcfg", ".simcfg") if kind == "thermal" else (".simcfg", ".tsimcfg")):
+        found = _config_stackup(layout_file, suffix)
+        if found:
+            return found
     path = _load_settings().get("stackup", "")
-    return path if os.path.isfile(path) else ""
+    return (path, STACKUP_LAST) if os.path.isfile(path) else ("", "")
+
+
+def stackup_path(layout, kind="em", layout_file=None):
+    """The layout's stackup (stackup_source), or "" if there is none (or the file is gone)."""
+    return stackup_source(layout, kind, layout_file)[0]
+
+
+def stackup_label(layout, kind="em", layout_file=None):
+    """(state, text, tooltip) for a Stackup row: the file name, and where it comes from unless chosen."""
+    path, how = stackup_source(layout, kind, layout_file)
+    name = os.path.basename(path)
+    if how == STACKUP_LAST:
+        return WARN, f"{name} (last used, not chosen for this layout)", path
+    if how and how != STACKUP_CHOSEN:
+        return OK, f"{name} (from {how})", path
+    return OK, name, path
 
 
 def set_stackup(layout, path):
@@ -702,8 +752,9 @@ class ExportDialog(pya.QDialog):
             self.stackup_label.setText(_marked(ERROR, error))
             self.ports.setText(_marked(ERROR, "choose a stackup first"))
             return
-        self.stackup_label.setText(_marked(OK, os.path.basename(path)))
-        self.stackup_label.setToolTip(path)
+        state, text, tip = stackup_label(self.em_layout)
+        self.stackup_label.setText(_marked(state, text))
+        self.stackup_label.setToolTip(tip)
         if shapes_only:
             self.completed = self.selection.completed(self.stackup)
             ports = ports_of(self.em_layout, self.cell, self.completed.ports, stackup=self.stackup)
@@ -893,7 +944,7 @@ class ThermalExportDialog(pya.QDialog):
                 (f", {detail}" if detail else "")
         self.region.setText(_marked(OK, head[:1].upper() + head[1:]))
         self.region.setToolTip(detail)
-        path = stackup_path(self.em_layout)
+        path = stackup_path(self.em_layout, "thermal")
         self.stackup, error = read_stackup(path) if path else (None, "no stackup chosen yet")
         self.export_button.setEnabled(False)
         for label in (self.sources, self.boundaries, self.left_out):
@@ -903,8 +954,9 @@ class ThermalExportDialog(pya.QDialog):
             self.stackup_label.setText(_marked(ERROR, error))
             self.sources.setText(_marked(ERROR, "choose a stackup first"))
             return
-        self.stackup_label.setText(_marked(OK, os.path.basename(path)))
-        self.stackup_label.setToolTip(path)
+        state, text, tip = stackup_label(self.em_layout, "thermal")
+        self.stackup_label.setText(_marked(state, text))
+        self.stackup_label.setToolTip(tip)
         technology = layout_technology(self.em_layout)[0]
         try:
             target = heat_target(self.stackup, technology)
@@ -1110,8 +1162,9 @@ class PortDialog(pya.QDialog):
             self.stackup_label.setText(f"<b>{error}</b>")
             self.at_port.setText("")
         else:
-            self.stackup_label.setText(os.path.basename(path))
-            self.stackup_label.setToolTip(path)
+            state, text, tip = stackup_label(self.em_layout)
+            self.stackup_label.setText(_marked(state, text))
+            self.stackup_label.setToolTip(tip)
             self.available = self.available_for(self.stackup)
             self.at_port.setText(", ".join(self.available) or "no stackup metal (check the port position)")
         self._fill(initial=True)

@@ -133,4 +133,30 @@ panel.mode_bar.setCurrentIndex(0)
 check(settings.get("panel_mode") == "em" and not panel.ground_step.isHidden() and panel.sources_step.isHidden() and
       not panel.em_buttons.isHidden() and panel.thermal_buttons.isHidden(), "back to EM")
 
+# where the stackup comes from: chosen for the layout, else the layout's own setupThermal file, else the last used
+other = os.path.join(OUT, "other_stackup.xml")
+with open(STACKUP, encoding="utf-8") as src, open(other, "w", encoding="utf-8") as dst:
+    dst.write(src.read())
+fresh = pya.Layout()
+layout_file = os.path.join(OUT, "fresh_layout.gds")
+own_cfg = os.path.join(OUT, "fresh_layout.tsimcfg")
+for stale in (own_cfg,):
+    if os.path.exists(stale):
+        os.remove(stale)
+settings["stackup"] = STACKUP
+check(gui.stackup_source(fresh, "thermal", layout_file) == (STACKUP, gui.STACKUP_LAST) and
+      gui.stackup_label(fresh, "thermal", layout_file)[0] == gui.WARN,
+      "no stackup chosen, no own setup file: the last used one, with a warning")
+json.dump({"application": "setupThermal", "saved_values": {"GdsFile": layout_file, "SubstrateFile": other}},
+          open(own_cfg, "w"))
+check(gui.stackup_source(fresh, "thermal", layout_file) == (other, "fresh_layout.tsimcfg") and
+      gui.stackup_label(fresh, "thermal", layout_file)[0] == gui.OK,
+      "the layout's own setupThermal file gives its stackup")
+fresh.add_meta_info(pya.LayoutMetaInfo(META_STACKUP, STACKUP, "", True))
+check(gui.stackup_source(fresh, "thermal", layout_file) == (STACKUP, gui.STACKUP_CHOSEN),
+      "a stackup chosen for the layout wins")
+settings.pop("stackup")
+os.remove(own_cfg)
+check(gui.stackup_source(pya.Layout(), "em", layout_file) == ("", ""), "nothing at all: none")
+
 print("all passed" if not failed else f"{len(failed)} FAILED")

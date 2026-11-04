@@ -311,7 +311,8 @@ class EMPanel(pya.QWidget):
             return
         self._bind(view)
         layout, cell = cv.layout(), cv.cell
-        path = gui.stackup_path(layout)
+        kind = "thermal" if self._thermal() else "em"
+        path = gui.stackup_path(layout, kind)
         stackup, error = gui.read_stackup(path) if path else (None, "none chosen yet")
         if stackup is None:
             self.stackup_step.set(ERROR, f"{error}: open the details to choose one")
@@ -322,7 +323,7 @@ class EMPanel(pya.QWidget):
                 self.stackup_step.set(WARN, f"{os.path.basename(path)}: height of {', '.join(unresolved)} is not "
                                       "resolved (given by a variable), so it is left out of nets and ground", path)
             else:
-                self.stackup_step.set(OK, os.path.basename(path), path)
+                self.stackup_step.set(*gui.stackup_label(layout, kind))
             self.stackup_detail.setText(path)
         if self._thermal():
             self._update_region()           # with the heat sources of the region, the names and the boundaries
@@ -578,7 +579,7 @@ class EMPanel(pya.QWidget):
             detail = (f"Keep the region with the layout: select shapes and Mark Region (layer {gui.EM_REGION[0]}/"
                       f"{gui.EM_REGION[1]})." + ("" if thermal else " Ports proposed at the cut need this box."))
         self.region_detail.setText(detail + "\nA selection of port shapes only does not count as a region.")
-        path = gui.stackup_path(layout)
+        path = gui.stackup_path(layout, "thermal" if thermal else "em")
         stackup = gui.read_stackup(path)[0] if path else None
         if thermal:
             self._show_thermal(layout, cell, stackup, box)
