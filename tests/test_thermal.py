@@ -82,6 +82,9 @@ check(thermal_map["outline_layer"] == 201 and [r["layer"] for r in rows] == list
 out, dbu = shapes(gds)
 check(all((r["layer"], 0) in out and abs(out[(r["layer"], 0)].area() * dbu ** 2 - r["area_um2"]) < 1e-6
           for r in rows), "the GDS has each heat area on its layer")
+check(json.load(open(result["tsimcfg"]))["saved_values"]["purpose"] == [0, 20] and (1, 20) in out and
+      (1, 20) not in result["left_out"],
+      "Activ.mask (1/20, the silicon around the npn emitters) is kept, and the .tsimcfg reads datatypes 0 and 20")
 ref = st.layer("REF_FOR_TRANSISTOR").layer
 check((ref, 0) not in out, "no REF_FOR_TRANSISTOR patches (left from the EM replacement)")
 em_ports = {key for key in out if 201 <= key[0] <= 299} - {(r["layer"], 0) for r in rows} - {(201, 0)}
@@ -213,15 +216,15 @@ for keep_list in (False, True):
     cfg_f = json.load(open(fixed["tsimcfg"]))
     rows_f = {t["source_layernum"]: t for t in cfg_f["thermal"]}
     check(rows_f.get(410) == own_rows[0] and rows_f.get(420) == own_rows[1] and
-          cfg_f["saved_values"]["purpose"] == [0, 35] and fixed["markers_from"].endswith("markers_layout.tsimcfg"),
+          cfg_f["saved_values"]["purpose"] == [0, 20, 35] and fixed["markers_from"].endswith("markers_layout.tsimcfg"),
           f"after an export from before (user_markers in its map: {keep_list}): rows and purposes from the "
           f"layout's file ({rows_f.get(410)}, {cfg_f['saved_values']['purpose']})")
 print("left out:", marked["left_out"])
 check((204, 0) not in marked["left_out"] and all(l not in (203, 410, 420) for l, _ in marked["left_out"]),
       "left out: neither the EM port nor the markers")
 m1 = st.layer("Metal1").layer
-check((m1, 35) in out_m and cfg_m["saved_values"]["purpose"] == [0, 35] and (m1, 35) not in marked["left_out"],
-      "the purposes of the layout's setupThermal file ([0, 35]): Metal1/35 is kept, and the .tsimcfg says so")
+check((m1, 35) in out_m and cfg_m["saved_values"]["purpose"] == [0, 20, 35] and (m1, 35) not in marked["left_out"],
+      "the purposes of the layout's setupThermal file ([0, 35]) and IHP's 20: Metal1/35 is kept, the .tsimcfg says so")
 # the EM export takes the same purposes: the layout's own setup files, plus what setupEM keeps in its .simcfg
 from klayout_em_export.pipeline import export_em
 em_gds = os.path.join(OUT, "markers_em.gds")

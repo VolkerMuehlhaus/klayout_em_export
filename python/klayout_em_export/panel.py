@@ -619,7 +619,8 @@ class EMPanel(pya.QWidget):
             target = False
         sources = heat_sources(layout, cell, stackup, technology, box) if target else []
         kinds, origin, _ = marker_preview(layout, cell, stackup, box, gui._layout_file(layout) or None,
-                                          gui.native_path(gui.layout_value(layout, gui.META_THERMAL_OUTPUT) or ""))
+                                          gui.native_path(gui.layout_value(layout, gui.META_THERMAL_OUTPUT) or ""),
+                                          technology)
         own_sources = sum(k == "source" for k in kinds.values())
         own = f", {own_sources} from your layout" if own_sources else ""
         own_tip = f"\nYour own markers stay on their layers: {describe_markers(kinds, origin)}" if kinds else ""

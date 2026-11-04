@@ -769,7 +769,10 @@ Each heat source:
 - sits in the height of **Activ**, the active silicon at the top of the substrate;
 - gets one power, which Elmer spreads over the device's fingers by their area.
 
-The metal, contacts and vias of the devices stay in the model, since they carry heat away.
+The metal, contacts and vias of the devices stay in the model, since they carry heat away. So does the silicon
+around each npn emitter, which the PDK draws on Activ.mask (1/20), not on Activ: the export keeps datatype 20
+too, and setupThermal reads it as Activ. Without it, the heat sources would sit in oxide, and the temperature
+rise would come out about twice too high.
 
 **Good to know:** the heat areas are small and lie under all the metal. To see them in KLayout, show all hierarchy
 levels (`*`), hide all layers, and switch on HeatTrans and HeatRes (or EmWind, for an npn without HeatTrans). In the

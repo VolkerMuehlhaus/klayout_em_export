@@ -103,7 +103,8 @@ gds2palace stackup.
    `NO_DEVICES`, `devices_in(layout)`, `context`, `identify`, `is_device`, `is_resistor`, `terminals` (fill
    `device.terminals` as `{name: (GDS layer of the pin metal, [pin boxes])}`), `describe` (the panel's Value
    column: size or value), `resistor_note`; for the thermal export `HEAT_TARGET` (stackup layer of the heat
-   sources, None: no heat sources), `heat_area` (a device's heat area and how it was found: `shapes`, `rule`,
+   sources, None: no heat sources), `THERMAL_PURPOSES` (datatypes the thermal export always keeps, e.g. IHP's
+   Activ.mask on 20), `heat_area` (a device's heat area and how it was found: `shapes`, `rule`,
    `bbox`), `lvs_classes` and `lvs_element` (matching LVS devices, see `lvs.py`). Every process fact (layers,
    pcell names, rules) stays in the technology module; `generic.py` shows the neutral versions.
 2. `tech/<name>_circuit.py`, plain Python: `NAME`, `PDK_LABEL`, `PDK_HINT`, `PDK_BROWSE_TITLE`, `LIBRARIES`,

@@ -261,7 +261,7 @@ def export_thermal(layout, cell, stackup, gds_path, technology, box=None, lvsdb=
                                          old_markers)
     if not from_layout:
         markers_from = None         # no row came from the layout's own setupThermal file
-    purposes = export_purposes(old_cfg, layout_thermal_config(layout_file, (base + ".tsimcfg",))[1])
+    purposes = export_purposes(old_cfg, layout_thermal_config(layout_file, (base + ".tsimcfg",))[1], technology)
     left_out = left_out_layers(layout, cell, stackup, box, markers, purposes)
     lvs_report = None
     if lvsdb:
@@ -311,7 +311,7 @@ def export_thermal(layout, cell, stackup, gds_path, technology, box=None, lvsdb=
             "left_out": left_out, "report": result.report()}
 
 
-def marker_preview(layout, cell, stackup, box, layout_file, gds_path):
+def marker_preview(layout, cell, stackup, box, layout_file, gds_path, technology=None):
     """What an export to gds_path would keep and leave out, for the dialog and the panel: (markers {layer: kind, see
     marker_kinds}, where their rows come from (text), left_out [(layer, datatype)])."""
     base = os.path.splitext(gds_path)[0] if gds_path else None
@@ -320,7 +320,7 @@ def marker_preview(layout, cell, stackup, box, layout_file, gds_path):
     markers, markers_from = user_markers(layout, cell, stackup, box, layout_file, exclude)
     rows, from_layout = marker_rows(markers, old_cfg, _read_json(markers_from) if markers_from else None,
                                     old_markers)
-    purposes = export_purposes(old_cfg, layout_thermal_config(layout_file, exclude)[1])
+    purposes = export_purposes(old_cfg, layout_thermal_config(layout_file, exclude)[1], technology)
     origin = (os.path.basename(markers_from) if from_layout and markers_from else
               "the earlier export" if rows else None)
     return marker_kinds(markers, rows), origin, left_out_layers(layout, cell, stackup, box, markers, purposes)
@@ -334,11 +334,13 @@ def describe_markers(kinds, origin):
     return text + (f", rows from {origin}" if origin and any(kinds.values()) else "")
 
 
-def export_purposes(previous_cfg, layout_config):
+def export_purposes(previous_cfg, layout_config, technology=None):
     """The datatypes the export keeps: the purposes of the export's previous .tsimcfg and of the layout's own
-    setupThermal file together (e.g. [0, 4, 35] for CuPillar shapes on 41/35), (0,) without either. Together, since an
-    earlier export may have written only [0] before the layout's purposes were taken over."""
-    return merged_purposes(previous_cfg, layout_config)
+    setupThermal file together (e.g. [0, 4, 35] for CuPillar shapes on 41/35), (0,) without either, and always the
+    technology's THERMAL_PURPOSES (IHP: Activ.mask on 20). Together, since an earlier export may have written only [0]
+    before the layout's purposes were taken over."""
+    return tuple(sorted(set(merged_purposes(previous_cfg, layout_config)) |
+                        set(getattr(technology, "THERMAL_PURPOSES", (0,)))))
 
 
 def marker_kinds(markers, rows):

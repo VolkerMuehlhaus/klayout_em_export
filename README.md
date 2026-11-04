@@ -220,6 +220,9 @@ hidden; device replacement is not needed for it). The export writes:
   derives the same rectangles from the device's layers, as the PDK does (npn emitter windows grown by 0.05 µm,
   resistor bodies, MOS gates). Only a device with neither gets its bounding box, which the dialog and the panel
   list;
+- Activ.mask (1/20) with Activ: IHP's npn cells draw the silicon around each emitter there. The technology module
+  names the datatypes the thermal export always keeps (`THERMAL_PURPOSES`, IHP: 0 and 20), together with those of
+  the setupThermal files;
 - `<name>.tsimcfg` for setupThermal (all powers 0 W until set) and `<name>_thermalmap.json`, which says which
   device each heat source layer belongs to.
 

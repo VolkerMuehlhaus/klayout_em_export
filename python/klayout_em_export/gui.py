@@ -965,7 +965,7 @@ class ThermalExportDialog(pya.QDialog):
         sources = heat_sources(self.em_layout, self.cell, self.stackup, technology, self.box)
         self.export_button.setEnabled(True)
         kinds, origin, left_out = marker_preview(self.em_layout, self.cell, self.stackup, self.box,
-                                                 self.layout_file, native_path(self.output.text.strip()))
+                                                 self.layout_file, native_path(self.output.text.strip()), technology)
         # one short line per row; the details are in the tooltips
         own_sources = [l for l, k in kinds.items() if k == "source"]
         own_boundaries = [l for l, k in kinds.items() if k == "constanttemp"]
