@@ -153,13 +153,16 @@ for layer, b in marker_boxes.items():
     s = cell.shapes(ly.layer(layer, 0)).insert(b.to_itype(dbu))
     if layer == 204:
         s.set_property(PROP_KEY, PortSettings("Z", "Metal1", "Metal2").encode())
+metal1_35 = pya.DBox(-30, -10, -25, -5)          # Metal1 with datatype 35: kept only with purpose [0, 35]
+cell.shapes(ly.layer(st.layer("Metal1").layer, 35)).insert(metal1_35.to_itype(dbu))
 layout_file = os.path.join(OUT, "markers_layout.gds")
 ly.write(layout_file)
 own_rows = [{"source_layernum": 410, "target_layername": "Activ", "type": "source", "power": 0.3},
             {"source_layernum": 420, "target_layername": "BACKSIDEGND", "type": "constanttemp", "temp": 300.0},
             {"source_layernum": 999, "target_layername": "Activ", "type": "source", "power": 1.0}]   # not drawn
 json.dump({"application": "setupThermal", "data_format": "1.0", "thermal": own_rows,
-           "saved_values": {"GdsFile": layout_file, "sim_path": "/elsewhere", "model_basename": "own"}},
+           "saved_values": {"GdsFile": layout_file, "sim_path": "/elsewhere", "model_basename": "own",
+                            "purpose": [0, 35]}},
           open(os.path.join(OUT, "markers_layout.tsimcfg"), "w"))
 markers, markers_from = user_markers(ly, cell, st, None, layout_file)
 check(sorted(markers) == [203, 410, 420] and markers_from.endswith("markers_layout.tsimcfg"),
@@ -197,8 +200,12 @@ check(power_again == [0.7] and again_m["markers_from"] is None,
 print("left out:", marked["left_out"])
 check((204, 0) not in marked["left_out"] and all(l not in (203, 410, 420) for l, _ in marked["left_out"]),
       "left out: neither the EM port nor the markers")
+m1 = st.layer("Metal1").layer
+check((m1, 35) in out_m and cfg_m["saved_values"]["purpose"] == [0, 35] and (m1, 35) not in marked["left_out"],
+      "the purposes of the layout's setupThermal file ([0, 35]): Metal1/35 is kept, and the .tsimcfg says so")
 for layer in marker_boxes:
     cell.shapes(ly.layer(layer, 0)).clear()
+cell.shapes(ly.layer(m1, 35)).clear()
 
 # the guide's EM region: the bias resistor and the transistors inside, the outline is the box
 box = pya.DBox(-28.9, -11.275, 21.595, 20.63)

@@ -113,18 +113,19 @@ def marker_rows(markers, previous_cfg, layout_config):
     return [dict(t) for t in (data or {}).get("thermal", []) if t.get("source_layernum") in markers]
 
 
-def left_out_layers(layout, cell, stackup, box=None, markers=()):
-    """[(layer, datatype)] with shapes in the region (datatype 0) that the thermal export leaves out because the
-    stackup does not have them, apart from EM ports, the user's markers and the plug-in's own layers."""
-    keep = set(stackup.gds_layers()) | set(markers) | set(PORT_LAYERS) | {EM_REGION[0]}
+def left_out_layers(layout, cell, stackup, box=None, markers=(), purposes=(0,)):
+    """[(layer, datatype)] with shapes in the region that the thermal export leaves out: not a stackup layer with one
+    of the purposes (datatypes), apart from EM ports, the user's markers and the plug-in's own layers."""
+    kept = set(stackup.gds_layers())                                # with one of the purposes
+    skipped = set(markers) | set(PORT_LAYERS) | {EM_REGION[0]}      # any datatype
     ref = stackup.layer(REF_NAME)
     if ref is not None:
-        keep.add(ref.layer)
+        skipped.add(ref.layer)
     clip = _clip(layout, box)
     left_out = []
     for li in layout.layer_indexes():
         info = layout.get_info(li)
-        if info.datatype != 0 or info.layer in keep:
+        if info.layer in skipped or info.layer in kept and info.datatype in purposes:
             continue
         it = cell.begin_shapes_rec(li) if clip is None else cell.begin_shapes_rec_touching(li, clip)
         if not it.at_end():
@@ -259,7 +260,8 @@ def export_thermal(layout, cell, stackup, gds_path, technology, box=None, lvsdb=
     user_rows = marker_rows(markers, old_cfg, _read_json(markers_from) if markers_from else None)
     if old_cfg is not None:
         markers_from = None         # the rows come from the export's own earlier .tsimcfg
-    left_out = left_out_layers(layout, cell, stackup, box, markers)
+    purposes = export_purposes(old_cfg, layout_thermal_config(layout_file, (base + ".tsimcfg",))[1])
+    left_out = left_out_layers(layout, cell, stackup, box, markers, purposes)
     lvs_report = None
     if lvsdb:
         lvs_devices, notes = read_lvs_devices(lvsdb, layout, cell)
@@ -276,12 +278,12 @@ def export_thermal(layout, cell, stackup, gds_path, technology, box=None, lvsdb=
     for layer, region in markers.items():
         extra[(layer, 0)] = region
     ref = stackup.layer(REF_NAME)       # patches of an EM export's replaced devices: no part of a thermal model
-    result = export_flat(layout, cell, stackup, gds_path, box=box, with_ports=False,
+    result = export_flat(layout, cell, stackup, gds_path, box=box, purposes=purposes, with_ports=False,
                          drop=(ref.layer,) if ref is not None else (), extra=extra)
 
     write_tsimcfg(base + ".tsimcfg", gds_path, stackup.path, result.cellname,
                   [(layer, target, float(powers.get(s.device.id, 0.0))) for layer, s in zip(source_layers, sources)],
-                  previous_cfg=old_cfg, outline_layer=outline_layer, user_rows=user_rows)
+                  previous_cfg=old_cfg, purpose=purposes, outline_layer=outline_layer, user_rows=user_rows)
     um2 = layout.dbu ** 2
     rows = [{"layer": layer, "device": s.device.id, "pcell": s.device.pcell,
              "params": {k: str(v) for k, v in s.device.params.items()},
@@ -315,16 +317,28 @@ def marker_preview(layout, cell, stackup, box, layout_file, gds_path):
     exclude = (base + ".tsimcfg",) if base else ()
     markers, markers_from = user_markers(layout, cell, stackup, box, layout_file, exclude)
     rows = marker_rows(markers, old_cfg, _read_json(markers_from) if markers_from else None)
+    purposes = export_purposes(old_cfg, layout_thermal_config(layout_file, exclude)[1])
     origin = ("the earlier export" if old_cfg is not None else
               os.path.basename(markers_from) if markers_from else None)
-    return marker_kinds(markers, rows), origin, left_out_layers(layout, cell, stackup, box, markers)
+    return marker_kinds(markers, rows), origin, left_out_layers(layout, cell, stackup, box, markers, purposes)
 
 
 def describe_markers(kinds, origin):
-    """One line about the user's markers that the export keeps, e.g. '201 (heat source), 203 (boundary) from x.tsimcfg'."""
+    """One line about the user's markers that the export keeps, e.g. '201 (heat source), 203 (boundary), rows from
+    x.tsimcfg'."""
     words = {"source": "heat source", "constanttemp": "boundary", None: "no row yet, define it in setupThermal"}
     text = ", ".join(f"{layer} ({words[kind]})" for layer, kind in kinds.items())
     return text + (f", rows from {origin}" if origin and any(kinds.values()) else "")
+
+
+def export_purposes(previous_cfg, layout_config):
+    """The datatypes the export keeps: setupThermal's purpose of the export's previous .tsimcfg, else of the layout's
+    own setupThermal file (e.g. [0, 35] for CuPillar shapes on 41/35), else (0,)."""
+    for data in (previous_cfg, layout_config):
+        purpose = ((data or {}).get("saved_values") or {}).get("purpose")
+        if isinstance(purpose, list) and purpose and all(isinstance(p, int) for p in purpose):
+            return tuple(purpose)
+    return (0,)
 
 
 def marker_kinds(markers, rows):
