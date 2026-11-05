@@ -18,6 +18,9 @@ from klayout_em_export.stackup import Stackup
 OUT = os.environ.get("OUT") or tempfile.mkdtemp(prefix="test_cli_")
 os.makedirs(OUT, exist_ok=True)
 PDK = PDK_ROOT
+for needed in (STACKUP, os.path.join(PDK, "ihp-sg13g2")):
+    if not os.path.exists(needed):
+        raise FileNotFoundError(f"No such file: {needed} (see testpaths.py)")
 failed = []
 
 

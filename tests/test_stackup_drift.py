@@ -1,9 +1,10 @@
 # Plain Python test (also runs in KLayout batch): the plug-in's stackup z positions against gds2palace's own reader.
 # stackup.py is a small parser of its own, because KLayout's Python cannot import gds2palace; this test fails when the
 # two disagree, e.g. after a change of the stackup format.
-# Environment (optional): GDS2PALACE_READER = path of util_stackup_reader.py,
+# Environment (optional): GDS2PALACE = the gds2palace repo (see testpaths.py),
+#                         GDS2PALACE_READER = path of util_stackup_reader.py,
 #                         STACKUP_DIRS = folders with stackup XML files, separated by os.pathsep.
-# Defaults: the sibling repos gds2palace_ihp_sg13g2 and EMStudio.
+# Defaults: the gds2palace repo, and the sibling repo EMStudio if it is there.
 # A layer whose position the plug-in cannot resolve (a variable) is reported, not a failure, if it touches no other
 # layer (the reader's orphan layers, e.g. LBE, BACKSIDEGND): Stackup.unresolved() lists it and the panel warns.
 # Failures: a layer with a different z than the reader, and an unresolved metal or via that touches other layers.
@@ -15,19 +16,21 @@ import os
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, "..", "python"))
 from klayout_em_export.stackup import Stackup
+from testpaths import GDS2PALACE
 
 SIBLINGS = os.path.join(HERE, "..", "..")
 TOLERANCE = 1e-3                    # um
 
 reader_path = os.environ.get("GDS2PALACE_READER", os.path.join(
-    SIBLINGS, "gds2palace_ihp_sg13g2", "workflow", "gds2palace", "util_stackup_reader.py"))
+    GDS2PALACE, "workflow", "gds2palace", "util_stackup_reader.py"))
 dirs = os.environ.get("STACKUP_DIRS")
-dirs = dirs.split(os.pathsep) if dirs else [os.path.join(SIBLINGS, "gds2palace_ihp_sg13g2", "XML_stackup"),
+dirs = dirs.split(os.pathsep) if dirs else [os.path.join(GDS2PALACE, "XML_stackup"),
                                             os.path.join(SIBLINGS, "EMStudio", "examples")]
 if not os.path.isfile(reader_path):
-    sys.exit(f"skipped: gds2palace reader not found ({reader_path}); set GDS2PALACE_READER")
+    raise FileNotFoundError(f"No such file: {reader_path} (set GDS2PALACE)")
 spec = importlib.util.spec_from_file_location("util_stackup_reader", reader_path)
 reader = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(reader)
