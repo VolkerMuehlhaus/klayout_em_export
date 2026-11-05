@@ -7,7 +7,7 @@ replaced them, as a subcircuit for ngspice, VACASK, Xyce or Spectre.
 The EM model goes in either way:
   fit   a lumped-element equivalent circuit made by snp2le (universal mode: vector fitted, passive), written next to
         the output as <name>_le.cir (ngspice, Xyce) or <name>_le.inc (VACASK). Needs a Python with snp2le
-        (e.g. d:\\venv\\palace). ngspice and VACASK can only use this.
+       . ngspice and VACASK can only use this.
   snp   the .sNp file itself, read by the simulator: Xyce (YLIN element) and Spectre (nport element).
 Default: fit for ngspice and VACASK, snp for Xyce and Spectre.
 

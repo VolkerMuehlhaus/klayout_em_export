@@ -1,5 +1,5 @@
 # Screenshots of setupEM with the exported cascode model, for the user's guide. Run in the Python environment with
-# setupEM (e.g. d:\venv\palace), after capture.py has exported the cascode:
+# setupEM (a venv), after capture.py has exported the cascode:
 #   python doc/userguide/capture/capture_setupem.py <exported .simcfg> [output folder]
 import os
 import sys

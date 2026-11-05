@@ -1,6 +1,6 @@
 # Screenshots of setupThermal with the thermal export of the cascode, for the user's guide's thermal chapter: the
 # heat sources after Load powers..., with the region outline's boundary on BACKSIDEGND. Run in the Python environment
-# with setupEM (e.g. d:\venv\palace), after capture_thermal.py has exported the cascode:
+# with setupEM (a venv), after capture_thermal.py has exported the cascode:
 #   python doc/userguide/capture/capture_setupthermal.py <exported .tsimcfg> [output folder]
 # The powers are example values for the screenshot, not the cascode's bias point.
 import os

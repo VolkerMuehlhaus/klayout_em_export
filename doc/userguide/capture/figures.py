@@ -1,5 +1,5 @@
 # Figures of the user's guide that are not screenshots: the workflow overview, plus copies of figures from the
-# cascode test reports. Run in a Python with matplotlib and Pillow (e.g. d:\venv\palace).
+# cascode test reports. Run in a Python with matplotlib and Pillow.
 import os
 import shutil
 

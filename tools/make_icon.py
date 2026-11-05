@@ -1,6 +1,6 @@
 """Draw the EM Port tool icon: two metal stubs (KLayout-style hatch) bridged by a magenta port with a source symbol.
 
-Run in a Python with Pillow (e.g. d:\\venv\\palace): python tools/make_icon.py
+Run in a Python with Pillow: python tools/make_icon.py
 Writes python/klayout_em_export/icons/em_port.png (64 x 64). Drawn at 8x and scaled down for smooth edges.
 """
 import math

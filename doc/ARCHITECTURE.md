@@ -1,7 +1,7 @@
 # klayout_em_export architecture
 
 How the plug-in is built and why. For agents and developers changing it. The user-facing description is the
-[user's guide](userguide/klayout_em_export_userguide.md) and the [README](../README.md); the working rules are in
+[user's guide](userguide/klayout_em_export_userguide.md) and the [reference](REFERENCE.md); the working rules are in
 [AGENTS.md](../AGENTS.md).
 
 ## 1. What it is
@@ -37,7 +37,7 @@ port shapes) and setupEM's `.simcfg` format.
 - **Outside KLayout.** `tools/spice_wrapper.py` needs snp2le (vector fitting), which does not live in KLayout's
   Python. Create Circuit runs it as a subprocess with a separate Python (`circuit.default_python`: the
   `snp2le_python` setting, else the Python next to setupEM). It also works from the command line on its own.
-- **Tested with** KLayout 0.29.4 on Windows and 0.30.12 on Linux; `api-version` in `grain.xml` is 0.28.
+- **Tested with** KLayout 0.29.4 on Windows and 0.30.12 on Linux; `api-version` in `grain.xml` is 0.29.
 - **Version:** in `grain.xml` (KLayout's package manager) and `__version__` in `python/klayout_em_export/__init__.py`,
   kept equal (`test_version.py`); the EM panel's title and the CLI's `status` show it. Raise both together.
 - **PDK.** Device recognition needs the SG13G2 PDK library (`SG13_dev`) loaded in KLayout. Static device cells
@@ -281,7 +281,7 @@ two patches touch.
 
 A terminal is one port over the whole pin, also for several emitter fingers. MOSFET source and drain on several
 fingers are one port with one line per finger (a multielement port: parallel elements of one Palace lumped port).
-That needs gds2palace 0.9.3 (merged upstream in PR #91; PyPI still has 0.9.2); older versions use only one line.
+That needs gds2palace 0.9.3 or newer; older versions use only one line.
 
 ### Devices wired directly, DC fixed by 1 mH ties
 
@@ -416,9 +416,9 @@ Each test is a KLayout batch script (`klayout_app.exe -z -nc -rx -r tests/<test>
 from environment variables. `python tests/run_all.py [words]` runs them all (or those whose name contains a word)
 with an empty KLayout home, the repo's `python/` on the path and an output folder each, and prints one table:
 a FAIL/ERROR line, a traceback or an error exit fails a test, a missing input file only skips it, and
-`test_circuit` runs only with PORTMAP, SNP and PYTHON (an EM result). About 3 minutes on the Windows machine. Several read layouts outside the repo; `tests/testpaths.py`
-finds them on Windows and Linux (`KLAYOUT_EM_EXPORT_TESTDATA`, `GDS2PALACE`, `OUT`). The device tests need the PDK
-through `klayout_em_export_tests/pdk_env.py`.
+`test_circuit` runs only with PORTMAP, SNP and PYTHON (an EM result). About 3 minutes. The layouts are in `tests/data`; a few large or third-party ones are not in the repo, and what
+needs them skips (`tests/testpaths.py`: `KLAYOUT_EM_EXPORT_TESTDATA`, `GDS2PALACE`, `IHP_PDK_ROOT`, `OUT`). The device
+tests need the PDK: `tests/setup_pdk.sh` makes a sparse checkout in `tests/pdk`, `tests/pdk_env.py` loads it.
 
 | Area | Tests |
 | --- | --- |

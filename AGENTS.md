@@ -1,13 +1,13 @@
 # AGENTS.md
 
 Rules for AI agents developing klayout_em_export. Read [doc/ARCHITECTURE.md](doc/ARCHITECTURE.md) first: module map,
-data formats, and the design decisions with their reasons. The user-facing behaviour is in the
-[README](README.md) and the [user's guide](doc/userguide/klayout_em_export_userguide.md).
+data formats, and the design decisions with their reasons. The user-facing behaviour is in
+[doc/REFERENCE.md](doc/REFERENCE.md) and the [user's guide](doc/userguide/klayout_em_export_userguide.md).
 
 ## Repository and git
 
-- Private repo `volkermuehlhaus-claude/klayout_em_export`, remote `origin`. There is no upstream original: this
-  repo is not a fork, so there is nothing to open a PR against.
+- Repo `volkermuehlhaus-claude/klayout_em_export`, remote `origin`. It is not a fork, so there is nothing to open a
+  PR against.
 - Local git identity: `volkermuehlhaus-claude`, `claude@muehlhaus.com`. Commit or push only when the user asks.
 - Working copies have CRLF line endings (`core.autocrlf`). `*.sh` files stay LF (`.gitattributes`), because
   `tests/simulators/run.sh` runs on Linux.
@@ -16,41 +16,31 @@ data formats, and the design decisions with their reasons. The user-facing behav
 
 - `python/klayout_em_export/` runs inside KLayout's Python: `pya` and the standard library only. Do not import
   gdspy, numpy, shapely or anything else that KLayout's Python lacks.
-- `tools/spice_wrapper.py` runs outside KLayout, in a Python with snp2le (e.g. `d:\venv\palace`).
-- The plug-in is installed as a junction: `%USERPROFILE%\KLayout\salt\klayout_em_export` points at this repo. An
+- `tools/spice_wrapper.py` runs outside KLayout, in a Python with snp2le.
+- For development, link this repo into KLayout's package folder (see the README). An
   edit takes effect when KLayout restarts (autorun macro at startup); batch tests import the current files.
 - Keep core modules free of GUI code, so batch tests can drive them. Dialogs and the panel only collect input and
   call the core (see the module map).
 
 ## Testing
 
-There is no test runner and no linter. Verify a change by running the batch tests that cover it, and say which
-ones you ran.
+There is no linter. Verify a change by running the batch tests that cover it, and say which ones you ran.
 
 ```bash
-# batch test (Git Bash); most tests take inputs and OUT from the environment, see the header of each script
-OUT=/d/tmp/out /d/KLayout/klayout_app.exe -z -nc -rx -r tests/test_export.py
+python tests/run_all.py                 # all tests, one table (about 3 minutes)
+python tests/run_all.py thermal panel   # the tests whose name contains one of the words
 ```
 
-- Two kinds of tests, run differently:
-  - Tests that add the repo's `python/` to `sys.path` (all that need the PDK, plus `test_export`, `test_simcfg`,
-    `test_portlayers`, `test_circuit`, `test_open_with`, `test_cli`): run them with `KLAYOUT_PATH` and `KLAYOUT_HOME` pointing to an empty
-    folder, so a user-installed sg13g2 technology does not collide (see `klayout_em_export_tests/run_all.sh`). The
-    PDK comes from `../klayout_em_export_tests/pdk_env.py`, a sparse checkout made by its `setup_pdk.sh`.
-  - The others (`test_boundary`, `test_ground`, `test_locate`, `test_numbering`, `test_panel`, `test_ports`,
-    `test_reopen`, `test_selection`) import the plug-in from KLayout's salt folder: run them with the normal
-    KLayout home. With an empty home they fail with `No module named 'klayout_em_export'`.
-  - `test_remote.py` is plain Python (e.g. `/d/venv/palace/Scripts/python tests/test_remote.py`): it starts a
-    KLayout of its own (own home with only `klayout_remote` installed, own user folder for the settings file, window
-    off screen on Windows, offscreen on Linux) and sends the plug-in over the link. Needs the sibling repo
-    `klayout_remote`.
-  - The tests print `ok`/`FAIL` lines or plain results; there are few asserts. Compare the output with an earlier
-    run rather than relying on the exit code.
-- Several tests read layouts outside the repo. `tests/testpaths.py` finds them: `KLAYOUT_EM_EXPORT_TESTDATA` names a
-  folder with `Palace_testcases/` and `klayout_em_export_tests/` (on hpz2: `~/claude/klayout_em_export_testdata`),
-  unset it is `D:\Palace_testcases` and the `klayout_em_export_tests` folder next to this repo. `GDS2PALACE` names
-  the gds2palace repo (default: next to this repo), `OUT` the output folder (default: a temp folder). New tests use
-  these helpers, never a fixed path.
+- `run_all.py` runs each test in KLayout batch mode with an empty KLayout home, so a user-installed sg13g2 technology
+  does not collide, and with the repo's `python/` and `tests/` on the path. A missing input file is SKIP.
+- The tests print `ok`/`FAIL` lines or plain results; there are few asserts. Compare the output with an earlier run
+  when a test prints plain results.
+- The tests that recognize devices need the PDK: `tests/setup_pdk.sh` makes a sparse checkout in `tests/pdk`, or
+  `IHP_PDK_ROOT` names a folder that contains `ihp-sg13g2`.
+- Layouts are in `tests/data`. A few large or third-party ones are not in the repo; `KLAYOUT_EM_EXPORT_TESTDATA` names
+  a folder with `Palace_testcases/klayout_export/` that holds them. `GDS2PALACE` names the gds2palace repo (default:
+  next to this repo), `OUT` the output folder (default: a temp folder). New tests use the helpers in
+  `tests/testpaths.py`, never a fixed path.
 - The headless interface (`cli.py`, `tools/em_cli.py`): `test_cli.py` drives every command in batch mode. After a
   change to the export, the ports or the devices, also run one command end to end through the launcher
   (`python tools/em_cli.py status gds=... stackup=...`), which starts KLayout with `-zz -nc -rx`. New workflow logic
@@ -61,9 +51,8 @@ OUT=/d/tmp/out /d/KLayout/klayout_app.exe -z -nc -rx -r tests/test_export.py
   cannot test them: `select_from` selects nothing and there is no main window.
 - The capture backs up and restores `~/.klayout_em_export.json`. Any script of your own that calls
   `gui.set_stackup` or other setters writes to that file: back it up and restore it.
-- Physics claims (resistances, S-parameters, DC points) need a simulation, not an estimate. Palace runs on the
-  Linux host `hpz2`: at most 16 MPI processes in total, runs under `~/palace_runs/<study>/`. Circuit simulators run
-  in the IIC-OSIC-TOOLS Docker image there (`tests/simulators/README.md`).
+- Physics claims (resistances, S-parameters, DC points) need a simulation, not an estimate. Circuit simulators run
+  in the IIC-OSIC-TOOLS Docker image (`tests/simulators/README.md`).
 
 ## KLayout 0.29 pitfalls
 
@@ -90,13 +79,12 @@ These crash KLayout without a Python error, or behave differently in the GUI:
   (0.30.5 kept it): rows vanished and a combo box covered the whole Export dialog. Add form rows with
   `gui.add_form_row(dialog, form, ...)`, which keeps them in the dialog. `addWidget` / `addLayout` of box layouts
   keep their arguments (the panel is fine).
-- Undo steps in KLayout 0.29.4 (found with tests/test_remote.py; 0.30.12 is fine):
+- Undo steps in KLayout 0.29.4 (0.30.12 is fine):
   - `view.add_missing_layers()` after `view.commit()` clears the whole undo list when the step created a layer:
     Replace All, boundary ports and Mark Region could not be undone. Call it before `commit()`.
   - After Undo and Redo of a step that created a layer, the next new layer gets the same layer index: Mark Region
     then cleared the REF patches. Create new layers before the step opens (`locate.create_layers`).
-  - Do not nest undo steps: a function that opens its own step must not run inside another one (`remote.py` makes
-    its own steps; its client calls it without klayout_remote's `undo`).
+  - Do not nest undo steps: a function that opens its own step must not run inside another one.
 - KLayout 0.30.12's `Region.each()` yields `PolygonWithProperties`, whose `str()` ends in ` props={}`: a
   `str(polygon)` key never matches the plain `Polygon` it came from (Remove Dummy Fill removed nothing). Use
   `dummyfill._key`.
@@ -119,16 +107,17 @@ cascode test (`tests/run_cascode_export.py`, `tests/simulators/`).
 
 ## Documentation
 
-- Behaviour changes go into the README and, where a designer sees them, the user's guide. Design decisions with
+- Behaviour changes go into doc/REFERENCE.md and, where a designer sees them, the user's guide. The README stays
+  short: what it is, status, install, limits. Design decisions with
   their reasons go into doc/ARCHITECTURE.md.
 - User's guide: written for RFIC designers who never used the plug-in. Each chapter starts with "In this chapter"
   and "Why it matters"; short sentences; physical reason first; designer vocabulary, not solver jargon.
 - After a GUI change, recapture the screenshots and rebuild the PDF:
 
   ```bash
-  /d/KLayout/klayout_app.exe -r doc/userguide/capture/capture.py      # writes doc/userguide/images
-  /d/venv/palace/Scripts/python doc/userguide/capture/set_dpi.py
-  /d/venv/openems/Scripts/python doc/userguide/capture/build_pdf.py   # the PDF, with this repo's figure sizes
+  klayout_app -r doc/userguide/capture/capture.py      # writes doc/userguide/images
+  python doc/userguide/capture/set_dpi.py              # a Python with Pillow
+  python doc/userguide/capture/build_pdf.py            # the PDF, with this repo's figure sizes; a Python with typst
   ```
 
   Check the result as rendered pages, not only the Markdown. `build_pdf.py` runs the shared
@@ -140,4 +129,4 @@ cascode test (`tests/run_cascode_export.py`, `tests/simulators/`).
   header of capture.py). Never edit the Linux .md by hand; rerun the script after editing the main guide.
 - Layout screenshots for docs: `gds_viewer --screenshot` (sibling repo), not ad-hoc matplotlib.
 - Never invent a number or a physical property: trace it to the PDK, a simulation or a citation, or leave it out.
-- No results from commercial EM tools (e.g. ADS) in this repo, its docs or commit messages.
+- No results from commercial EM tools in this repo, its docs or commit messages.
