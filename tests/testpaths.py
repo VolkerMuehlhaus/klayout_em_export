@@ -1,10 +1,10 @@
 """Where the batch tests find their inputs and write their outputs, on Windows and Linux.
 
-Layouts are in tests/data (see its README). A few large or third-party layouts are not in the repo: the tests that
-read them skip without them.
+Layouts are in tests/data (see its README). Two large layouts are not in the repo: the tests that read them skip
+without them.
 
 Environment:
-  KLAYOUT_EM_EXPORT_TESTDATA  optional: a folder with Palace_testcases/klayout_export/, for those other layouts.
+  KLAYOUT_EM_EXPORT_TESTDATA  optional: a folder with Palace_testcases/klayout_export/, for those two layouts.
   GDS2PALACE                  the gds2palace_ihp_sg13g2 repo (stackups, examples). Unset: next to this repo.
   IHP_PDK_ROOT                the folder that contains ihp-sg13g2. Unset: tests/pdk (made by tests/setup_pdk.sh).
   OUT                         output folder. Unset: <temp>/klayout_em_export_tests/<test name>.

@@ -416,7 +416,7 @@ Each test is a KLayout batch script (`klayout_app.exe -z -nc -rx -r tests/<test>
 from environment variables. `python tests/run_all.py [words]` runs them all (or those whose name contains a word)
 with an empty KLayout home, the repo's `python/` on the path and an output folder each, and prints one table:
 a FAIL/ERROR line, a traceback or an error exit fails a test, a missing input file only skips it, and
-`test_circuit` runs only with PORTMAP, SNP and PYTHON (an EM result). About 3 minutes. The layouts are in `tests/data`; a few large or third-party ones are not in the repo, and what
+`test_circuit` runs only with PORTMAP, SNP and PYTHON (an EM result). About 3 minutes. The layouts are in `tests/data`; two large ones are not in the repo, and what
 needs them skips (`tests/testpaths.py`: `KLAYOUT_EM_EXPORT_TESTDATA`, `GDS2PALACE`, `IHP_PDK_ROOT`, `OUT`). The device
 tests need the PDK: `tests/setup_pdk.sh` makes a sparse checkout in `tests/pdk`, `tests/pdk_env.py` loads it.
 

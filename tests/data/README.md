@@ -14,5 +14,8 @@ Inputs of the batch tests, found through `tests/testpaths.py`.
 | `BM_Ardavan_Rahimian_with_ports_partial.gds` | Part of the W-band Butler matrix by Ardavan Rahimian, with ports and an EM region box. From [IHP-GmbH/TO_July2025](https://github.com/IHP-GmbH/TO_July2025/tree/main/W_Band_Butler_Matrix_IC) (Apache-2.0) | `test_numbering.py`, `test_panel.py` |
 | `t1_test.gds` | Six MOSFET variants with gate contacts and Metal2 straps, built from the PDK pcells | `test_mosfets.py` |
 
-The large-layout parts of `test_density.py` and `test_dummyfill.py` need layouts that are not in the repo. They skip
-without them (see `tests/testpaths.py`).
+The large-layout parts of `test_density.py` and `test_dummyfill.py` read two layouts that are too large for the repo
+(14 MB and 10 MB), and skip without them: [`FMD_QNC_60_ghz_mpa_filled.gds`](https://github.com/IHP-GmbH/TO_July2025/tree/main/60_GHZ_MPA/design_data/gds) and
+[`FMD_QNC_Stacked_180GHz_PA.gds`](https://github.com/IHP-GmbH/TO_July2025/tree/main/FMD_QNC_Stacked_180GHz_PA/design_data/gds), both from IHP's public July 2025
+tapeout. To run them, put them in `<folder>/Palace_testcases/klayout_export/` and set `KLAYOUT_EM_EXPORT_TESTDATA` to
+that folder.

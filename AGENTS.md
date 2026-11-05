@@ -37,7 +37,7 @@ python tests/run_all.py thermal panel   # the tests whose name contains one of t
   when a test prints plain results.
 - The tests that recognize devices need the PDK: `tests/setup_pdk.sh` makes a sparse checkout in `tests/pdk`, or
   `IHP_PDK_ROOT` names a folder that contains `ihp-sg13g2`.
-- Layouts are in `tests/data`. A few large or third-party ones are not in the repo; `KLAYOUT_EM_EXPORT_TESTDATA` names
+- Layouts are in `tests/data`. Two large ones are not in the repo; `KLAYOUT_EM_EXPORT_TESTDATA` names
   a folder with `Palace_testcases/klayout_export/` that holds them. `GDS2PALACE` names the gds2palace repo (default:
   next to this repo), `OUT` the output folder (default: a temp folder). New tests use the helpers in
   `tests/testpaths.py`, never a fixed path.
