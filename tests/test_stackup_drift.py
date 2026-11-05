@@ -90,7 +90,7 @@ failed, count = 0, 0
 for path in stackup_files():
     count += 1
     problems, unresolved, compared = compare(path)
-    name = os.path.relpath(path, SIBLINGS)
+    name = os.path.relpath(path, GDS2PALACE) if path.startswith(GDS2PALACE) else path
     if problems is None:
         print(f"skip  {name}: rejected by the gds2palace reader")
     elif problems:
