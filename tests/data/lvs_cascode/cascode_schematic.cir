@@ -1,0 +1,10 @@
+* Cascode schematic, written for the LVS test (instance names as a designer would choose them)
+.SUBCKT Cascode_DegInd_CBias_Sym_Res_tb Cas_in Cas_out Cas_Bias
+Q1 mid Cas_in gnd sub npn13G2 we=70n le=900n Nx=8 m=1
+Q2 Cas_out cas_base mid sub npn13G2 we=70n le=900n Nx=8 m=1
+R3 bias_mid cas_base sub rsil w=0.5u l=2.33u ps=0u b=0 m=1
+R1 gnd bias_mid sub rhigh w=0.5u l=4.29u ps=0u b=0 m=1
+R2 bias_mid Cas_Bias sub rhigh w=0.655u l=1.245u ps=0u b=0 m=1
+C1 cas_base gnd cap_cmim w=6.99u l=6.99u m=2
+R4 gnd sub ptap1 A=66.8088p P=185.58u
+.ENDS Cascode_DegInd_CBias_Sym_Res_tb

@@ -3,13 +3,13 @@
 import os
 import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from testpaths import STACKUP, palace_testcases
+from testpaths import STACKUP, layout_file
 
 import pya
 from klayout_em_export.locate import edge_at, gap_at, metals_at, next_port_layer, via_layers
 from klayout_em_export.stackup import Stackup
 
-gds = os.environ.get("GDS", palace_testcases("demo_mcp", "OctaDiffTap_0n50_ports3.gds"))
+gds = os.environ.get("GDS", layout_file("OctaDiffTap_0n50_ports3.gds"))
 st = Stackup(os.environ.get("STACKUP", STACKUP))
 ly = pya.Layout(); ly.read(gds); cell = ly.top_cell()
 um = lambda x, y: pya.Point(round(x / ly.dbu), round(y / ly.dbu))

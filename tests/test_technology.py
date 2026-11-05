@@ -1,11 +1,11 @@
 # Batch test (KLayout -z -nc -rx -r): which technology a layout gets (tech.for_layout), the generic fallback, the
 # IHP SG13CMOS5L stackup with the IHP technology, and the circuit wrapper with the port map's technology. Needs the
-# PDK (klayout_em_export_tests/pdk_env.py); run with KLAYOUT_PATH/KLAYOUT_HOME pointing to an empty folder.
+# PDK (tests/pdk_env.py); run with KLAYOUT_PATH/KLAYOUT_HOME pointing to an empty folder.
 import importlib.util
 import os
 import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from testpaths import GDS2PALACE, STACKUP, TESTS_DIR, palace_testcases
+from testpaths import GDS2PALACE, STACKUP, TESTS_DIR, layout_file
 
 import pya
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -78,7 +78,7 @@ check(problems and any(p.startswith("no parameters") for p in problems[0]),
       f"static npn without Ae= label is not replaced: {problems}")
 ly = pya.Layout()
 ly.technology_name = "sg13g2"       # the PDK library binds its pcells to this technology
-ly.read(palace_testcases("klayout_export", "1_St_Core_v1.gds"))
+ly.read(layout_file("1_St_Core_v1.gds"))
 cell = next(c for c in ly.top_cells() if c.name.startswith("Cascode"))
 module, reason = tech.for_layout(ly)
 check(module.NAME == "ihp_sg13", f"cascode: {module.NAME} ({reason})")

@@ -1,10 +1,10 @@
 # Variant of the cascode test (run_cascode_export.py): the devices' reference patches on SUBGND, the PEC sheet on the
 # EPI, instead of REF_FOR_TRANSISTOR, so each gets a DC potential through the substrate (the EPI is tied to ground by
-# the ptap guard ring). Output folder: environment OUT. Needs the PDK (klayout_em_export_tests/pdk_env.py), run like test_devices.py.
+# the ptap guard ring). Output folder: environment OUT. Needs the PDK (tests/pdk_env.py), run like test_devices.py.
 import os
 import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from testpaths import STACKUP, TESTS_DIR, palace_testcases
+from testpaths import STACKUP, TESTS_DIR, layout_file
 import json
 import pya
 sys.path.insert(0, TESTS_DIR)
@@ -23,7 +23,7 @@ os.makedirs(OUT, exist_ok=True)
 load_pdk()
 st = Stackup(STACKUP)
 ly = pya.Layout(); ly.technology_name = "sg13g2"
-ly.read(palace_testcases("klayout_export", "1_St_Core_v1_forEM.gds"))
+ly.read(layout_file("1_St_Core_v1_forEM.gds"))
 cell = next(c for c in ly.top_cells() if c.name.startswith("Cascode"))
 
 

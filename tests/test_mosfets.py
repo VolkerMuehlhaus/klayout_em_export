@@ -1,11 +1,11 @@
 # Batch test (KLayout -z -nc -rx -r): nmos/pmos replacement on the feasibility test layout t1_test.gds
-# (klayout_em_export_tests/work, built by its run_all.sh): A nmos ng=1, B nmos ng=4, C nmos R90, D nmos mirrored,
+# (tests/data): A nmos ng=1, B nmos ng=4, C nmos R90, D nmos mirrored,
 # E pmos ng=2, F rfnmos ng=2, each with a gate contact pad and Metal2 straps (as in T1). Needs the PDK
-# (klayout_em_export_tests/pdk_env.py); run with KLAYOUT_PATH/KLAYOUT_HOME pointing to an empty folder.
+# (tests/pdk_env.py); run with KLAYOUT_PATH/KLAYOUT_HOME pointing to an empty folder.
 import os
 import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from testpaths import STACKUP, TESTS_DIR, tests_data, out_dir
+from testpaths import STACKUP, TESTS_DIR, layout_file, out_dir
 
 import pya
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -20,7 +20,7 @@ from klayout_em_export.stackup import Stackup
 load_pdk()
 st = Stackup(STACKUP)
 ly = pya.Layout(); ly.technology_name = "sg13g2"
-ly.read(tests_data("work", "t1_test.gds"))
+ly.read(layout_file("t1_test.gds"))
 cell = ly.cell("TOP")
 dbu = ly.dbu
 devices, unknown = find_devices(ly, cell, st)

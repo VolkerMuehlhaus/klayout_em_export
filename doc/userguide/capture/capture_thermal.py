@@ -4,24 +4,27 @@
 #   klayout_app.exe -r doc/userguide/capture/capture_thermal.py
 # then the setupThermal shot with capture_setupthermal.py on the export (WORK/cascode_thermal.tsimcfg).
 # Environment (optional): SHOTS (output folder, default doc/userguide/images), WORK (scratch folder), SOURCE (the
-# cascode layout), STACKUP, TESTS_DIR (klayout_em_export_tests, with pdk_env.py and the cascode's LVS database).
+# cascode layout), STACKUP. The PDK: IHP_PDK_ROOT or tests/pdk (see tests/testpaths.py).
 # The plug-in settings (~/.klayout_em_export.json) are backed up and restored. Errors go to capture_thermal.log;
 # KLayout always quits at the end (and after 5 minutes at the latest).
 import json
 import os
 import shutil
 import sys
+import tempfile
 import traceback
 
 import pya
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.environ.get("SHOTS", os.path.join(HERE, "..", "images"))
-WORK = os.environ.get("WORK", r"D:\Palace_testcases\klayout_export\guide")
-SOURCE = os.environ.get("SOURCE", r"D:\Palace_testcases\klayout_export\1_St_Core_v1_forEM.gds")
-STACKUP = os.environ.get("STACKUP", r"D:\github-claude\gds2palace_ihp_sg13g2\XML_stackup\latest\IHP\SG13G2_FEM_200um.xml")
-TESTS_DIR = os.environ.get("TESTS_DIR", r"D:\github-claude\klayout_em_export_tests")
-LVSDB = os.path.join(TESTS_DIR, "testcases", "lvs_cascode", "cascode_hier.lvsdb")
+REPO = os.path.normpath(os.path.join(HERE, "..", "..", ".."))
+WORK = os.environ.get("WORK", os.path.join(tempfile.gettempdir(), "klayout_em_export_guide"))
+SOURCE = os.environ.get("SOURCE", os.path.join(REPO, "tests", "data", "1_St_Core_v1_forEM.gds"))
+STACKUP = os.environ.get("STACKUP", os.path.join(os.environ.get("GDS2PALACE") or os.path.join(REPO, "..", "gds2palace_ihp_sg13g2"),
+                                                  "XML_stackup", "latest", "IHP", "SG13G2_FEM_200um.xml"))
+TESTS_DIR = os.path.join(REPO, "tests")
+LVSDB = os.path.join(TESTS_DIR, "data", "lvs_cascode", "cascode_hier.lvsdb")
 SETTINGS = os.path.join(os.path.expanduser("~"), ".klayout_em_export.json")
 os.makedirs(OUT, exist_ok=True)
 os.makedirs(WORK, exist_ok=True)

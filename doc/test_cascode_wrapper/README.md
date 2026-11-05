@@ -44,7 +44,7 @@ The circuit, with the port numbers at each device terminal:
 ## 2. The EM simulation
 
 Palace simulated 10 MHz and 20 MHz, then 1 to 200 GHz in 1 GHz steps: the frequencies gds2palace sets up for a sweep
-from 0 Hz. It used order 1 and the adaptive frequency sweep, and took about 13 minutes on hpz2.
+from 0 Hz. It used order 1 and the adaptive frequency sweep, and took about 13 minutes.
 `combine_extend_snp` then wrote the S-parameters, and the `_dc` file with a 0 Hz point extrapolated from 10 MHz and
 20 MHz.
 

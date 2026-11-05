@@ -1,0 +1,165 @@
+{
+    "application": "setupEM",
+    "data_format": "1.0",
+    "saved_values": {
+        "unit": 1e-06,
+        "purpose": [
+            0
+        ],
+        "GdsFile": "1_St_Core_v1_em.gds",
+        "SubstrateFile": "SG13G2_FEM_200um.xml",
+        "cellname": "Cascode_DegInd_CBias_Sym_Res_tb"
+    },
+    "ports": [
+        {
+            "portnumber": 1,
+            "source_layernum": 201,
+            "target_layername": null,
+            "from_layername": "TopMetal2",
+            "to_layername": "Metal5",
+            "direction": "Z",
+            "port_Z0": 50.0,
+            "voltage": 1.0
+        },
+        {
+            "portnumber": 2,
+            "source_layernum": 202,
+            "target_layername": null,
+            "from_layername": "TopMetal2",
+            "to_layername": "Metal5",
+            "direction": "Z",
+            "port_Z0": 50.0,
+            "voltage": 1.0
+        },
+        {
+            "portnumber": 3,
+            "source_layernum": 203,
+            "target_layername": null,
+            "from_layername": "Metal2",
+            "to_layername": "Metal5",
+            "direction": "-Z",
+            "port_Z0": 50.0,
+            "voltage": 1.0
+        },
+        {
+            "portnumber": 4,
+            "source_layernum": 204,
+            "target_layername": null,
+            "from_layername": "Metal1",
+            "to_layername": "REF_FOR_TRANSISTOR",
+            "direction": "Z",
+            "port_Z0": 50.0,
+            "voltage": 1.0
+        },
+        {
+            "portnumber": 5,
+            "source_layernum": 205,
+            "target_layername": null,
+            "from_layername": "Metal1",
+            "to_layername": "REF_FOR_TRANSISTOR",
+            "direction": "Z",
+            "port_Z0": 50.0,
+            "voltage": 1.0
+        },
+        {
+            "portnumber": 6,
+            "source_layernum": 206,
+            "target_layername": null,
+            "from_layername": "Metal2",
+            "to_layername": "REF_FOR_TRANSISTOR",
+            "direction": "Z",
+            "port_Z0": 50.0,
+            "voltage": 1.0
+        },
+        {
+            "portnumber": 7,
+            "source_layernum": 207,
+            "target_layername": null,
+            "from_layername": "Metal1",
+            "to_layername": "REF_FOR_TRANSISTOR",
+            "direction": "Z",
+            "port_Z0": 50.0,
+            "voltage": 1.0
+        },
+        {
+            "portnumber": 8,
+            "source_layernum": 208,
+            "target_layername": null,
+            "from_layername": "Metal1",
+            "to_layername": "REF_FOR_TRANSISTOR",
+            "direction": "Z",
+            "port_Z0": 50.0,
+            "voltage": 1.0
+        },
+        {
+            "portnumber": 9,
+            "source_layernum": 209,
+            "target_layername": null,
+            "from_layername": "Metal1",
+            "to_layername": "REF_FOR_TRANSISTOR",
+            "direction": "Z",
+            "port_Z0": 50.0,
+            "voltage": 1.0
+        },
+        {
+            "portnumber": 10,
+            "source_layernum": 210,
+            "target_layername": null,
+            "from_layername": "Metal1",
+            "to_layername": "REF_FOR_TRANSISTOR",
+            "direction": "Z",
+            "port_Z0": 50.0,
+            "voltage": 1.0
+        },
+        {
+            "portnumber": 11,
+            "source_layernum": 211,
+            "target_layername": null,
+            "from_layername": "Metal1",
+            "to_layername": "REF_FOR_TRANSISTOR",
+            "direction": "Z",
+            "port_Z0": 50.0,
+            "voltage": 1.0
+        },
+        {
+            "portnumber": 12,
+            "source_layernum": 212,
+            "target_layername": null,
+            "from_layername": "Metal1",
+            "to_layername": "REF_FOR_TRANSISTOR",
+            "direction": "Z",
+            "port_Z0": 50.0,
+            "voltage": 1.0
+        },
+        {
+            "portnumber": 13,
+            "source_layernum": 213,
+            "target_layername": null,
+            "from_layername": "Metal2",
+            "to_layername": "REF_FOR_TRANSISTOR",
+            "direction": "Z",
+            "port_Z0": 50.0,
+            "voltage": 1.0
+        },
+        {
+            "portnumber": 14,
+            "source_layernum": 214,
+            "target_layername": null,
+            "from_layername": "Metal1",
+            "to_layername": "REF_FOR_TRANSISTOR",
+            "direction": "Z",
+            "port_Z0": 50.0,
+            "voltage": 1.0
+        },
+        {
+            "portnumber": 15,
+            "source_layernum": 215,
+            "target_layername": null,
+            "from_layername": "Metal1",
+            "to_layername": "REF_FOR_TRANSISTOR",
+            "direction": "Z",
+            "port_Z0": 50.0,
+            "voltage": 1.0
+        }
+    ]
+}

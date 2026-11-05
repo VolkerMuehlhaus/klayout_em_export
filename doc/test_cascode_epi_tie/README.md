@@ -40,7 +40,7 @@ Two things did not work as first planned:
   (SUBGND is 250 in the SG13G2 stackups and 210 in the SG13CMOS5L ones).
 
 Palace ran the frequencies gds2palace sets up for a sweep from 0 Hz (10 MHz, 20 MHz, then 1 to 200 GHz), order 1,
-adaptive sweep, on hpz2. The result is passive and reciprocal.
+adaptive sweep. The result is passive and reciprocal.
 
 ## The patches' path to ground
 

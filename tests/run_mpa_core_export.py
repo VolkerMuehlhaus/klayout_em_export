@@ -1,10 +1,10 @@
 # Export 50_ghz_mpa_core.gds for a Palace comparison with gds2palace's core_transistor_3port_bce example: pad ports
 # 1-2 (Metal3 -> TopMetal2, as in the example), the npn13G2 replaced by ports (B, C, E). Stackup and settings as the
-# example. Output folder: environment OUT. Needs the PDK (klayout_em_export_tests/pdk_env.py), run like test_devices.py.
+# example. Output folder: environment OUT. Needs the PDK (tests/pdk_env.py), run like test_devices.py.
 import os
 import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from testpaths import EXAMPLE_BCE, TESTS_DIR, tests_data
+from testpaths import EXAMPLE_BCE, TESTS_DIR, layout_file
 import json
 import pya
 sys.path.insert(0, TESTS_DIR)
@@ -22,7 +22,7 @@ os.makedirs(OUT, exist_ok=True)
 load_pdk()
 st = Stackup(os.path.join(EX, "SG13G2_100um_bce_ports.xml"))
 ly = pya.Layout(); ly.technology_name = "sg13g2"
-ly.read(tests_data("testcases", "50_ghz_mpa_core.gds"))
+ly.read(layout_file("50_ghz_mpa_core.gds"))
 cell = next(c for c in ly.top_cells() if not c.name.startswith("$$$"))
 for layer in (201, 202):        # pad ports as in the example
     for shape in cell.shapes(ly.find_layer(layer, 0)).each():

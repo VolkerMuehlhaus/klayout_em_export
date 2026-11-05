@@ -2,25 +2,27 @@
 # steps on the cascode example. Run (not with -z, not with -rx):
 #   klayout_app.exe -r doc/userguide/capture/capture.py
 # Environment (optional): SHOTS (output folder, default doc/userguide/images), WORK (scratch folder), SOURCE (the
-# cascode layout), STACKUP, TESTS_DIR (klayout_em_export_tests, with pdk_env.py), PYTHON (a Python with snp2le).
-# Defaults are the Windows development machine's paths.
+# cascode layout), STACKUP, PYTHON (a Python with snp2le). The PDK: IHP_PDK_ROOT or tests/pdk (see tests/testpaths.py).
 # The plug-in settings (~/.klayout_em_export.json) are backed up and restored. Errors go to capture.log; KLayout
 # always quits at the end (and after 10 minutes at the latest).
 import json
 import os
 import shutil
 import sys
+import tempfile
 import traceback
 
 import pya
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.environ.get("SHOTS", os.path.join(HERE, "..", "images"))
-WORK = os.environ.get("WORK", r"D:\Palace_testcases\klayout_export\guide")
-SOURCE = os.environ.get("SOURCE", r"D:\Palace_testcases\klayout_export\1_St_Core_v1_forEM.gds")
-STACKUP = os.environ.get("STACKUP", r"D:\github-claude\gds2palace_ihp_sg13g2\XML_stackup\latest\IHP\SG13G2_FEM_200um.xml")
-TESTS_DIR = os.environ.get("TESTS_DIR", r"D:\github-claude\klayout_em_export_tests")
-PYTHON = os.environ.get("PYTHON", r"D:\venv\palace\Scripts\python.exe")
+REPO = os.path.normpath(os.path.join(HERE, "..", "..", ".."))
+WORK = os.environ.get("WORK", os.path.join(tempfile.gettempdir(), "klayout_em_export_guide"))
+SOURCE = os.environ.get("SOURCE", os.path.join(REPO, "tests", "data", "1_St_Core_v1_forEM.gds"))
+STACKUP = os.environ.get("STACKUP", os.path.join(os.environ.get("GDS2PALACE") or os.path.join(REPO, "..", "gds2palace_ihp_sg13g2"),
+                                                  "XML_stackup", "latest", "IHP", "SG13G2_FEM_200um.xml"))
+TESTS_DIR = os.path.join(REPO, "tests")
+PYTHON = os.environ.get("PYTHON", "python")
 PORTMAP = os.environ.get("PORTMAP", "")
 SNP = os.environ.get("SNP", "")
 SETTINGS = os.path.join(os.path.expanduser("~"), ".klayout_em_export.json")

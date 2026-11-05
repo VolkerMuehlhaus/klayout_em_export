@@ -55,7 +55,7 @@ check(not writable_output("x_em.gds") and not writable_output(""), "relative or 
 check(not writable_output(native_path(os.path.join(os.path.abspath(os.sep), "no_such_folder_em", "x_em.gds"))),
       "output in a folder that does not exist")
 if os.name != "nt":
-    check(not writable_output(native_path("D:\\Palace_testcases\\klayout_export\\x_em.gds")),
+    check(not writable_output(native_path("D:\\work\\x_em.gds")),
           "Windows path on Linux (a relative file name with backslashes)")
 
 # a program that ends at once with an error code is reported; one still running, or ended without error, is not

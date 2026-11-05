@@ -5,7 +5,7 @@
 import os
 import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from testpaths import EXAMPLE_BCE, STACKUP, palace_testcases
+from testpaths import EXAMPLE_BCE, STACKUP, layout_file
 import json
 import pya
 from klayout_em_export.connectivity import check_ground
@@ -27,7 +27,7 @@ def run(title, gds, stackup_file, settings, seeds=()):
     print(f"## {title}\n" + result.summary())
 
 
-run("OctaDiffTap, ground from the via ports", palace_testcases("demo_mcp", "OctaDiffTap_0n50_ports3.gds"),
+run("OctaDiffTap, ground from the via ports", layout_file("OctaDiffTap_0n50_ports3.gds"),
     STACKUP,
     {l: PortSettings("Z", "Metal1", "TopMetal2") for l in (201, 202, 203)})
 
@@ -41,14 +41,14 @@ run("3-port BCE transistor, ground from the via ports", os.path.join(ex, "50_ghz
     os.path.join(ex, "SG13G2_100um_bce_ports.xml"), settings)
 
 run("OctaDiffTap, marked: the LA feed on TopMetal2 (ports would say Metal1)",
-    palace_testcases("demo_mcp", "OctaDiffTap_0n50_ports3.gds"),
+    layout_file("OctaDiffTap_0n50_ports3.gds"),
     STACKUP,
     {l: PortSettings("Z", "Metal1", "TopMetal2") for l in (201, 202, 203)}, seeds=[(134, 33.7, -41.5)])
 
 # a shorted port: OctaDiffTap with a TopVia-free direct short is not available, so use a port whose both ends are
 # the inductor: TopMetal1 -> TopMetal2 at a TopVia2 crossing joins the same net
 st = Stackup(STACKUP)
-ly = pya.Layout(); ly.read(palace_testcases("demo_mcp", "OctaDiffTap_0n50_ports3.gds"))
+ly = pya.Layout(); ly.read(layout_file("OctaDiffTap_0n50_ports3.gds"))
 cell = ly.top_cell()
 for layer in (201, 202, 203):
     for shape in cell.shapes(ly.find_layer(layer, 0)).each():

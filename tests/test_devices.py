@@ -1,10 +1,10 @@
 # Batch test (KLayout -z -nc -rx -r, package installed in salt): device replacement on 50_ghz_mpa_core.gds
-# (one npn13G2, rotated). Needs the SG13G2 PDK: loaded with ../klayout_em_export_tests/pdk_env.py (sparse checkout by
+# (one npn13G2, rotated). Needs the SG13G2 PDK: loaded with tests/pdk_env.py (sparse checkout by
 # its setup_pdk.sh); run with KLAYOUT_PATH/KLAYOUT_HOME pointing to an empty folder, as its run_all.sh does.
 import os
 import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from testpaths import STACKUP, TESTS_DIR, palace_testcases, tests_data, out_dir
+from testpaths import STACKUP, TESTS_DIR, layout_file, out_dir
 
 import pya
 sys.path.insert(0, TESTS_DIR)
@@ -19,7 +19,7 @@ load_pdk()
 st = Stackup(STACKUP)
 ly = pya.Layout()
 ly.technology_name = "sg13g2"
-ly.read(tests_data("testcases", "50_ghz_mpa_core.gds"))
+ly.read(layout_file("50_ghz_mpa_core.gds"))
 cell = next(c for c in ly.top_cells() if not c.name.startswith("$$$"))
 dbu = ly.dbu
 
@@ -73,7 +73,7 @@ from klayout_em_export.devices import replace as _replace
 from klayout_em_export.gui import META_STACKUP
 from klayout_em_export.panel import EMPanel
 view = pya.LayoutView(True)
-idx = view.load_layout(tests_data("testcases", "50_ghz_mpa_core.gds"), "sg13g2", True)
+idx = view.load_layout(layout_file("50_ghz_mpa_core.gds"), "sg13g2", True)
 vly = view.cellview(idx).layout()
 vly.add_meta_info(pya.LayoutMetaInfo(META_STACKUP, st.path, "", True))
 view.cellview(idx).cell = next(c for c in vly.top_cells() if not c.name.startswith("$$$"))
@@ -104,7 +104,7 @@ print("port rows:", [panel.table.item(r, 2).text.encode("ascii", "replace").deco
 # pins and must stay separate (also in the export, which merges each layer)
 from klayout_em_export.devices import touching_patches
 cas = pya.Layout(); cas.technology_name = "sg13g2"
-cas.read(palace_testcases("klayout_export", "1_St_Core_v1.gds"))
+cas.read(layout_file("1_St_Core_v1.gds"))
 ccell = next(c for c in cas.top_cells() if c.name.startswith("Cascode"))
 cdev = find_devices(cas, ccell, st)[0]
 replace(NoUndo(), ccell, st, cdev)

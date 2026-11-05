@@ -5,7 +5,7 @@
 import os
 import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from testpaths import STACKUP, palace_testcases
+from testpaths import STACKUP, layout_file
 
 import pya
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "python"))   # not via salt here
@@ -89,7 +89,7 @@ check(removed.get((8, 22)) == 25 and cells == 1 and not ly2.has_cell("TILE"),
 
 # the FMD layouts: vias and devices unchanged
 for name in ("FMD_QNC_60_ghz_mpa_filled.gds", "FMD_QNC_Stacked_180GHz_PA.gds"):
-    path = palace_testcases("klayout_export", name)
+    path = layout_file(name)
     if not os.path.exists(path):
         print("skipped: no", path)
         continue

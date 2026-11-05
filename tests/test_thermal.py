@@ -7,7 +7,7 @@ import json
 import os
 import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from testpaths import STACKUP, TESTS_DIR, out_dir, palace_testcases
+from testpaths import DATA_DIR, STACKUP, TESTS_DIR, out_dir, layout_file
 
 import pya
 sys.path.insert(0, TESTS_DIR)
@@ -44,7 +44,7 @@ load_pdk()
 st = Stackup(STACKUP)
 ly = pya.Layout()
 ly.technology_name = "sg13g2"
-ly.read(palace_testcases("klayout_export", "1_St_Core_v1_forEM.gds"))
+ly.read(layout_file("1_St_Core_v1_forEM.gds"))
 cell = next(c for c in ly.top_cells() if c.name.startswith("Cascode"))
 technology = tech.for_layout(ly)[0]
 check(heat_target(st, technology) == "Activ", "heat sources in Activ, which has a thickness in the stackup")
@@ -124,7 +124,7 @@ check(map2["sources"][0]["instance"] == "XQ1", "export again: instance name kept
 
 # schematic names from LVS: IHP's deck on this cell against a schematic written for the test (Q1, Q2, R1..R3; a
 # substrate tap inside Q2's box, a MIM capacitor), flat and with Q1, Q2 in a subcircuit instance Xcore
-lvs_dir = os.path.join(TESTS_DIR, "testcases", "lvs_cascode")
+lvs_dir = os.path.join(DATA_DIR, "lvs_cascode")
 for lvsdb, names in (("cascode.lvsdb", ["R1", "R2", "R3", "Q1", "Q2"]),
                      ("cascode_hier.lvsdb", ["R1", "R2", "R3", "XCORE.Q1", "XCORE.Q2"])):
     named = export_thermal(ly, cell, st, gds, technology, lvsdb=os.path.join(lvs_dir, lvsdb))

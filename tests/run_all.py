@@ -4,13 +4,13 @@
     python tests/run_all.py thermal panel   the tests whose name contains one of the words
 
 Plain Python, outside KLayout. Each test runs as klayout_app -z -nc -rx -r <test> with an empty KLayout home (no
-installed copy of the plug-in or a PDK technology gets in the way), the repo's python/ folder and the
-klayout_em_export_tests folder (pdk_env.py) on KLayout's Python path, Qt offscreen, and an output folder of its own.
+installed copy of the plug-in or a PDK technology gets in the way), the repo's python/ and tests/ folders on KLayout's
+Python path, Qt offscreen, and an output folder of its own.
 A test fails if KLayout ends with an error code or the output has a line starting with FAIL or ERROR, or a traceback.
-A test whose only problem is a missing input file (e.g. Palace_testcases on another machine) is SKIP, not FAIL.
+A test whose only problem is a missing input file (a layout that is not in the repo, the PDK) is SKIP, not FAIL.
 
 Environment (see testpaths.py for the data folders):
-  KLAYOUT_EXE         the KLayout executable (default: D:\\klayout\\klayout_app.exe, else klayout_app / klayout on PATH)
+  KLAYOUT_EXE         the KLayout executable (default: KLAYOUT, klayout_app / klayout on PATH, the usual Windows folders)
   PORTMAP, SNP, PYTHON  inputs of test_circuit (an EM result of the cascode and a Python with snp2le); skipped without
 Logs: <temp>/klayout_em_export_tests/run_all/<test>.log
 """
@@ -24,23 +24,24 @@ import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-from testpaths import REPO, STACKUP, TESTS_DIR, palace_testcases  # noqa: E402
+from testpaths import REPO, STACKUP, TESTS_DIR, layout_file  # noqa: E402
+sys.path.insert(0, os.path.join(REPO, "tools"))
+from em_cli import WINDOWS_KLAYOUT  # noqa: E402
 
 TIMEOUT = 1800      # s per test
 # inputs some tests take from the environment: {test: {variable: default, None: required, skip without}}
-INPUTS = {"test_export": {"GDS": palace_testcases("demo_mcp", "OctaDiffTap_0n50_ports3.gds"), "STACKUP": STACKUP},
+INPUTS = {"test_export": {"GDS": layout_file("OctaDiffTap_0n50_ports3.gds"), "STACKUP": STACKUP},
           "test_circuit": {"PORTMAP": None, "SNP": None, "PYTHON": None}}
 FAILED = re.compile(r"^(FAIL|ERROR)\b|Traceback \(most recent call last\)", re.M)
 MISSING = re.compile(r"FileNotFoundError|No such file or directory|does not exist|cannot open file|Unable to open")
 
 
 def klayout_exe():
-    exe = os.environ.get("KLAYOUT_EXE")
-    if exe:
-        return exe
-    if os.path.isfile(r"D:\klayout\klayout_app.exe"):
-        return r"D:\klayout\klayout_app.exe"
-    return shutil.which("klayout_app") or shutil.which("klayout")
+    for candidate in [os.environ.get("KLAYOUT_EXE"), os.environ.get("KLAYOUT"), shutil.which("klayout_app"),
+                      shutil.which("klayout")] + WINDOWS_KLAYOUT:
+        if candidate and os.path.isfile(candidate):
+            return candidate
+    return None
 
 
 def run(test, exe, root):

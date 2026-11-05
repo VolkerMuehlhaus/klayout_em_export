@@ -1,6 +1,6 @@
 # Batch test (KLayout -z -nc -rx -r): replaced devices in three places that once went wrong. Cascode
-# (Palace_testcases/klayout_export/guide/cascode.gds, see testpaths.py; made by the guide's capture script),
-# its three resistors replaced. Needs the PDK (klayout_em_export_tests/pdk_env.py), run like test_devices.py.
+# (tests/data/cascode.gds, made by the guide's capture script),
+# its three resistors replaced. Needs the PDK (tests/pdk_env.py), run like test_devices.py.
 # Environment: OUT.
 #  1. "Selected shapes only": the completed selection carries the REF patches of the replaced devices' ports.
 #  2. Ground from via ports: device ports alone do not pick a ground net (their only traced end is the terminal).
@@ -8,7 +8,7 @@
 import os
 import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from testpaths import STACKUP, TESTS_DIR, palace_testcases, out_dir
+from testpaths import STACKUP, TESTS_DIR, layout_file, out_dir
 
 import pya
 
@@ -27,7 +27,7 @@ from klayout_em_export.selection import Selection
 from klayout_em_export.stackup import Stackup
 
 OUT = out_dir("replaced_devices")
-GDS = palace_testcases("klayout_export", "guide", "cascode.gds")
+GDS = layout_file("cascode.gds")
 failed = []
 
 

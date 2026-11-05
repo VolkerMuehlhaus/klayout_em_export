@@ -18,7 +18,7 @@ info, so KLayout and the plug-in open it as if the steps were done by hand. The 
 (~/.klayout_em_export.json) is never read or written.
 
 Commands: status, add_via_port, add_inplane_port, set_port, remove_port, boundary_ports, set_region, mark_ground,
-devices, export, export_thermal. See README, "Headless use".
+devices, export, export_thermal. See doc/REFERENCE.md, "Headless use".
 """
 import json
 import os
@@ -59,7 +59,7 @@ def _pdk_klayout_dir(path):
 
 
 def load_pdk(path):
-    """Register the sg13g2 technology and the SG13_dev device library (as klayout_em_export_tests/pdk_env.py)."""
+    """Register the sg13g2 technology and the SG13_dev device library (as tests/pdk_env.py)."""
     klayout_dir = _pdk_klayout_dir(path)
     python_dir = os.path.join(klayout_dir, "python")
     for p in (os.path.join(python_dir, "pycell4klayout-api", "source", "python"), python_dir):

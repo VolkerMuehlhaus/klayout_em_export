@@ -4,7 +4,7 @@
 import os
 import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from testpaths import STACKUP, palace_testcases, out_dir
+from testpaths import STACKUP, layout_file, out_dir
 
 import pya
 from klayout_em_export.boundary import create_ports, find_crossings
@@ -15,7 +15,7 @@ from klayout_em_export.stackup import Stackup
 
 st = Stackup(STACKUP)
 view = pya.LayoutView(True)
-idx = view.load_layout(palace_testcases("demo_mcp", "OctaDiffTap_0n50_ports3.gds"), True)
+idx = view.load_layout(layout_file("OctaDiffTap_0n50_ports3.gds"), True)
 ly = view.cellview(idx).layout()
 cell = ly.top_cell()
 um = lambda v: round(v / ly.dbu)

@@ -1,10 +1,10 @@
 # Batch test (KLayout -z -nc -rx -r): optional resistor replacement on the user's 1_St_Core_v1.gds (cascode: two
 # npn13G2 pcells, two cmim pcells (never replaced), one rhigh as a static Cadence cell rhigh_CDNS_...). Needs the
-# PDK (klayout_em_export_tests/pdk_env.py); run with KLAYOUT_PATH/KLAYOUT_HOME pointing to an empty folder.
+# PDK (tests/pdk_env.py); run with KLAYOUT_PATH/KLAYOUT_HOME pointing to an empty folder.
 import os
 import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from testpaths import STACKUP, TESTS_DIR, palace_testcases
+from testpaths import STACKUP, TESTS_DIR, layout_file
 
 import pya
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -19,7 +19,7 @@ from klayout_em_export.stackup import Stackup
 load_pdk()
 st = Stackup(STACKUP)
 ly = pya.Layout(); ly.technology_name = "sg13g2"
-ly.read(palace_testcases("klayout_export", "1_St_Core_v1.gds"))
+ly.read(layout_file("1_St_Core_v1.gds"))
 cell = next(c for c in ly.top_cells() if c.name.startswith("Cascode"))
 dbu = ly.dbu
 

@@ -4,7 +4,7 @@
 import os
 import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from testpaths import STACKUP, TESTS_DIR, palace_testcases, tests_data
+from testpaths import STACKUP, TESTS_DIR, layout_file
 
 import pya
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -17,8 +17,8 @@ from klayout_em_export.stackup import Stackup
 
 load_pdk()
 st = Stackup(STACKUP)
-for path, prefix in ((tests_data("testcases", "50_ghz_mpa_core.gds"), ""),
-                     (palace_testcases("klayout_export", "1_St_Core_v1_forEM.gds"), "Cascode")):
+for path, prefix in ((layout_file("50_ghz_mpa_core.gds"), ""),
+                     (layout_file("1_St_Core_v1_forEM.gds"), "Cascode")):
     ly = pya.Layout(); ly.technology_name = "sg13g2"
     ly.read(path)
     cell = next(c for c in ly.top_cells() if not c.name.startswith("$$$") and c.name.startswith(prefix))

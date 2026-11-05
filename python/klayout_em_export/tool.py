@@ -27,8 +27,7 @@ HINT = "EM Port: click a metal edge for a via port, Shift+click into a gap betwe
 
 def candidate(view, stackup, p, buttons, layers="visible"):
     """('via', metal, Box) or ('plane', metal, Box, direction) at DPoint p in view, or None. Searches the visible
-    layers; layers=None searches all drawn metals. Shift in buttons: an in-plane port across a gap. Also used by
-    remote.py (Remote Pick)."""
+    layers; layers=None searches all drawn metals. Shift in buttons: an in-plane port across a gap."""
     cv = view.active_cellview()
     if cv is None or cv.layout() is None or stackup is None:
         return None

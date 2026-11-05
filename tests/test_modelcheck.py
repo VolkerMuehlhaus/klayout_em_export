@@ -1,12 +1,12 @@
 # Plain Python test (also runs in KLayout batch): model scripts whose ports no longer match a re-export
 # (python/klayout_em_export/modelcheck.py). Uses a script written here in a temp folder, and the real setupEM script
-# Palace_testcases/klayout_export/1_St_Core_v1_em.py with its .simcfg (see testpaths.py), which must match.
+# tests/data/1_St_Core_v1_em.py with its .simcfg, which must match.
 import json
 import os
 import sys
 import tempfile
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from testpaths import palace_testcases
+from testpaths import layout_file
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "python"))
 from klayout_em_export.modelcheck import script_info, stale_scripts
@@ -61,11 +61,11 @@ check(any(d.startswith("port 2:") for d in diff) and any(d.startswith("port 3:")
       "the changed ports are named")
 
 # the real setupEM script made from the cascode export matches its own .simcfg
-real = palace_testcases("klayout_export", "1_St_Core_v1_em.py")
+real = layout_file("1_St_Core_v1_em.py")
 if os.path.isfile(real):
     with open(real.replace(".py", ".simcfg")) as f:
         simcfg_ports = json.load(f)["ports"]
-    gds_real = palace_testcases("klayout_export", "1_St_Core_v1_em.gds")
+    gds_real = layout_file("1_St_Core_v1_em.gds")
     info = script_info(real, gds_real)
     check(info is not None and len(info) == len(simcfg_ports), f"setupEM script recognized, {len(info or {})} ports")
     check(stale_scripts(gds_real, simcfg_ports, [os.path.dirname(real)]) == [], "setupEM script matches its .simcfg")

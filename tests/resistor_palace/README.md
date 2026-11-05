@@ -13,7 +13,7 @@ width offset, and of the end resistance only what the Cont vias contribute.
 
 Six PDK resistor cells, as drawn, each between two via ports (Metal1 lead → Metal2 plate), like
 `gds2palace_ihp_sg13g2/more_examples/derived_layers_and_resistors`: the three resistors of the cascode example and
-the three of that gds2palace example. Palace 0.18 on hpz2, R = −1/Y12 of each port pair at 10 MHz.
+the three of that gds2palace example. Palace 0.18, R = −1/Y12 of each port pair at 10 MHz.
 
 ![The test layout](resistor_test.png)
 
@@ -34,7 +34,7 @@ of its end resistance; its low sheet resistance makes the contacts matter.
 ## Files
 
 - `make_gds.py`: builds `resistor_test.gds` (ports 2k+1, 2k+2 per cell) and `resistor_test.json` from the cascode
-  example (`D:\Palace_testcases\klayout_export\guide\cascode.gds`, made by the guide's capture script) and the
+  example (`tests/data/cascode.gds`, made by the guide's capture script) and the
   gds2palace example GDS.
 - `palace_resistor_test.py`: the gds2palace model script (from the gds2palace example, 12 ports, 0 to 1 GHz).
 - `SG13G2_resistors_200um.xml`: the stackup of the gds2palace example (resistor layers, Cont and Metal1/2 identical

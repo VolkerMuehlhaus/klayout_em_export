@@ -5,7 +5,7 @@ import os
 import shutil
 import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from testpaths import tests_data, out_dir
+from testpaths import layout_file, out_dir
 
 import pya
 from klayout_em_export import gui
@@ -13,7 +13,7 @@ from klayout_em_export import gui
 OUT = out_dir("kee")
 # a copy in OUT: the plug-in keeps the original as <file>.bak at its first change, which must not land in the test data
 GDS = os.path.join(OUT, "50_ghz_mpa_core.gds")
-shutil.copyfile(tests_data("testcases", "50_ghz_mpa_core.gds"), GDS)
+shutil.copyfile(layout_file("50_ghz_mpa_core.gds"), GDS)
 if os.path.exists(GDS + ".bak"):
     os.remove(GDS + ".bak")
 gui.SETTINGS_FILE = os.path.join(OUT, "settings_test.json")

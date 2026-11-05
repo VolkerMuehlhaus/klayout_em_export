@@ -1,0 +1,11 @@
+* Extracted by KLayout with SG13G2 LVS runset on : 04/11/2026 07:30
+
+.SUBCKT Cascode_DegInd_CBias_Sym_Res_tb Cas_in Cas_out Cas_Bias
+Q$1 \$4 Cas_in \$2 \$1 npn13G2 we=70n le=900n Nx=8 m=1
+Q$2 Cas_out \$13 \$4 \$1 npn13G2 we=70n le=900n Nx=8 m=1
+R$3 \$12 \$13 \$1 rsil w=0.5u l=2.33u ps=0u b=0 m=1
+R$4 \$2 \$12 \$1 rhigh w=0.5u l=4.29u ps=0u b=0 m=1
+R$5 \$12 Cas_Bias \$1 rhigh w=0.655u l=1.245u ps=0u b=0 m=1
+C$6 \$13 \$2 cap_cmim w=6.99u l=6.99u A=48.8601p P=27.96u m=2
+R$8 \$2 \$1 ptap1 A=66.8088p P=185.58u
+.ENDS Cascode_DegInd_CBias_Sym_Res_tb

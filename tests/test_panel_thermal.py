@@ -1,13 +1,13 @@
 # Batch test (KLayout -z -nc -rx -r): the EM panel's Thermal mode on the user's cascode 1_St_Core_v1_forEM.gds.
 # The mode switch shows the heat sources of the region (one per device, the layers of the export), their schematic
-# names from the LVS database (testcases/lvs_cascode, see test_thermal.py) or else from the last export, and the
+# names from the LVS database (tests/data/lvs_cascode, see test_thermal.py) or else from the last export, and the
 # boundaries of the last export's .tsimcfg (the export's placeholder: no target layer yet). EM steps are hidden.
 # Needs the PDK, run like test_devices.py. The settings file is not touched (in memory here).
 import json
 import os
 import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from testpaths import STACKUP, TESTS_DIR, out_dir, palace_testcases
+from testpaths import DATA_DIR, STACKUP, TESTS_DIR, out_dir, layout_file
 
 import pya
 sys.path.insert(0, TESTS_DIR)
@@ -20,7 +20,7 @@ from klayout_em_export.stackup import Stackup
 from klayout_em_export.thermal import export_thermal
 
 OUT = out_dir("panel_thermal")
-LVSDB = os.path.join(TESTS_DIR, "testcases", "lvs_cascode", "cascode.lvsdb")
+LVSDB = os.path.join(DATA_DIR, "lvs_cascode", "cascode.lvsdb")
 failed = []
 
 
@@ -51,7 +51,7 @@ gui.backup_original = lambda layout: None
 
 load_pdk()
 view = pya.LayoutView(True)
-idx = view.load_layout(palace_testcases("klayout_export", "1_St_Core_v1_forEM.gds"), "sg13g2", True)
+idx = view.load_layout(layout_file("1_St_Core_v1_forEM.gds"), "sg13g2", True)
 cv = view.cellview(idx)
 ly = cv.layout()
 cell = next(c for c in ly.top_cells() if c.name.startswith("Cascode"))

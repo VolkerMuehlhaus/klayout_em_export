@@ -5,7 +5,7 @@
 import os
 import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from testpaths import STACKUP, palace_testcases
+from testpaths import STACKUP, layout_file
 
 import pya
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "python"))   # not via salt here
@@ -113,7 +113,7 @@ check(done["Metal3"].after < done["Metal3"].before, f"Metal3 polygons {done['Met
 
 # ---- the FMD layouts: exact, fewer polygons, vias and devices unchanged
 for name in ("FMD_QNC_60_ghz_mpa_filled.gds", "FMD_QNC_Stacked_180GHz_PA.gds"):
-    path = palace_testcases("klayout_export", name)
+    path = layout_file(name)
     if not os.path.exists(path):
         print("skipped: no", path)
         continue

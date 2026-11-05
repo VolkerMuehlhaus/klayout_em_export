@@ -1,11 +1,14 @@
 # Test layout: six SG13G2 resistor cells, each between two via ports (Metal1 -> Metal2 plate), as in
 # gds2palace more_examples/derived_layers_and_resistors. Ports 2k+1 (top head) and 2k+2 (bottom head).
 import json
+import os
 
 import gdspy
 
-CASCODE = r"D:/Palace_testcases/klayout_export/guide/cascode.gds"
-EXAMPLE = r"D:/github-claude/gds2palace_ihp_sg13g2/more_examples/derived_layers_and_resistors/resistors_with_ports.gds"
+HERE = os.path.dirname(os.path.abspath(__file__))
+CASCODE = os.path.join(HERE, "..", "data", "cascode.gds")
+EXAMPLE = os.path.join(os.environ.get("GDS2PALACE") or os.path.join(HERE, "..", "..", "..", "gds2palace_ihp_sg13g2"),
+                       "more_examples", "derived_layers_and_resistors", "resistors_with_ports.gds")
 CELLS = [(CASCODE, "rsil_CDNS_785835985925"), (CASCODE, "rhigh_CDNS_785835985924"),
          (CASCODE, "rhigh_CDNS_785835985923"), (EXAMPLE, "rsil_CDNS_786372201261"),
          (EXAMPLE, "rppd_CDNS_786372201260"), (EXAMPLE, "rhigh_CDNS_786372201262")]
