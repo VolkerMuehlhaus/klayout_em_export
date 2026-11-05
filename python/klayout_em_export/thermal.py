@@ -2,7 +2,7 @@
 
 The PDK devices stay as drawn, since their metal, contacts and vias conduct heat. Each device in the region gets one
 heat source: its heat area (the technology's heat_area, for IHP the PDK's HeatTrans/HeatRes shapes) on a marker
-layer of its own, in the z range of the technology's HEAT_TARGET stackup layer. One power per device: gds2palace
+layer of its own, in the z range of the stackup layer the technology gives for it (heat_target). One power per device: gds2palace
 spreads a source's power over all its polygons by volume, so a device's fingers share it by area.
 
 Boundaries (constant temperatures) are chosen in setupThermal, since no default fits every assembly. The export
@@ -132,12 +132,20 @@ def left_out_layers(layout, cell, stackup, box=None, markers=(), purposes=(0,)):
     return sorted(left_out)
 
 
-def heat_target(stackup, technology):
-    """Name of the stackup layer that holds the heat sources, or None for a technology without devices.
-    Raises ValueError if the stackup lacks it or it has no thickness (a heat source is a volume)."""
+def heat_target(stackup, technology, device=None):
+    """Name of the stackup layer that holds the heat sources, or None for a technology without devices. With a
+    device: the first of the technology's layers for it (heat_targets) that the stackup has with a thickness, else
+    the technology's HEAT_TARGET, as without a device (so a stackup without heat target layers still works).
+    Raises ValueError if the stackup lacks HEAT_TARGET or it has no thickness (a heat source is a volume)."""
     name = getattr(technology, "HEAT_TARGET", None)
     if name is None:
         return None
+    if device is not None and hasattr(technology, "heat_targets"):
+        for own in technology.heat_targets(device):
+            layer = stackup.layer(own)
+            z = stackup.z_range(layer) if layer is not None else None
+            if z is not None and z[2] > z[1]:
+                return own
     layer = stackup.layer(name)
     if layer is None:
         raise ValueError(f"the stackup {os.path.basename(stackup.path)} has no layer {name}, which holds the heat "
@@ -150,8 +158,9 @@ def heat_target(stackup, technology):
 
 
 class HeatSource:
-    def __init__(self, device, area, how, cut):
+    def __init__(self, device, area, how, cut, target):
         self.device = device
+        self.target = target        # stackup layer whose z range and material the heat source takes
         self.area = area            # Region in dbu of the exported cell
         self.how = how              # the technology's heat_area: 'shapes', 'rule' or 'bbox' (the device's bounding box)
         self.cut = cut              # partly outside the region: only the part inside is exported
@@ -175,8 +184,13 @@ def heat_sources(layout, cell, stackup, technology, box=None):
                 continue
             cut = inside.area() < area.area()
             area = inside
-        sources.append(HeatSource(device, area, how, cut))
+        sources.append(HeatSource(device, area, how, cut, heat_target(stackup, technology, device)))
     return sources
+
+
+def target_names(sources, default):
+    """The target layers of the heat sources as text, e.g. 'HEAT_RESISTOR, HEAT_TRANSISTOR'; default without sources."""
+    return ", ".join(sorted({s.target for s in sources})) or default
 
 
 def _read_json(path):
@@ -283,7 +297,7 @@ def export_thermal(layout, cell, stackup, gds_path, technology, box=None, lvsdb=
                          drop=(ref.layer,) if ref is not None else (), extra=extra)
 
     write_tsimcfg(base + ".tsimcfg", gds_path, stackup.path, result.cellname,
-                  [(layer, target, float(powers.get(s.device.id, 0.0))) for layer, s in zip(source_layers, sources)],
+                  [(layer, s.target, float(powers.get(s.device.id, 0.0))) for layer, s in zip(source_layers, sources)],
                   previous_cfg=old_cfg, purpose=purposes, outline_layer=outline_layer, user_rows=user_rows,
                   marker_layers=markers)
     um2 = layout.dbu ** 2
@@ -292,6 +306,7 @@ def export_thermal(layout, cell, stackup, gds_path, technology, box=None, lvsdb=
              "bbox_um": [round(v * layout.dbu, 4) for v in (s.device.bbox.left, s.device.bbox.bottom,
                                                             s.device.bbox.right, s.device.bbox.top)],
              "area_um2": round(s.area.area() * um2, 6), "polygons": s.area.count(), "heat_area_from": s.how,
+             "target_layer": s.target,
              "from_pdk": s.from_pdk,
              "cut_by_region": s.cut, "instance": instances.get(s.device.id, (None, None))[0],
              "lvs_name": instances.get(s.device.id, (None, None))[1]}

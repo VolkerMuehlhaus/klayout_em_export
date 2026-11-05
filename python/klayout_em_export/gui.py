@@ -18,7 +18,7 @@ from .ports import DIRECTIONS, PROP_KEY, PortSettings, check_ports, collect_port
 from .selection import Selection
 from .simcfg import em_export_purposes, own_setup_files
 from .stackup import Stackup
-from .thermal import describe_markers, export_thermal, heat_sources, heat_target, marker_preview
+from .thermal import describe_markers, export_thermal, heat_sources, heat_target, marker_preview, target_names
 
 SETTINGS_FILE = os.path.join(os.path.expanduser("~"), ".klayout_em_export.json")
 PORT_ICON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icons", "em_port.png")
@@ -981,7 +981,8 @@ class ThermalExportDialog(pya.QDialog):
             parts.append(f"{len(cut)} cut by the region")
         if unset:
             parts.append(_count(len(unset), "marker") + " without settings")
-        tips = [f"One per device, in the z range of {target}; power 0 W until set in setupThermal."]
+        tips = [f"One per device, in the z range of {target_names(sources, target)}; power 0 W until set in "
+                "setupThermal."]
         if fallback:
             tips.append("Without heat area, the bounding box is used (a lower peak temperature): " + ", ".join(fallback))
         from_rule = [s.device.id for s in sources if s.how == "rule"]

@@ -18,7 +18,7 @@ from .connectivity import check_ground, wiring
 from .export import marker_box
 from .lvs import assign_names, read_lvs_devices
 from .ports import collect_ports, device_of, export_numbering, export_port_numbers, is_complete, port_problems
-from .thermal import describe_markers, heat_sources, heat_target, marker_layers, marker_preview
+from .thermal import describe_markers, heat_sources, heat_target, marker_layers, marker_preview, target_names
 
 OK, WARN, ERROR = gui.OK, gui.WARN, gui.ERROR
 COLUMNS = ("#", "Layer", "Port", "Export #", "Status")
@@ -636,7 +636,7 @@ class EMPanel(pya.QWidget):
             self.sources_step.set(OK if own_sources else WARN, f"no devices{own}" if own_sources else
                                   "no devices in the region: the export has no heat sources", own_tip.strip())
         else:
-            parts = [f"{len(sources)} heat source(s) in {target}"]
+            parts = [f"{len(sources)} heat source(s) in {target_names(sources, target)}"]
             fallback = sum(not s.from_pdk for s in sources)
             from_rule = sum(s.how == "rule" for s in sources)
             cut = sum(s.cut for s in sources)

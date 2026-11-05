@@ -766,10 +766,13 @@ was used. Only a device with neither gets its bounding box, with a warning.
 Each heat source:
 
 - goes on a marker layer of its own, from 201 upward. Layers that the stackup or your own markers use are skipped;
-- sits in the height of **Activ**, the active silicon at the top of the substrate;
+- sits in a heat target layer of the stackup: **HEAT_TRANSISTOR** (the top 40 nm of the silicon) for a transistor,
+  **HEAT_RESISTOR** (the resistor's polysilicon body, on the field oxide) for a resistor. A stackup without these
+  layers (gds2palace before 0.9.5) puts every heat source in the height of **Activ**, and the devices come out
+  too cool;
 - gets one power, which Elmer spreads over the device's fingers by their area.
 
-**Resistors:** Resistor temperatures are not accurate yet. A resistor is polysilicon on oxide, which insulates it from the substrate. The model puts its heat source into the silicon at the height of Activ instead, so the resistor comes out too cool. Transistors are not affected.
+**Resistors:** Resistor temperatures are not validated yet. The heat source is the resistor's polysilicon body, on the oxide that insulates it from the substrate; the heads under the contacts are not part of it. For eight sizes of rhigh, rppd and rsil, the thermal resistance was 1.5 to 2.5 times the value of the PDK's resistor model, and most of the temperature rise is across that oxide. A narrow resistor needs a fine mesh at its heat source, about 0.06 µm; 0.125 µm is enough from about 2 µm width.
 
 The metal, contacts and vias of the devices stay in the model, since they carry heat away. So does the silicon
 around each npn emitter, which the PDK draws on Activ.mask (1/20), not on Activ: the export keeps datatype 20
@@ -1007,7 +1010,7 @@ It uses that copy only when the layout has none of its own.
   width offset and contact end resistance. rhigh and rppd are about 10 % to 13 % low, rsil up to about 2 %
   (chapter 9). A resistor of several segments cannot be replaced yet.
 - The REF patch adds a few fF per transistor when the device is wired directly (chapter 13).
-- Thermal: resistor temperatures are not accurate yet. A resistor is polysilicon on oxide, which insulates it from the substrate. The model puts its heat source into the silicon at the height of Activ instead, so the resistor comes out too cool (chapter 14).
+- Thermal: resistor temperatures are not validated yet: the thermal resistance was 1.5 to 2.5 times the value of the PDK's resistor model (chapter 14).
 - Thermal: instance names from LVS are tested with npn transistors and resistors. MOSFETs are supported, but not
   tested yet.
 - Thermal: the temperatures depend directly on the thermal conductivities in the stackup, above all of the

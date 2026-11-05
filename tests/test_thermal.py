@@ -1,6 +1,6 @@
 # Batch test (KLayout -z -nc -rx -r): thermal export (thermal.py) of the user's cascode 1_St_Core_v1_forEM.gds.
 # Each device becomes one heat source on a marker layer of its own, from the PDK's HeatTrans/HeatRes shapes, in the
-# z range of Activ; the devices stay as drawn; EM ports and REF patches are left out; an export again keeps the
+# z range of the stackup's heat target layer for its kind (Activ in a stackup without them); the devices stay as drawn; EM ports and REF patches are left out; an export again keeps the
 # powers, the instance names and the boundaries set in setupThermal. Needs the PDK, run like test_devices.py.
 # Output: OUT (default: a temp folder, see testpaths.py).
 import json
@@ -48,6 +48,17 @@ ly.read(layout_file("1_St_Core_v1_forEM.gds"))
 cell = next(c for c in ly.top_cells() if c.name.startswith("Cascode"))
 technology = tech.for_layout(ly)[0]
 check(heat_target(st, technology) == "Activ", "heat sources in Activ, which has a thickness in the stackup")
+# the heat target layers of the stackup (gds2palace 0.9.5): one per device kind; an older stackup has none
+HEAT_LAYER_NAMES = ("HEAT_TRANSISTOR", "HEAT_RESISTOR")
+has_targets = all(st.layer(name) is not None for name in HEAT_LAYER_NAMES)
+print("stackup with heat target layers:", has_targets)
+
+
+def expected_target(pcell, with_targets):
+    if not with_targets:
+        return "Activ"
+    return "HEAT_RESISTOR" if pcell in technology.RESISTOR_PCELLS else "HEAT_TRANSISTOR"
+
 
 # the PDK's heat shapes in the layout: what the export must reproduce, device by device
 pdk_heat = pya.Region()
@@ -98,8 +109,22 @@ check(not (out[(cont, 0)] & devices_box).is_empty(), "the devices' contacts are 
 cfg = json.load(open(result["tsimcfg"]))
 sources = [t for t in cfg["thermal"] if t["type"] == "source"]
 check(cfg["application"] == "setupThermal" and len(sources) == 5 and
-      all(t["target_layername"] == "Activ" and t["power"] == 0.0 for t in sources),
-      ".tsimcfg: 5 sources in Activ, power 0 W")
+      all(t["power"] == 0.0 for t in sources), ".tsimcfg: 5 sources, power 0 W")
+by_layer = {t["source_layernum"]: t["target_layername"] for t in sources}
+check(all(by_layer[r["layer"]] == r["target_layer"] == expected_target(r["pcell"], has_targets) for r in rows),
+      f"each heat source in the target layer of its device kind: {sorted(set(by_layer.values()))}")
+if has_targets:
+    check(not any((st.layer(name).layer, 0) in out for name in HEAT_LAYER_NAMES),
+          "nothing is drawn on the heat target layers")
+    # a stackup without the heat target layers (gds2palace before 0.9.5): every heat source in Activ, as before
+    old_xml = os.path.join(OUT, "stackup_without_heat_targets.xml")
+    with open(STACKUP, encoding="utf-8") as f:
+        lines = [line for line in f if not any(f'Name="{name}"' in line for name in HEAT_LAYER_NAMES)]
+    with open(old_xml, "w", encoding="utf-8") as f:
+        f.writelines(lines)
+    old_st = Stackup(old_xml)
+    check({s.target for s in heat_sources(ly, cell, old_st, technology)} == {"Activ"},
+          "a stackup without the heat target layers: every heat source in Activ")
 check([t for t in cfg["thermal"] if t["type"] != "source"] ==
       [{"source_layernum": thermal_map["outline_layer"], "target_layername": "", "type": "constanttemp", "temp": 300.0}],
       ".tsimcfg: one placeholder boundary, on the region outline, without a target layer")

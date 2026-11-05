@@ -185,8 +185,9 @@ when the layout is closed without saving. If `setupEM` or `EMStudio` is not on t
 
 ## Thermal export (setupThermal)
 
-Experimental: it needs gds2palace 0.9.4 and setupEM 0.17 or newer, and
-resistor temperatures are not accurate yet.
+Experimental: it needs gds2palace 0.9.4 and setupEM 0.17 or newer (gds2palace 0.9.5 for the stackups with the heat
+target layers `HEAT_TRANSISTOR` and `HEAT_RESISTOR`; without them every heat source sits in Activ and the devices
+come out too cool), and resistor temperatures are not validated yet.
 
 **EM > Export for Thermal (setupThermal)...** exports the same region as a model for setupThermal / gds2palace's
 Elmer thermal mode. In the EM panel, switch to the **Thermal** tab at the top: it shows the heat sources of the

@@ -73,7 +73,7 @@ Open the cascode `tests/data/1_St_Core_v1_forEM.gds` and go through the panel fr
 - Capacitors and inductors are never replaced, and neither is a resistor of several segments.
 - The Spectre circuit is written but not tested.
 - A layout saved after **Fill Density Holes** must not go to tape-out.
-- Thermal: resistor temperatures are not accurate yet (too cool), and the comparison with the `rth` of IHP's npn13G2
+- Thermal: resistor temperatures are not validated yet, and the comparison with the `rth` of IHP's npn13G2
   model is not settled. Use the temperatures as estimates, and for comparing devices and layouts.
 
 More in the [guide's limits](doc/userguide/klayout_em_export_userguide.md#limits).

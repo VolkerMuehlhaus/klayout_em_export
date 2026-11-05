@@ -40,6 +40,10 @@ EMWIND_HEAT_GROW = 0.05             # µm
 POLYRES_LAYER = (128, 0)            # PolyRes.drawing: resistor body; HeatRes = the same rectangles
 ACTIV_LAYER = (1, 0)                # Activ.drawing: a MOS gate is GatPoly over Activ
 HEAT_TARGET = "Activ"               # stackup layer whose z range holds the heat sources (thermal export)
+# the heat target layers of gds2palace's IHP stackups (0.9.5): a transistor's heat in the top 40 nm of the silicon,
+# a resistor's in its polysilicon body on the field oxide. A stackup without them: HEAT_TARGET for every device
+HEAT_TARGET_TRANSISTOR = "HEAT_TRANSISTOR"
+HEAT_TARGET_RESISTOR = "HEAT_RESISTOR"
 # datatypes the thermal export always keeps: the npn cells draw the silicon around each emitter on Activ.mask
 # (1/20), not Activ; without it the heat sources sit in oxide
 THERMAL_PURPOSES = (0, 20)
@@ -167,6 +171,12 @@ def heat_area(layout, device):
     if area.is_empty():
         return pya.Region(device.bbox), "bbox"
     return area.transformed(device.trans).merged(), how
+
+
+def heat_targets(device):
+    """The stackup layers for this device's heat source, best first; thermal.heat_target takes the first one the
+    stackup has, else HEAT_TARGET."""
+    return (HEAT_TARGET_RESISTOR if device.pcell in RESISTOR_PCELLS else HEAT_TARGET_TRANSISTOR,)
 
 
 def lvs_classes(device):

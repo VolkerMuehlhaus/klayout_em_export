@@ -73,7 +73,9 @@ check(all(w.isHidden() for w in (panel.ground_step, panel.devices_step, panel.po
 print("  Sources :", mark(panel.sources_step), ascii(panel.sources_step.summary.text))
 print("  Names   :", mark(panel.names_step), ascii(panel.names_step.summary.text))
 print("  Boundary:", mark(panel.boundary_step), ascii(panel.boundary_step.summary.text))
-check(panel.sources_step.summary.text == "5 heat source(s) in Activ", "five heat sources in Activ")
+# the stackup's heat target layers per device kind (gds2palace 0.9.5); Activ in a stackup without them
+check(panel.sources_step.summary.text in ("5 heat source(s) in HEAT_RESISTOR, HEAT_TRANSISTOR",
+                                          "5 heat source(s) in Activ"), "five heat sources in their target layers")
 check(column(panel.sources_table, 0) == ["202", "203", "204", "205", "206"], "the layers of the export")
 check(column(panel.sources_table, 4) == ["PDK heat shapes"] * 5, "every heat area from the PDK's shapes")
 check(not panel.open_thermal_button.isEnabled(), "Open in setupThermal: disabled before the first thermal export")

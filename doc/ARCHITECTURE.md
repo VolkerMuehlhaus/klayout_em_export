@@ -103,7 +103,8 @@ gds2palace stackup.
    `NO_DEVICES`, `devices_in(layout)`, `context`, `identify`, `is_device`, `is_resistor`, `terminals` (fill
    `device.terminals` as `{name: (GDS layer of the pin metal, [pin boxes])}`), `describe` (the panel's Value
    column: size or value), `resistor_note`; for the thermal export `HEAT_TARGET` (stackup layer of the heat
-   sources, None: no heat sources), `THERMAL_PURPOSES` (datatypes the thermal export always keeps, e.g. IHP's
+   sources, None: no heat sources), optionally `heat_targets(device)` (stackup layers for one device's heat
+   source, best first; `HEAT_TARGET` when the stackup has none of them), `THERMAL_PURPOSES` (datatypes the thermal export always keeps, e.g. IHP's
    Activ.mask on 20), `heat_area` (a device's heat area and how it was found: `shapes`, `rule`,
    `bbox`), `lvs_classes` and `lvs_element` (matching LVS devices, see `lvs.py`). Every process fact (layers,
    pcell names, rules) stays in the technology module; `generic.py` shows the neutral versions.
@@ -226,8 +227,12 @@ resistor of its label value), 1 mH ties per net, 1 µF DC blocks when the `.sNp`
 - **One power per device.** gds2palace takes one power per marker layer and spreads it over the volume of all its
   polygons (Elmer `-distribute`), so a device's fingers share it by area. A circuit simulation gives one power per
   device, not per finger.
-- **In the z range of `HEAT_TARGET`** (IHP: `Activ`, a slab on top of EPI): the stackup layer nearest to where the
-  heat is generated that has a thickness. The export stops if the stackup lacks it or it has no thickness.
+- **In the z range of a stackup layer per device kind** (`thermal.heat_target`). IHP: `HEAT_TRANSISTOR` (the top
+  40 nm of Activ) for transistors and `HEAT_RESISTOR` (a 0.16 µm polysilicon body on the field oxide) for
+  resistors, the heat target layers of gds2palace's IHP stackups from 0.9.5. A heat source takes only the z range
+  and the material of its target, and nothing is drawn on these layers, so they are in no EM model. A stackup
+  without them: `HEAT_TARGET` (IHP: `Activ`, a slab on top of EPI) for every device, as before. The export stops
+  if the stackup lacks `HEAT_TARGET` or it has no thickness.
 - **Marker layers from 201 upward**, skipping every layer the stackup uses (also derived and boundary layers),
   past 299 if there are many devices: the region outline first, then one per heat source.
 - **The user's own markers stay** (`thermal.user_markers`): the layers that the layout's own setupThermal file
