@@ -41,7 +41,7 @@ POLYRES_LAYER = (128, 0)            # PolyRes.drawing: resistor body; HeatRes = 
 ACTIV_LAYER = (1, 0)                # Activ.drawing: a MOS gate is GatPoly over Activ
 HEAT_TARGET = "Activ"               # stackup layer whose z range holds the heat sources (thermal export)
 # datatypes the thermal export always keeps: the npn cells draw the silicon around each emitter on Activ.mask
-# (1/20), not Activ; without it the heat sources sit in oxide (IHP's own thermal stack counts it as silicon)
+# (1/20), not Activ; without it the heat sources sit in oxide
 THERMAL_PURPOSES = (0, 20)
 LVS_MOS_CLASSES = {"nmos": "sg13_lv_nmos", "pmos": "sg13_lv_pmos", "nmosHV": "sg13_hv_nmos", "pmosHV": "sg13_hv_pmos",
                    "rfnmos": "sg13_lv_nmos", "rfpmos": "sg13_lv_pmos", "rfnmosHV": "sg13_hv_nmos",

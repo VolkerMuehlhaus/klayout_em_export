@@ -185,7 +185,7 @@ when the layout is closed without saving. If `setupEM` or `EMStudio` is not on t
 
 ## Thermal export (setupThermal)
 
-Experimental: it needs unreleased branches of gds2palace and setupEM (see the [README](../README.md#status)), and
+Experimental: it needs gds2palace 0.9.4 and setupEM 0.17 or newer, and
 resistor temperatures are not accurate yet.
 
 **EM > Export for Thermal (setupThermal)...** exports the same region as a model for setupThermal / gds2palace's

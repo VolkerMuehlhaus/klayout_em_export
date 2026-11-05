@@ -25,7 +25,7 @@ gds2palace or gds2openEMS stackup; device recognition needs a [technology module
 | EM export, device replacement, Create Circuit | gds2palace 0.9.3 or newer, setupEM 0.16 or newer (both on PyPI), snp2le |
 | openEMS models | gds2openEMS, with an openEMS stackup; open the export in EMStudio |
 | Open in EMStudio | EMStudio with the `.simcfg` import ([PR #53](https://github.com/IHP-GmbH/EMStudio/pull/53), open) |
-| Thermal (experimental) | Unreleased: branch `thermal-map` of [gds2palace](https://github.com/volkermuehlhaus-claude/gds2palace_ihp_sg13g2/tree/thermal-map), branch `thermal-powers` of [setupEM](https://github.com/volkermuehlhaus-claude/setupEM/tree/thermal-powers) |
+| Thermal (experimental) | gds2palace 0.9.4 or newer, setupEM 0.17 or newer (both on PyPI) |
 | Export again into a setupEM that is already open | Unreleased: branch `klayout-handover` of [setupEM](https://github.com/volkermuehlhaus-claude/setupEM/tree/klayout-handover) |
 
 ## Install

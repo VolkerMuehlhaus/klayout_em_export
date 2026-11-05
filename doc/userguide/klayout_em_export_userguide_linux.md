@@ -724,7 +724,7 @@ ground, which adds a few fF. In the cascode that lowers S21 by 0.06 dB at 10 GHz
 > neighbours, not the wiring that carries heat away, not the substrate and package below. A thermal simulation of
 > the layout includes all of that.
 
-This flow is experimental. It needs unreleased versions of gds2palace and setupEM: see Status in the plug-in's README.
+This flow is experimental. It needs setupEM 0.17 or newer, which installs gds2palace 0.9.4 or newer.
 
 The thermal flow starts from the same layout and region as the EM flow. It needs no ports, and the devices stay as
 they are:
