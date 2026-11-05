@@ -1,5 +1,5 @@
 # Batch test (KLayout -z -nc -rx -r, package installed in salt): the EM panel checklist on the user's
-# ports_partial.gds (ports 1-8, EM region box on 800/0 that keeps port 1 and cuts five
+# BM_Ardavan_Rahimian_with_ports_partial.gds (ports 1-8, EM region box on 800/0 that keeps port 1 and cuts five
 # conductors). In batch mode there is no main window: the panel gets the view through a stand-in for _view().
 import os
 import sys
@@ -15,7 +15,7 @@ from klayout_em_export.panel import EMPanel
 from klayout_em_export.stackup import Stackup
 
 view = pya.LayoutView(True)   # editable, as in the GUI edit mode
-idx = view.load_layout(layout_file("ports_partial.gds"), True)
+idx = view.load_layout(layout_file("BM_Ardavan_Rahimian_with_ports_partial.gds"), True)
 cv = view.cellview(idx)
 ly = cv.layout()
 ly.add_meta_info(pya.LayoutMetaInfo(META_STACKUP, STACKUP, "", True))   # not set_stackup: keeps ~/.klayout_em_export.json

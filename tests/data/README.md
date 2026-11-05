@@ -11,7 +11,8 @@ Inputs of the batch tests, found through `tests/testpaths.py`.
 | `lvs_cascode/` | KLayout LVS databases and netlists of the cascode (flat and with a subcircuit) | `test_thermal.py`, `test_panel_thermal.py`, `test_cli.py` |
 | `50_ghz_mpa_core.gds` | Power amplifier core with npn devices | `test_devices.py`, `test_reopen.py`, `test_unconnected.py` |
 | `OctaDiffTap_0n50_ports3.gds` | Octagon inductor with ports | export, ground, boundary and locate tests |
+| `BM_Ardavan_Rahimian_with_ports_partial.gds` | Part of the W-band Butler matrix by Ardavan Rahimian, with ports and an EM region box. From [IHP-GmbH/TO_July2025](https://github.com/IHP-GmbH/TO_July2025/tree/main/W_Band_Butler_Matrix_IC) (Apache-2.0) | `test_numbering.py`, `test_panel.py` |
 | `t1_test.gds` | Six MOSFET variants with gate contacts and Metal2 straps, built from the PDK pcells | `test_mosfets.py` |
 
-`test_numbering.py` and `test_panel.py` (`ports_partial.gds`), and the large-layout parts of `test_density.py` and
-`test_dummyfill.py`, need layouts that are not in the repo. They skip without them (see `tests/testpaths.py`).
+The large-layout parts of `test_density.py` and `test_dummyfill.py` need layouts that are not in the repo. They skip
+without them (see `tests/testpaths.py`).
