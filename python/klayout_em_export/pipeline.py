@@ -9,12 +9,11 @@ import os
 from .connectivity import check_ground, port_nets
 from .devices import device_shapes, find_devices, mark_replaced, orphaned_tags, unconnected_terminals
 from .boundary import port_wall_sides
-from .export import export_flat
+from .export import EM_REGION, export_flat   # noqa: F401  (EM_REGION is this module's public name for it)
 from .ports import (check_ports, collect_ports, export_directions, export_numbering, export_port_numbers,
                     is_complete, port_map, ports_of, simcfg_ports)
 from .simcfg import em_export_purposes, write_simcfg
 
-EM_REGION = (800, 0)      # marker layer: a box on it keeps the export region in the layout
 # persisted layout meta info, saved with the layout (gui.py also mirrors it into the settings file)
 META_STACKUP = "klayout_em_export.stackup"
 META_OUTPUT = "klayout_em_export.output"

@@ -169,6 +169,9 @@ class EMPanel(pya.QWidget):
         self.show_ground.setCheckable(True)
         self.ground_step = Step("Ground", _details(self.ground_detail, [
             _button("Mark Selected", lambda: self._run(gui.mark_ground), "mark the selected metal shapes as ground"),
+            _button("Mark at Click", lambda: self._run(gui.ground_tool),
+                    "EM Ground tool: click a metal to mark it as ground, every metal under the click (also in "
+                    "subcells: one click marks a stacked pad frame); Shift+click unmarks"),
             _button("Use Ports", lambda: self._run(gui.clear_ground),
                     "forget the marks: ground is the net that most via ports reach"),
             self.show_ground,

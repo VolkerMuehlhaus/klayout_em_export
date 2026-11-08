@@ -1,4 +1,6 @@
 """EM Port tool (toolbar): click a metal edge for a via port, Shift+click into a gap for an in-plane port.
+EM Ground tool: click a metal to mark it as ground (every traced metal drawn under the click, through the hierarchy,
+so a stacked pad frame takes one click), Shift+click to unmark.
 
 The port shape goes on the next free port layer of the current cell: a zero-width box along the edge (via port)
 or a box that bridges the gap (in-plane port). Then the port dialog opens; Cancel removes the shape again.
@@ -166,6 +168,92 @@ class PortTool(pya.Plugin):
             _status(f"port {layer - 200} on layer {layer}", 5)
         gui.refresh_panel()
         return True
+
+
+GROUND_HINT = "EM Ground: click a metal to mark it as ground (all metals under the click), Shift+click to unmark"
+
+
+def _no_metal(layout, cell, point):
+    """Status text for a ground click that found no traced metal: names what is drawn there instead."""
+    drawn = gui.layers_at_point(layout, cell, point)
+    if not drawn:
+        return "No metal here"
+    return ("No metal of the stackup's wiring here (drawn: " + ", ".join(drawn) + "); ground must be a conductor "
+            "layer of the stackup with datatype 0")
+
+
+class GroundTool(pya.Plugin):
+    def __init__(self, view):
+        super().__init__()
+        self.layout_view = view
+        self.marker = None
+        self._stackup = (None, None)
+
+    stackup = PortTool.stackup
+
+    def activated(self):
+        _status(GROUND_HINT, 10)
+
+    def deactivated(self):
+        self._clear()
+
+    def _clear(self):
+        if self.marker is not None:
+            self.marker._destroy()
+            self.marker = None
+
+    def _point(self, p):
+        cv = self.layout_view.active_cellview()
+        if cv is None or cv.layout() is None or cv.cell is None:
+            return None, None
+        return cv, p.to_itype(cv.layout().dbu)
+
+    def mouse_moved_event(self, p, buttons, prio):
+        if not prio:
+            return False
+        self._clear()
+        cv, point = self._point(p)
+        if cv is None or self.stackup() is None:
+            return False
+        metals = gui.metals_at_point(cv.layout(), cv.cell, self.stackup(), point)
+        if metals:
+            names = ", ".join(name for _, name in metals)
+            unmark = buttons & pya.ButtonState.ShiftKey
+            _status(("unmark ground on " if unmark else "mark ground on ") + names, 2)
+            self.marker = pya.Marker(self.layout_view)
+            self.marker.set(pya.DBox(p.x - 1, p.y - 1, p.x + 1, p.y + 1))
+            self.marker.color = 0x40c040 if not unmark else 0xc04040
+            self.marker.line_width = 3
+        return False
+
+    def mouse_click_event(self, p, buttons, prio):
+        if not prio or not buttons & pya.ButtonState.LeftButton:
+            return False
+        cv, point = self._point(p)
+        if cv is None:
+            return True
+        if self.stackup() is None and not gui.ask_stackup(cv.layout()):
+            return True
+        self._clear()
+        layout, cell = cv.layout(), cv.cell
+        if buttons & pya.ButtonState.ShiftKey:
+            names = gui.unmark_ground_at(layout, cell, self.stackup(), point)
+            _status(f"ground mark(s) removed on {', '.join(names)}" if names else "No ground mark here", 5)
+        else:
+            names = gui.mark_ground_at(layout, cell, self.stackup(), point)
+            _status(f"ground marked on {', '.join(names)}" if names else _no_metal(layout, cell, point), 8)
+        gui.refresh_panel()
+        return True
+
+
+class GroundToolFactory(pya.PluginFactory):
+    def __init__(self):
+        super().__init__()
+        self.has_tool_entry = True
+        self.register(-999, "em_ground_tool", "EM Ground", gui.GROUND_ICON)
+
+    def create_plugin(self, manager, root, view):
+        return GroundTool(view)
 
 
 class PortToolFactory(pya.PluginFactory):

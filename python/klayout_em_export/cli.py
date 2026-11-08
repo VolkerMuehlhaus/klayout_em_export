@@ -321,10 +321,19 @@ def cmd_set_region(request, layout, cell):
 
 
 def cmd_mark_ground(request, layout, cell):
-    """Ground marks: 'points' [[metal, x, y], ...] (a point inside a ground shape on that metal), added to the
-    layout's marks; 'clear': true removes the marks first."""
+    """Ground marks: 'points' [[metal, x, y], ...] (a point inside a ground shape on that metal), or 'at'
+    [[x, y], ...] (every traced metal drawn at that point, through the hierarchy, as the EM Ground tool), added to
+    the layout's marks; 'clear': true removes the marks first."""
     stackup = stackup_of(request, layout)
     seeds = [] if request.get("clear") else ground_seeds(layout)
+    from .gui import metals_at_point
+    for item in request.get("at", []):
+        try:
+            x, y = item
+        except (TypeError, ValueError):
+            raise RequestError("a ground 'at' point is [x, y] (µm)")
+        point = pya.Point(_um(layout, float(x)), _um(layout, float(y)))
+        seeds += [(layer, point) for layer, name in metals_at_point(layout, cell, stackup, point)]
     for item in request.get("points", []):
         try:
             name, x, y = item

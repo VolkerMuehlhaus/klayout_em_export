@@ -338,6 +338,10 @@ The buttons:
 
 - **Mark Selected**: select one or more metal shapes of your ground first, then press it. Use this if the automatic
   choice is wrong.
+- **Mark at Click** (the **EM Ground** tool, also in the toolbar and the EM menu): click a metal in the layout to
+  mark it as ground. Every metal drawn under the click is marked, through the hierarchy, so a pad frame stacked on
+  several metals in a subcell takes one click, with nothing to select. Shift+click removes the marks of the shapes
+  under the click. The status bar names the metals under the pointer.
 - **Use Ports**: forget the marks and use the automatic choice again.
 - **Run Checks**: for large regions the checks do not run on every change; press it to run them.
 
@@ -408,10 +412,11 @@ Port walls need a region box that cuts the layout where the lines are simple:
 - **Straight lines, cut at a right angle.** The cross-section at the cut must stay the same for some length into
   the region: at least D, the span of the lines plus twice their distance to ground, and better also half the
   device's size. setupEM shows both numbers and warns when the device is closer; a port wall can also be moved
-  outward (Extension in setupEM).
+  outward (Extension in setupEM). Only the metal within D of the lines counts: a pad frame or a slot in a plane
+  farther away may end or change near the cut, which setupEM reports but accepts.
 - **Ground metal that reaches the cut** next to or under the lines. Ground on the same metal is enough here,
   e.g. the ground strips of a coplanar line (a via port would need another metal). If the Ground line says
-  "not found", mark the ground strips first (Mark Selected in the Ground details).
+  "not found", mark the ground strips first (the EM Ground tool, or Mark Selected in the Ground details).
 - **No cheesing holes at the cut.** The standards copy the cross-section at the wall along their whole length, so a
   hole that the cut goes through would become a slot in them. Run **Fill Density Holes and Merge Metal** first;
   setupEM's check reports a cross-section that changes right at the wall.

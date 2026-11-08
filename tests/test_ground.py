@@ -73,3 +73,59 @@ result = check_ground(ly, cell, st, box, seeds=[(30, pya.Point(10000, 10000))], 
 print("## Metal3 plane marked outside the region box\n" + result.summary())
 print("ok  " if sorted(result.names[l] for l in result.net) == ["Metal3", "Metal4"] else "FAIL",
       "plane marked outside the region: ground", sorted(result.names[l] for l in result.net))
+
+
+# 3. marking at a point through the hierarchy: a pad frame stacked on Metal1..Metal3 without vias in a subcell
+# (three separate nets), one click marks all three; Shift+click (unmark) removes them again
+from klayout_em_export import gui
+st = Stackup(STACKUP)
+ly = pya.Layout()
+ly.dbu = 0.001
+top = ly.create_cell("top")
+frame = ly.create_cell("frame")
+um = lambda v: round(v / ly.dbu)
+for layer in (8, 10, 30):
+    frame.shapes(ly.layer(layer, 0)).insert(pya.Box(um(0), um(0), um(70), um(70)))
+top.insert(pya.CellInstArray(frame.cell_index(), pya.Trans(pya.Point(um(100), um(100)))))
+top.shapes(ly.layer(134, 0)).insert(pya.Box(um(0), um(120), um(300), um(124)))   # a line, not under the click
+click = pya.Point(um(130), um(130))
+print("## mark at a point")
+print("metals at the click:", gui.metals_at_point(ly, top, st, click))
+marked = gui.mark_ground_at(ly, top, st, click)
+print("marked:", marked, "| marks:", len(gui.ground_seeds(ly)))
+check = check_ground(ly, top, st, seeds=gui.ground_seeds(ly), ports={})
+print(check.summary())
+if marked != ["Metal3", "Metal2", "Metal1"] or sorted(check.net) != [8, 10, 30]:
+    print("FAIL: one click must mark the whole stacked frame in the subcell as ground")
+print("unmarked:", gui.unmark_ground_at(ly, top, st, click), "| marks left:", len(gui.ground_seeds(ly)))
+if gui.ground_seeds(ly):
+    print("FAIL: Shift+click must remove the marks of the shapes under the click")
+print("nothing at a point beside the frame:", gui.mark_ground_at(ly, top, st, pya.Point(um(50), um(50))))
+
+# 4. click outside the EM region box on a frame reaching into it: the stored point lies inside the box, so the
+# ground check (which looks inside the box) sees the frame
+from klayout_em_export.gui import EM_REGION
+top.shapes(ly.layer(*EM_REGION)).insert(pya.Box(um(150), um(150), um(300), um(300)))
+outside = pya.Point(um(105), um(105))
+print("click outside the box marks:", gui.mark_ground_at(ly, top, st, outside))
+seeds = gui.ground_seeds(ly)
+print("stored points:", [(l, p.x * ly.dbu, p.y * ly.dbu) for l, p in seeds])
+box = pya.Box(um(150), um(150), um(300), um(300))
+if any(not box.contains(p) for l, p in seeds):
+    print("FAIL: the stored ground points must lie inside the EM region box")
+check = check_ground(ly, top, st, box, seeds=seeds, ports={})
+if sorted(check.net) != [8, 10, 30]:
+    print("FAIL: the ground check inside the box must see the frame marked by the outside click")
+print("unmark by the outside click:", gui.unmark_ground_at(ly, top, st, outside), "| left:", len(gui.ground_seeds(ly)))
+if gui.ground_seeds(ly):
+    print("FAIL: unmark must find the moved points through the clicked shapes")
+
+# 5. a click on something that is not a traced metal: nothing marked, the layers there are named
+from klayout_em_export.tool import _no_metal
+top.shapes(ly.layer(8, 2)).insert(pya.Box(um(400), um(400), um(420), um(420)))     # Metal1.pin
+top.shapes(ly.layer(39, 0)).insert(pya.Box(um(400), um(400), um(420), um(420)))    # EdgeSeal
+odd = pya.Point(um(410), um(410))
+print("marks on a pin/marker:", gui.mark_ground_at(ly, top, st, odd), "| drawn:", gui.layers_at_point(ly, top, odd))
+print("status:", _no_metal(ly, top, odd))
+if gui.ground_seeds(ly) or sorted(gui.layers_at_point(ly, top, odd)) != ["39/0", "8/2"]:
+    print("FAIL: a click on a non-wiring layer must mark nothing and name the layers drawn there")

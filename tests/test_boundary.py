@@ -76,6 +76,12 @@ ground2 = check_ground(ly2, cell2, st, box, seeds=[(8, inside)], ports=collect_p
 crossings2 = find_crossings(ly2, cell2, st, box, ground2)
 print("port wall status:", [c.status(True) for c in crossings2 if c.needs_port])
 numbers2 = create_ports(NoUndo(), cell2, st, crossings2, port_wall=True)
+from klayout_em_export.ports import port_problems
+wall_ports = collect_ports(ly2, cell2, box, stackup=st)
+wall_problems = {n: port_problems(p, st) for n, p in wall_ports.items() if p.on_wall}
+print("port wall ports:", sorted(n - 200 for n in wall_problems), "problems:", wall_problems)
+if len(wall_problems) != len(numbers2) or any(wall_problems.values()):
+    print("FAIL: zero-width in-plane ports on the region edge are port wall ports and must pass the port check")
 ports2 = collect_ports(ly2, cell2, box, stackup=st)
 made = [ports2[200 + n].settings for n in numbers2]
 print("port wall ports:", numbers2, [str(s) for s in made])

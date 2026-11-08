@@ -22,6 +22,7 @@ from .thermal import describe_markers, export_thermal, heat_sources, heat_target
 
 SETTINGS_FILE = os.path.join(os.path.expanduser("~"), ".klayout_em_export.json")
 PORT_ICON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icons", "em_port.png")
+GROUND_ICON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icons", "em_ground.png")
 
 
 def _load_settings():
@@ -290,6 +291,102 @@ def mark_ground():
         return
     _set_ground_seeds(layout, seeds)
     _status(f"{len(seeds)} ground mark(s)" + (f"; {skipped} selected object(s) skipped" if skipped else ""), 10)
+
+
+def _shapes_at_point(layout, cell, stackup, point):
+    """[(GDS layer, name, polygon in cell coordinates)] of the traced metals with a shape containing point (Point
+    in dbu), through the hierarchy of cell, top metal first; one shape per metal."""
+    from .connectivity import wiring
+    traced = wiring(stackup)[0]
+    out = []
+    for l in stackup.layers:
+        if l.layer not in traced:
+            continue
+        li = layout.find_layer(l.layer, 0)
+        if li is None:
+            continue
+        it = cell.begin_shapes_rec_touching(li, pya.Box(point, point))
+        while not it.at_end():
+            shape = it.shape()
+            if not shape.is_text() and shape.polygon is not None:
+                polygon = shape.polygon.transformed(it.trans())
+                if polygon.inside(point):
+                    out.append((l.layer, l.name, polygon))
+                    break
+            it.next()
+    return out
+
+
+def layers_at_point(layout, cell, point):
+    """'layer/datatype' of every drawn layer with a shape containing point (Point in dbu), through the hierarchy:
+    tells why a click found no traced metal (a derived layer, a pin datatype, a marker layer)."""
+    out = []
+    for li in layout.layer_indexes():
+        it = cell.begin_shapes_rec_touching(li, pya.Box(point, point))
+        while not it.at_end():
+            shape = it.shape()
+            if not shape.is_text() and shape.polygon is not None and shape.polygon.transformed(it.trans()).inside(point):
+                info = layout.get_info(li)
+                out.append(f"{info.layer}/{info.datatype}")
+                break
+            it.next()
+    return out
+
+
+def metals_at_point(layout, cell, stackup, point):
+    """[(GDS layer, name)] of the traced metals with a shape containing point (Point in dbu), through the
+    hierarchy of cell, top metal first."""
+    return [(layer, name) for layer, name, polygon in _shapes_at_point(layout, cell, stackup, point)]
+
+
+def mark_ground_at(layout, cell, stackup, point):
+    """Mark every traced metal drawn at point (Point in dbu, through the hierarchy) as ground: one mark per
+    metal, added to the layout's marks. The stored point is the click, or a point of the shape inside the EM
+    region box when the shape reaches into it (the ground check looks there). Returns the metals' names."""
+    region = marker_box(layout, cell, EM_REGION)
+    region = None if region is None else pya.Region(region.to_itype(layout.dbu))
+    seeds, names = ground_seeds(layout), []
+    for layer, name, polygon in _shapes_at_point(layout, cell, stackup, point):
+        inside = point
+        if region is not None:
+            for part in (pya.Region(polygon) & region).each():
+                if not part.inside(point):
+                    inside = part.decompose_trapezoids()[0].bbox().center()
+                break
+        if (layer, inside) not in seeds:
+            seeds.append((layer, inside))
+        names.append(name)
+    _set_ground_seeds(layout, seeds)
+    return names
+
+
+def unmark_ground_at(layout, cell, stackup, point):
+    """Remove the ground marks that lie in the shapes drawn at point (Point in dbu): the marks of a shape you
+    marked by a click or by Mark Selected. Returns the names of the metals unmarked."""
+    names = {l.layer: l.name for l in stackup.layers}
+    kept, removed = [], []
+    for layer, seed in ground_seeds(layout):
+        li = layout.find_layer(layer, 0)
+        hit = False
+        if li is not None:
+            it = cell.begin_shapes_rec_touching(li, pya.Box(point, point))
+            while not it.at_end() and not hit:
+                shape = it.shape()
+                hit = not shape.is_text() and shape.polygon is not None and shape.polygon.transformed(it.trans()).inside(seed)
+                it.next()
+        if hit:
+            removed.append(names.get(layer, str(layer)))
+        else:
+            kept.append((layer, seed))
+    if removed:
+        _set_ground_seeds(layout, kept)
+    return removed
+
+
+def ground_tool():
+    view, cv = _current()
+    if view is not None:
+        view.switch_mode("em_ground_tool")
 
 
 def clear_ground():
@@ -1354,8 +1451,9 @@ def _create_circuit():
 
 
 def install_menu():
-    from .tool import PortToolFactory
+    from .tool import GroundToolFactory, PortToolFactory
     _actions.append(PortToolFactory())     # registers the EM Port tool in the toolbar
+    _actions.append(GroundToolFactory())   # and the EM Ground tool
     menu = pya.Application.instance().main_window().menu()
     if not menu.is_valid("em_menu"):
         menu.insert_menu("help_menu", "em_menu", "EM")    # own menu in the menu bar, before Help
@@ -1366,6 +1464,7 @@ def install_menu():
                ("fill_and_merge", "Fill Density Holes and Merge Metal", fill_and_merge),
                None,
                ("port_tool", "EM Port Tool (click edge: via port, Shift+click gap: in-plane port)", port_tool),
+               ("ground_tool", "EM Ground Tool (click metal: mark it as ground, Shift+click: unmark)", ground_tool),
                ("port_settings", "Port Settings...", port_settings),
                ("port_overview", "Port Overview", port_overview),
                None,
@@ -1385,6 +1484,8 @@ def install_menu():
         action.title = title
         if name == "port_tool":
             action.icon = PORT_ICON
+        elif name == "ground_tool":
+            action.icon = GROUND_ICON
         action.on_triggered = _with_refresh(handler)
         _actions.append(action)
         menu.insert_item("em_menu.end", name, action)

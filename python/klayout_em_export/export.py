@@ -30,6 +30,9 @@ class ExportResult:
         return "\n".join(lines)
 
 
+EM_REGION = (800, 0)      # marker layer: a box on it keeps the export region in the layout
+
+
 def marker_box(layout, cell, marker):
     """Bounding box (DBox, um) of the shapes on the marker layer (layer, datatype) in cell, or None."""
     li = layout.find_layer(*marker)

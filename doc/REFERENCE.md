@@ -19,7 +19,9 @@ summary; the arrow shows its details and buttons.
   every refresh (a very large region: Run Checks in the details).
   - The ground is found from the via ports: of the nets at both ends of the via ports, the one most ports reach (on
     a tie, the larger one). Which end is from and which is to does not matter.
-  - Details: **Mark Selected** marks the selected metal shapes as ground instead (stored in the layout), **Use
+  - Details: **Mark Selected** marks the selected metal shapes as ground instead (stored in the layout); **Mark at
+    Click** starts the **EM Ground** tool (toolbar, EM menu): a click marks every traced metal drawn under it,
+    through the hierarchy, Shift+click unmarks the shapes under it; **Use
     Ports** forgets the marks, **Show in Layout** outlines the ground net.
   - Only wiring is traced: the stackup's conductors above the device level, connected by the vias between
     vertically adjacent metals (from the stackup's z positions). Activ, Cont, resistors and the PEC sheets are left
