@@ -536,16 +536,23 @@ class EMPanel(pya.QWidget):
             self._add_row(("port", port), (str(port.number), str(layer), text, "", "; ".join(problems) or "ok"))
         wall = self.port_walls.isChecked()
         proposed = [c for c in crossings if c.needs(wall)]
-        unground = [c for c in crossings if not c.ground and c.port is None and not c.needs(wall)]
+        unground = [c for c in crossings if not c.ground and not c.plane and c.port is None and not c.needs(wall)]
         for c in proposed:
             to = f"in-plane, port wall {WALL_OF[c.side]}" if wall else c.ground_layer[1]
             self._add_row(("proposed", c), ("–", "–", f"{c.name} cut ({c.side} edge) → {to}",
                                             "", "proposed: double-click or Create Proposed Ports"))
-        for c in unground:
-            self._add_row(("cut", c), ("–", "–", f"{c.name} cut ({c.side} edge)", "",
-                                       "signal cut, but no ground metal reaching this side: mark ground or add a "
-                                       "port by hand" if wall else
-                                       "signal cut, but no ground metal at the cut: add a port by hand"))
+        no_ground = self.result is not None and not self.result.net
+        if unground and no_ground:
+            # without any ground, every cut metal counts as signal: one line instead of a long list
+            self._add_row(("cut", unground[0]), ("–", "–", f"{len(unground)} metal cut(s) at the box edge", "",
+                                                 "no ground marked yet: mark ground (Ground details), then the cuts "
+                                                 "are sorted into ground and signal"))
+        else:
+            for c in unground:
+                self._add_row(("cut", c), ("–", "–", f"{c.name} cut ({c.side} edge)", "",
+                                           "signal cut, but no ground metal reaching this side: mark ground or add a "
+                                           "port by hand" if wall else
+                                           "signal cut, but no ground metal at the cut: add a port by hand"))
         self.table.resizeColumnsToContents()
         self.create_button.setText(f"Create {len(proposed)} Proposed Port(s)" if proposed else "Create Proposed Ports")
         self.create_button.setEnabled(bool(proposed))
@@ -555,7 +562,7 @@ class EMPanel(pya.QWidget):
         if proposed:
             parts.append(f"{len(proposed)} proposed at the cut")
         if unground:
-            parts.append(f"{len(unground)} cut without ground")
+            parts.append(f"{len(unground)} cut, no ground marked" if no_ground else f"{len(unground)} cut without ground")
         state = ERROR if not ports and not proposed else WARN if (problems_total or proposed or unground) else OK
         self.ports_step.set(state, ", ".join(parts) if ports or proposed else
                             "none yet: EM Port tool, or ports proposed where the EM region box cuts conductors")

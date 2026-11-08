@@ -1,7 +1,8 @@
 """Ports where conductors cross the EM region box: the export cuts them there.
 
 A crossing is a piece of a metal edge that lies on the box edge after clipping. Crossings of the ground net
-(connectivity.check_ground) get no port. A signal crossing gets a via port along the cut, from the signal metal to
+(connectivity.check_ground) get no port, and neither does a plane: a metal that covers the whole side of the box
+(the crossing is as long as that side) is a plane, not a line, whether or not it is marked as ground. A signal crossing gets a via port along the cut, from the signal metal to
 the ground metal found at the cut (the one closest in height if there are several): a zero-width box on the box
 edge, in the source layout, with complete settings (from = lower metal, to = upper metal, direction Z, as the port
 dialog's default). The export clips the metal exactly there, so the port sits on the cut.
@@ -32,6 +33,7 @@ class Crossing:
         self.name = name            # stackup name of the metal
         self.edge = edge            # pya.Edge on the box edge (dbu)
         self.ground = False         # part of the ground net: no port
+        self.plane = False          # covers the whole side of the box: a plane, no port
         self.ground_layer = None    # (GDS layer, name) of the ground metal at the cut, for a signal crossing
         self.wall_ground = False    # ground metal reaches this side of the box (any metal): enough for a port wall
         self.port = None            # number of a port already on this crossing
@@ -44,13 +46,15 @@ class Crossing:
     def needs(self, port_wall=False):
         """Whether a port is proposed here: a signal crossing without a port, with ground for the kind of port
         (port_wall: ground reaching this side on any metal; else ground on another metal at the cut)."""
-        if self.ground or self.port is not None:
+        if self.ground or self.plane or self.port is not None:
             return False
         return self.wall_ground if port_wall else self.ground_layer is not None
 
     def status(self, port_wall=False):
         if self.ground:
             return "ground"
+        if self.plane:
+            return "plane across the whole side, no port"
         if self.port is not None:
             return f"port {self.port}"
         if port_wall:
@@ -110,6 +114,7 @@ def find_crossings(layout, cell, stackup, box, ground):
                 line = _line(edge)
                 crossing.ground = layer in ground.net and not ground.net[layer].interacting(line).is_empty()
                 crossing.wall_ground = side in grounded
+                crossing.plane = edge.length() >= side_edge.length() - 1
                 crossing.port = next((n for n, b in ports if not line.interacting(pya.Region(b.enlarged(1, 1))).is_empty()
                                       and (b.width() == 0 or b.height() == 0)), None)
                 if not crossing.ground:

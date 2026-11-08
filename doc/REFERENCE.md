@@ -81,7 +81,8 @@ summary; the arrow shows its details and buttons.
     closest in height), from = lower, to = upper, direction Z, Z0 50 Ohm. The export cuts the metal there, so the
     port sits exactly on the cut. These ports are tagged (GDS property 201 = "boundary"); if the box is moved,
     they are reported as no longer on the edge. Proposals need the EM region box, since the ports are drawn in
-    the layout. With **as port walls** ticked, the proposed ports are in-plane ports on the cut metal instead,
+    the layout. A metal that covers a whole side of the box (the cut is as long as the side) is a plane, not a port
+    candidate, marked as ground or not. With **as port walls** ticked, the proposed ports are in-plane ports on the cut metal instead,
     pointing into the region (direction X, -X, Y or -Y), for a gds2palace port wall on that side. They need
     ground metal reaching that side of the box on any metal, also the cut metal itself (a coplanar line); a via
     port needs ground on another metal at the cut.

@@ -118,6 +118,9 @@ um2 = lambda v: round(v / cpw.dbu)
 tm2 = cpw.layer(134, 0)
 for y0, y1 in ((-5, 5), (10, 40), (-40, -10)):
     top.shapes(tm2).insert(pya.Box(um2(0), um2(y0), um2(200), um2(y1)))
+# and a Metal1 plane under everything, larger than the box, not marked as ground: it covers every whole side
+# of the box, so it is a plane, not a port candidate
+top.shapes(cpw.layer(8, 0)).insert(pya.Box(um2(-20), um2(-80), um2(220), um2(80)))
 cbox = pya.Box(um2(20), um2(-60), um2(180), um2(60))
 seeds = [(134, pya.Point(um2(100), um2(25))), (134, pya.Point(um2(100), um2(-25)))]
 g = check_ground(cpw, top, st, cbox, seeds=seeds, ports=collect_ports(cpw, top, cbox, stackup=st))
@@ -126,6 +129,10 @@ print("cpw crossings:", [(c.side, "ground" if c.ground else "signal", c.status()
 via_proposed = [c for c in cross if c.needs(False)]
 wall_proposed = [c for c in cross if c.needs(True)]
 print("cpw proposed: via", len(via_proposed), "port wall", len(wall_proposed))
+planes = [c for c in cross if c.plane]
+print("cpw planes:", [(c.side, c.name, c.status()) for c in planes])
+if sorted((c.side, c.name) for c in planes) != [(side, "Metal1") for side in ("bottom", "left", "right", "top")] or any(c.needs(True) for c in planes):
+    print("FAIL: the Metal1 plane across the whole side must be a plane, not a port candidate")
 if via_proposed or len(wall_proposed) != 2:
     print("FAIL: a coplanar line gets no via port, but one port wall port at each cut")
 made_cpw = create_ports(NoUndo(), top, st, cross, port_wall=True)
@@ -133,3 +140,20 @@ cports = collect_ports(cpw, top, cbox, stackup=st)
 print("cpw ports:", made_cpw, [str(cports[200 + n].settings) for n in made_cpw], "walls:", port_wall_sides(cports, cbox))
 if sorted(cports[200 + n].settings.direction for n in made_cpw) != ["-X", "X"] or port_wall_sides(cports, cbox) != ["xmin", "xmax"]:
     print("FAIL: cpw port wall ports")
+
+# the panel on the coplanar layout without any ground mark: one row for all cuts ("mark ground"), not one per cut
+cpw.add_meta_info(pya.LayoutMetaInfo(META_STACKUP, st.path, "", True))
+top.shapes(cpw.layer(800, 0)).insert(cbox)
+for layer in (201, 202):
+    top.shapes(cpw.layer(layer, 0)).clear()
+cpw_file = os.path.join(OUT, "cpw_noground.gds")
+cpw.write(cpw_file)
+view3 = pya.LayoutView(True)
+view3.load_layout(cpw_file, True)
+view3.active_cellview().layout().add_meta_info(pya.LayoutMetaInfo(META_STACKUP, st.path, "", True))
+EMPanel._view = lambda self: (view3, view3.active_cellview())
+panel3 = EMPanel()
+rows3 = [[panel3.table.item(r, c).text for c in (2, 4)] for r in range(panel3.table.rowCount)]
+print("cpw panel without ground:", rows3, "|", panel3.ports_step.summary.text)
+if len(rows3) != 1 or "mark ground" not in rows3[0][1]:
+    print("FAIL: without ground the panel must show one row asking to mark ground")

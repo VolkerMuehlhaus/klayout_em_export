@@ -381,6 +381,10 @@ Metal5. The orange boxes are the transistors' and resistors' REF patches (chapte
 near the cut to use as reference. Place that port yourself with the EM Port tool, or choose a region box that does
 not cut there.
 
+A metal that covers a whole side of the box, the cut being as long as the side, is a plane, not a line: it is
+never proposed as a port, whether or not it is marked as ground. If the Ground line says "not found", mark your
+ground first (chapter 7); otherwise every cut metal counts as signal and the list is long.
+
 ### Port walls: calibrated ports at the cut
 
 A via port at the cut includes the port's own inductance, which setupEM can only estimate. gds2palace can instead
@@ -939,6 +943,7 @@ In your circuit simulator, set each instance's temperature rise to its `dT_mean_
 | short circuit: both ends of via port(s) ... on the same net | the port is shorted by the layout | check the port's from/to layers |
 | the marked ground is N separate pieces in the region | the marked ground pieces connect only outside the region | enlarge the region, or check the marks |
 | large region, not checked: Run Checks in the details | checks are skipped for speed | press Run Checks |
+| N cut, no ground marked | the region box cuts metal, but no ground is marked yet, so every cut counts as signal (one row for all) | mark ground (chapter 7); the cuts are then sorted into ground and signal |
 | N cut without ground | the region box cuts signal wires with no ground metal nearby | place those ports by hand |
 | no PDK devices (SG13_dev pcells) in the cell | transistors not recognized | load the IHP PDK in KLayout |
 | N pair(s) of REF patches touch | two devices would share a reference | keep devices apart, or check the layout |
