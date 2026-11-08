@@ -81,7 +81,10 @@ summary; the arrow shows its details and buttons.
     closest in height), from = lower, to = upper, direction Z, Z0 50 Ohm. The export cuts the metal there, so the
     port sits exactly on the cut. These ports are tagged (GDS property 201 = "boundary"); if the box is moved,
     they are reported as no longer on the edge. Proposals need the EM region box, since the ports are drawn in
-    the layout.
+    the layout. With **as port walls** ticked, the proposed ports are in-plane ports on the cut metal instead,
+    pointing into the region (direction X, -X, Y or -Y), for a gds2palace port wall on that side. They need
+    ground metal reaching that side of the box on any metal, also the cut metal itself (a coplanar line); a via
+    port needs ground on another metal at the cut.
   - Ports drawn with KLayout's own tools appear on **Refresh**.
 - **Export for EM...** and **Open in setupEM** or **Open in EMStudio** (the last export of this layout, without
   exporting again; the program last chosen in the export dialog, the other one is in the EM menu).
@@ -160,6 +163,8 @@ The same steps are in the **EM** menu in the menu bar, top to bottom in workflow
    - Exporting again updates an existing `.simcfg`: the GDS file, stackup, cell and ports are set, everything
      else (frequencies, mesh, ... saved with setupEM's Save Config) is kept. The ports always come from the
      layout, where they are defined.
+   - Port walls: every side of the region with an in-plane port on it (made with **as port walls**, or drawn by hand)
+     gets `PORTWALL` in the `.simcfg`'s `boundary`; the other sides keep their value (`ABC` in a new file).
    - After the export, model scripts (`*.py` next to the GDS and in setupEM's `sim_path`) that read this GDS but
      have other ports are reported (port number, layer, direction, from/to/target; not excitation or Z0): run as
      they are, their S-parameters would not match the new port map. The warning is short (script name, number of
@@ -294,7 +299,7 @@ file or on stdin: `{"command": "status", "gds": "core.gds", ...}`. Coordinates a
 | `add_inplane_port` | An in-plane port across the narrowest gap around `x`, `y` (within `reach`, default 20 µm). |
 | `set_port`, `remove_port` | Change (`direction`, `from`, `to`, `target`, `z0`, `excited`) or remove port `port`. |
 | `set_region` | The EM region box: `box` [x1, y1, x2, y2], or `null` to remove it. |
-| `boundary_ports` | Metals crossing the region's edge; with `create: true`, ports on those that need one (Create Proposed Ports). |
+| `boundary_ports` | Metals crossing the region's edge; with `create: true`, ports on those that need one (Create Proposed Ports); with `port_wall: true`, in-plane ports for a port wall. |
 | `mark_ground` | Ground marks: `points` [[metal, x, y], ...]; `clear: true` removes the earlier ones. |
 | `devices` | `action`: `list`, `replace` (`resistors`, default true) or `unreplace`. |
 | `export` | The EM layout `out` (.gds) with its .simcfg and port map, from `box`, else the EM region, else the whole cell (`whole: true` ignores the region). Same result as the export dialog. |

@@ -383,6 +383,35 @@ Metal5. The orange boxes are the transistors' and resistors' REF patches (chapte
 near the cut to use as reference. Place that port yourself with the EM Port tool, or choose a region box that does
 not cut there.
 
+### Port walls: calibrated ports at the cut
+
+A via port at the cut includes the port's own inductance, which setupEM can only estimate. gds2palace can instead
+calibrate the ports at the cut: the side of the region becomes a *port wall*, a metal wall right at the layout edge,
+and the port is removed from the result by two short line standards with the same cross-section (see "Calibrated
+de-embedding at port walls" in the gds2palace user guide).
+
+1. Tick **as port walls** next to **Create Proposed Ports**. The proposed rows now say "in-plane, port wall ymin"
+   (or xmin, xmax, ymax).
+2. Press **Create Proposed Ports**. Each new port is an in-plane port on the cut metal, pointing into the region.
+3. Export. The export makes every side of the region with an in-plane port on it a port wall in the .simcfg; the
+   other sides keep their boundary. The status line names the port walls.
+
+An in-plane port that you draw yourself on the region's edge also makes that side a port wall. Unticked, the
+plug-in makes via ports as before: they work with any boundary, so they stay the default.
+
+Port walls need a region box that cuts the layout where the lines are simple:
+
+- **Straight lines, cut at a right angle.** The cross-section at the cut must stay the same for some length into
+  the region: at least D, the span of the lines plus twice their distance to ground, and better also half the
+  device's size. setupEM shows both numbers and warns when the device is closer; a port wall can also be moved
+  outward (Extension in setupEM).
+- **Ground metal that reaches the cut** next to or under the lines. Ground on the same metal is enough here,
+  e.g. the ground strips of a coplanar line (a via port would need another metal). If the Ground line says
+  "not found", mark the ground strips first (Mark Selected in the Ground details).
+- **No cheesing holes at the cut.** The standards copy the cross-section at the wall along their whole length, so a
+  hole that the cut goes through would become a slot in them. Run **Fill Density Holes and Merge Metal** first;
+  setupEM's check reports a cross-section that changes right at the wall.
+
 ## Transistors and resistors
 
 > **In this chapter:** replacing the transistors and resistors by ports.

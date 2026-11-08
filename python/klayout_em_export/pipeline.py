@@ -8,6 +8,7 @@ import os
 
 from .connectivity import check_ground, port_nets
 from .devices import device_shapes, find_devices, mark_replaced, orphaned_tags, unconnected_terminals
+from .boundary import port_wall_sides
 from .export import export_flat
 from .ports import (check_ports, collect_ports, export_directions, export_numbering, export_port_numbers,
                     is_complete, port_map, ports_of, simcfg_ports)
@@ -104,9 +105,16 @@ def export_em(layout, cell, stackup, gds_path, technology, box=None, selection=N
     nets = port_nets(ports, check_ground(layout, cell, stackup, _clip(layout, box), seeds, ports))
     directions = export_directions(ports, nets, stackup)    # every via port: signal metal on the same end
     port_list = simcfg_ports(ports, numbering, directions)
-    kept = write_simcfg(base + ".simcfg", gds_path, stackup.path, result.cellname, ports=port_list, purpose=purposes)
+    # in-plane ports on the region's edge: those sides are port walls (ports made with Create Proposed Ports as
+    # port walls, or drawn by hand there)
+    region = (selection.bbox() if selection is not None else box.to_itype(layout.dbu) if box is not None
+              else cell.bbox())
+    walls = port_wall_sides(ports, region)
+    kept = write_simcfg(base + ".simcfg", gds_path, stackup.path, result.cellname, ports=port_list, purpose=purposes,
+                        port_walls=walls)
     with open(base + "_portmap.json", "w") as f:
         json.dump(port_map(ports, numbering, devices, nets, directions, technology.NAME), f, indent=2)
     return {"gds": gds_path, "simcfg": base + ".simcfg", "portmap": base + "_portmap.json",
             "cellname": result.cellname, "ports": len(ports), "simcfg_ports": len(port_list),
-            "kept_settings": kept, "port_list": port_list, "purposes": list(purposes), "report": result.report()}
+            "kept_settings": kept, "port_list": port_list, "purposes": list(purposes), "report": result.report(),
+            "port_walls": walls}

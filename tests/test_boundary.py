@@ -62,3 +62,74 @@ EMPanel._view = lambda self: (view, view.active_cellview())
 panel = EMPanel()
 print("panel:", [(kind, panel.table.item(r, 0).text, panel.table.item(r, 3).text) for r, (kind, item) in enumerate(panel.rows)])
 print("moved box -> boundary ports off the edge:", moved_ports(ly, cell, box.moved(0, round(2 / ly.dbu))))
+
+# as port walls: the same crossings get in-plane ports on the cut metal, pointing into the region, and the export
+# writes that side as a gds2palace port wall into the .simcfg (other sides kept)
+import json
+from klayout_em_export.boundary import port_wall_sides
+from klayout_em_export.simcfg import with_port_walls
+view2 = pya.LayoutView(True)
+idx2 = view2.load_layout(layout_file("OctaDiffTap_0n50_ports3.gds"), True)
+ly2 = view2.cellview(idx2).layout()
+cell2 = ly2.top_cell()
+ground2 = check_ground(ly2, cell2, st, box, seeds=[(8, inside)], ports=collect_ports(ly2, cell2, box, stackup=st))
+crossings2 = find_crossings(ly2, cell2, st, box, ground2)
+print("port wall status:", [c.status(True) for c in crossings2 if c.needs_port])
+numbers2 = create_ports(NoUndo(), cell2, st, crossings2, port_wall=True)
+ports2 = collect_ports(ly2, cell2, box, stackup=st)
+made = [ports2[200 + n].settings for n in numbers2]
+print("port wall ports:", numbers2, [str(s) for s in made])
+if not numbers2 or any(s.is_via or s.direction != "Y" or s.target != "TopMetal2" for s in made):
+    print("FAIL: port wall ports are not in-plane ports on TopMetal2 pointing into the region (Y)")
+walls = port_wall_sides(ports2, box)
+print("port wall sides:", walls)
+if walls != ["ymin"]:
+    print("FAIL: expected the bottom side (ymin) as the only port wall")
+gds2 = os.path.join(OUT, "octa_cut_portwall_em.gds")
+result2 = export_flat(ly2, cell2, st, gds2, box=dbox)
+cfg2 = gds2.replace(".gds", ".simcfg")
+if os.path.exists(cfg2):
+    os.remove(cfg2)
+write_simcfg(cfg2, gds2, st.path, result2.cellname, ports=simcfg_ports(ports2), port_walls=walls)
+boundary2 = json.load(open(cfg2))["saved_values"]["boundary"]
+print("boundary in the new .simcfg:", boundary2)
+if boundary2 != ["ABC", "ABC", "PORTWALL", "ABC", "ABC", "ABC"]:
+    print("FAIL: new .simcfg boundary")
+data = json.load(open(cfg2))
+data["saved_values"]["boundary"] = ["PEC", "ABC", "ABC", "PMC", "ABC", "PEC"]   # the user's own choice in setupEM
+json.dump(data, open(cfg2, "w"))
+write_simcfg(cfg2, gds2, st.path, result2.cellname, ports=simcfg_ports(ports2), port_walls=walls)
+boundary3 = json.load(open(cfg2))["saved_values"]["boundary"]
+print("boundary in the updated .simcfg:", boundary3)
+if boundary3 != ["PEC", "ABC", "PORTWALL", "PMC", "ABC", "PEC"]:
+    print("FAIL: an update must only set the port wall sides")
+if with_port_walls("PEC", ["xmax"]) != ["PEC", "PORTWALL", "PEC", "PEC", "PEC", "PEC"]:
+    print("FAIL: a single boundary value")
+print("no port wall for via ports:", port_wall_sides(collect_ports(ly, cell, box, stackup=st), box))
+if port_wall_sides(collect_ports(ly, cell, box, stackup=st), box):
+    print("FAIL: via ports at the cut must not make a port wall")
+
+# coplanar line (signal and both ground strips on TopMetal2), region box cutting it at the left and right: no other
+# metal at the cut, so no via port; as port walls the ground strips on the same metal are enough
+cpw = pya.Layout()
+cpw.dbu = 0.001
+top = cpw.create_cell("cpw")
+um2 = lambda v: round(v / cpw.dbu)
+tm2 = cpw.layer(134, 0)
+for y0, y1 in ((-5, 5), (10, 40), (-40, -10)):
+    top.shapes(tm2).insert(pya.Box(um2(0), um2(y0), um2(200), um2(y1)))
+cbox = pya.Box(um2(20), um2(-60), um2(180), um2(60))
+seeds = [(134, pya.Point(um2(100), um2(25))), (134, pya.Point(um2(100), um2(-25)))]
+g = check_ground(cpw, top, st, cbox, seeds=seeds, ports=collect_ports(cpw, top, cbox, stackup=st))
+cross = find_crossings(cpw, top, st, cbox, g)
+print("cpw crossings:", [(c.side, "ground" if c.ground else "signal", c.status(), c.status(True)) for c in cross])
+via_proposed = [c for c in cross if c.needs(False)]
+wall_proposed = [c for c in cross if c.needs(True)]
+print("cpw proposed: via", len(via_proposed), "port wall", len(wall_proposed))
+if via_proposed or len(wall_proposed) != 2:
+    print("FAIL: a coplanar line gets no via port, but one port wall port at each cut")
+made_cpw = create_ports(NoUndo(), top, st, cross, port_wall=True)
+cports = collect_ports(cpw, top, cbox, stackup=st)
+print("cpw ports:", made_cpw, [str(cports[200 + n].settings) for n in made_cpw], "walls:", port_wall_sides(cports, cbox))
+if sorted(cports[200 + n].settings.direction for n in made_cpw) != ["-X", "X"] or port_wall_sides(cports, cbox) != ["xmin", "xmax"]:
+    print("FAIL: cpw port wall ports")

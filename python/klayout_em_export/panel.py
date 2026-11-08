@@ -13,7 +13,7 @@ import os
 import pya
 
 from . import gui
-from .boundary import find_crossings
+from .boundary import WALL_OF, find_crossings
 from .connectivity import check_ground, wiring
 from .export import marker_box
 from .lvs import assign_names, read_lvs_devices
@@ -223,8 +223,14 @@ class EMPanel(pya.QWidget):
                        "click a metal edge: via port; Shift+click into a gap: in-plane port")
         tool.setIcon(pya.QIcon(gui.PORT_ICON))
         self.create_button = _button("Create Proposed Ports", self._create_proposed,
-                                     "via ports where the EM region box cuts signal conductors")
-        self.tool_row = _row_widget(tool, self.create_button)
+                                     "ports where the EM region box cuts signal conductors: via ports to the ground "
+                                     "metal at the cut, or, as port walls, in-plane ports on the cut metal")
+        self.port_walls = pya.QCheckBox("as port walls")
+        self.port_walls.setToolTip("proposed ports as in-plane ports on the cut metal, pointing into the region; the "
+                                   "export makes those sides gds2palace port walls (PEC at the layout edge, the "
+                                   "ports calibrated). Unticked: via ports to the ground metal at the cut")
+        self.port_walls.stateChanged += lambda state: self.refresh()
+        self.tool_row = _row_widget(tool, self.create_button, self.port_walls)
         self.refresh_button = _button("Refresh", lambda: self.refresh())
         row = pya.QHBoxLayout()
         row.addWidget(self.tool_row)
@@ -528,13 +534,17 @@ class EMPanel(pya.QWidget):
                 name = self.device_types.get(device[0]) or device[0].split("@")[0]    # the type, not a cell name
                 text += f"  [{device[1]} of {'#' + str(k) + ' ' if k else ''}{name}]"
             self._add_row(("port", port), (str(port.number), str(layer), text, "", "; ".join(problems) or "ok"))
-        proposed = [c for c in crossings if c.needs_port]
-        unground = [c for c in crossings if not c.ground and c.port is None and c.ground_layer is None]
+        wall = self.port_walls.isChecked()
+        proposed = [c for c in crossings if c.needs(wall)]
+        unground = [c for c in crossings if not c.ground and c.port is None and not c.needs(wall)]
         for c in proposed:
-            self._add_row(("proposed", c), ("–", "–", f"{c.name} cut ({c.side} edge) → {c.ground_layer[1]}",
+            to = f"in-plane, port wall {WALL_OF[c.side]}" if wall else c.ground_layer[1]
+            self._add_row(("proposed", c), ("–", "–", f"{c.name} cut ({c.side} edge) → {to}",
                                             "", "proposed: double-click or Create Proposed Ports"))
         for c in unground:
             self._add_row(("cut", c), ("–", "–", f"{c.name} cut ({c.side} edge)", "",
+                                       "signal cut, but no ground metal reaching this side: mark ground or add a "
+                                       "port by hand" if wall else
                                        "signal cut, but no ground metal at the cut: add a port by hand"))
         self.table.resizeColumnsToContents()
         self.create_button.setText(f"Create {len(proposed)} Proposed Port(s)" if proposed else "Create Proposed Ports")
@@ -902,7 +912,7 @@ class EMPanel(pya.QWidget):
         view, cv = self._view()
         if view is None or not crossings:
             return
-        numbers = gui.create_boundary_ports(view, cv, crossings)
+        numbers = gui.create_boundary_ports(view, cv, crossings, self.port_walls.isChecked())
         self.refresh()
         gui._status(f"port(s) {', '.join(map(str, numbers))} created at the cut", 10)
 

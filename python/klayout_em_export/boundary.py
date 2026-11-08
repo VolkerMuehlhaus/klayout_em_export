@@ -6,6 +6,12 @@ the ground metal found at the cut (the one closest in height if there are severa
 edge, in the source layout, with complete settings (from = lower metal, to = upper metal, direction Z, as the port
 dialog's default). The export clips the metal exactly there, so the port sits on the cut.
 
+As port walls (port_wall=True), a signal crossing gets an in-plane port instead: the same zero-width box, on the cut
+metal (target), pointing into the region. It needs ground metal reaching the same side of the box, on any metal,
+also the cut metal itself (a coplanar line: ground strips beside it); a via port needs it on another metal. Such a port needs gds2palace's port wall on that side (a PEC wall at the
+layout edge; the port is then calibrated): the export writes it into the .simcfg (port_wall_sides). Without a port
+wall, an in-plane port at the layout edge has no ground to connect to, so via ports stay the default.
+
 This needs a region that is kept with the layout, so it works on the EM region box (layer 800/0) only.
 """
 import pya
@@ -15,6 +21,8 @@ from .locate import create_layers, free_port_layers, next_port_layer
 from .ports import PROP_KEY, PortSettings
 
 BOUNDARY_KEY = 201                  # property on ports made here: "boundary" (to find them again)
+INWARD = {"left": "X", "right": "-X", "bottom": "Y", "top": "-Y"}     # in-plane port direction into the region
+WALL_OF = {"left": "xmin", "right": "xmax", "bottom": "ymin", "top": "ymax"}   # gds2palace's name of the side
 
 
 class Crossing:
@@ -25,17 +33,30 @@ class Crossing:
         self.edge = edge            # pya.Edge on the box edge (dbu)
         self.ground = False         # part of the ground net: no port
         self.ground_layer = None    # (GDS layer, name) of the ground metal at the cut, for a signal crossing
+        self.wall_ground = False    # ground metal reaches this side of the box (any metal): enough for a port wall
         self.port = None            # number of a port already on this crossing
 
     @property
     def needs_port(self):
-        return not self.ground and self.port is None and self.ground_layer is not None
+        """a via port: needs ground on another metal at the cut"""
+        return self.needs(False)
 
-    def status(self):
+    def needs(self, port_wall=False):
+        """Whether a port is proposed here: a signal crossing without a port, with ground for the kind of port
+        (port_wall: ground reaching this side on any metal; else ground on another metal at the cut)."""
+        if self.ground or self.port is not None:
+            return False
+        return self.wall_ground if port_wall else self.ground_layer is not None
+
+    def status(self, port_wall=False):
         if self.ground:
             return "ground"
         if self.port is not None:
             return f"port {self.port}"
+        if port_wall:
+            if not self.wall_ground:
+                return "signal, no ground metal reaching this side"
+            return f"signal -> port on {self.name} at the port wall ({WALL_OF[self.side]})"
         if self.ground_layer is None:
             return "signal, no ground metal at the cut"
         return f"signal -> port to {self.ground_layer[1]}"
@@ -75,6 +96,9 @@ def find_crossings(layout, cell, stackup, box, ground):
     z = {l.layer: stackup.z_range(l) for l in stackup.layers}
     ports = _port_lines(layout, cell, box, stackup)
     out = []
+    # sides of the box that ground metal reaches (any metal): enough ground for a port wall there
+    grounded = {side for side, side_edge in _sides(box).items()
+                if any(not r.interacting(_line(side_edge)).is_empty() for r in ground.net.values())}
     for layer, region in sorted(ground.metals.items()):
         edges = region.edges()
         for side, side_edge in _sides(box).items():
@@ -85,6 +109,7 @@ def find_crossings(layout, cell, stackup, box, ground):
                 crossing = Crossing(side, layer, ground.names[layer], edge.dup())
                 line = _line(edge)
                 crossing.ground = layer in ground.net and not ground.net[layer].interacting(line).is_empty()
+                crossing.wall_ground = side in grounded
                 crossing.port = next((n for n, b in ports if not line.interacting(pya.Region(b.enlarged(1, 1))).is_empty()
                                       and (b.width() == 0 or b.height() == 0)), None)
                 if not crossing.ground:
@@ -118,27 +143,52 @@ def moved_ports(layout, cell, box):
     return sorted(set(out))
 
 
-def create_ports(view, cell, stackup, crossings, z0=50.0):
-    """Via ports on the given crossings (those that need one), in cell. Returns the new port numbers."""
+def port_wall_sides(ports, box):
+    """gds2palace port walls for the export of box (Box in dbu): the sides of box with an in-plane port on them
+    (a port shape with an edge on that side of the box). ports: {layer: Port}. Returns e.g. ['xmin', 'xmax']."""
+    out = set()
+    for port in ports.values():
+        if port.settings is None or port.settings.is_via:
+            continue
+        for shape, trans, _ in port.items:
+            b = shape.bbox().transformed(trans)
+            if b.left == box.left:
+                out.add("xmin")
+            if b.right == box.right:
+                out.add("xmax")
+            if b.bottom == box.bottom:
+                out.add("ymin")
+            if b.top == box.top:
+                out.add("ymax")
+    return [side for side in ("xmin", "xmax", "ymin", "ymax") if side in out]
+
+
+def create_ports(view, cell, stackup, crossings, z0=50.0, port_wall=False):
+    """Ports on the given crossings (those that need one), in cell: via ports to the ground metal at the cut, or
+    with port_wall, in-plane ports on the cut metal pointing into the region (for a gds2palace port wall).
+    Returns the new port numbers."""
     layout = cell.layout()
     z = {l.name: stackup.z_range(l) for l in stackup.layers}
     numbers = []
-    needed = sum(c.needs_port for c in crossings)
+    needed = sum(c.needs(port_wall) for c in crossings)
     create_layers(layout, [(l, 0) for l in free_port_layers(layout, cell, needed, stackup=stackup)])
     view.transaction("Boundary ports")
     try:
         for crossing in crossings:
-            if not crossing.needs_port:
+            if not crossing.needs(port_wall):
                 continue
             layer = next_port_layer(layout, cell, stackup=stackup)
             if layer is None:
                 break
-            a, b = crossing.name, crossing.ground_layer[1]
-            lower, upper = (a, b) if z[a] and z[b] and z[a][1] < z[b][1] else (b, a)
+            if port_wall:
+                settings = PortSettings(INWARD[crossing.side], target=crossing.name, z0=z0)
+            else:
+                a, b = crossing.name, crossing.ground_layer[1]
+                lower, upper = (a, b) if z[a] and z[b] and z[a][1] < z[b][1] else (b, a)
+                settings = PortSettings("Z", lower, upper, z0=z0)
             # both properties at insertion: set_property can move the shape, a second call on the old reference
             # crashes KLayout 0.29.4
-            properties = layout.properties_id([[PROP_KEY, PortSettings("Z", lower, upper, z0=z0).encode()],
-                                               [BOUNDARY_KEY, "boundary"]])
+            properties = layout.properties_id([[PROP_KEY, settings.encode()], [BOUNDARY_KEY, "boundary"]])
             cell.shapes(layout.layer(layer, 0)).insert(crossing.edge.bbox(), properties)
             crossing.port = layer - 200
             numbers.append(layer - 200)

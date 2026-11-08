@@ -358,11 +358,11 @@ def fill_and_merge():
                         "the density rules.", pya.MessageBox.Ok)
 
 
-def create_boundary_ports(view, cv, crossings):
+def create_boundary_ports(view, cv, crossings, port_wall=False):
     from .boundary import create_ports
     stackup = read_stackup(stackup_path(cv.layout()))[0]
     backup_original(cv.layout())
-    return create_ports(view, cv.cell, stackup, crossings)
+    return create_ports(view, cv.cell, stackup, crossings, port_wall=port_wall)
 
 
 # ---------- region ----------
@@ -830,7 +830,8 @@ def export_region():
     settings.pop("export_mode", None)      # no longer remembered: a selection always starts as "selected shapes"
     _save_settings(settings)
     _status(f"Exported {gds_path} and {os.path.basename(simcfg_path)} ({len(port_list)} of {result['ports']} port(s) "
-            "in the .simcfg" + ("; setupEM's other settings kept" if kept else "") + ")", 10)
+            "in the .simcfg" + ("; port walls " + ", ".join(result["port_walls"]) if result["port_walls"] else "") +
+            ("; setupEM's other settings kept" if kept else "") + ")", 10)
     _warn_stale_scripts(gds_path, simcfg_path, port_list, tool if open_after else None)
     if open_after:
         open_simcfg(simcfg_path, tool)

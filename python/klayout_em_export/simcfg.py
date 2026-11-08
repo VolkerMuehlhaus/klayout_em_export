@@ -77,8 +77,24 @@ def _existing(path):
     return data
 
 
-def write_simcfg(path, gds_file, stackup_file, cellname, ports=(), purpose=(0,)):
-    """Write or update path. Returns True if an existing setupEM file was updated (its other settings kept)."""
+SIDES = ("xmin", "xmax", "ymin", "ymax", "zmin", "zmax")     # order of settings['boundary']
+
+
+def with_port_walls(boundary, sides):
+    """settings['boundary'] (6 values, a single value or missing) with 'PORTWALL' on sides; the other sides as
+    they were (missing: 'ABC', gds2palace's default)."""
+    if isinstance(boundary, (list, tuple)) and len(boundary) == 6:
+        values = list(boundary)
+    else:
+        values = [boundary if isinstance(boundary, str) and boundary else "ABC"] * 6
+    for side in sides:
+        values[SIDES.index(side)] = "PORTWALL"
+    return values
+
+
+def write_simcfg(path, gds_file, stackup_file, cellname, ports=(), purpose=(0,), port_walls=()):
+    """Write or update path. port_walls: sides (xmin, ...) that get gds2palace's port wall, the other sides keep
+    their boundary. Returns True if an existing setupEM file was updated (its other settings kept)."""
     data = _existing(path)
     updated = data is not None
     if data is None:
@@ -89,6 +105,8 @@ def write_simcfg(path, gds_file, stackup_file, cellname, ports=(), purpose=(0,))
         "SubstrateFile": os.path.abspath(stackup_file).replace("\\", "/"),
         "cellname": cellname,
     })
+    if port_walls:
+        data["saved_values"]["boundary"] = with_port_walls(data["saved_values"].get("boundary"), port_walls)
     data["ports"] = list(ports)
     with open(path, "w") as f:
         json.dump(data, f, indent=4)

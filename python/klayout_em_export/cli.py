@@ -293,7 +293,8 @@ def cmd_remove_port(request, layout, cell):
 
 def cmd_boundary_ports(request, layout, cell):
     """Signal metals crossing the region's edge ('box', else the EM region): listed, and with 'create': true, via
-    ports at those that need one (to the ground metal at the cut), as Create Proposed Ports does."""
+    ports at those that need one (to the ground metal at the cut), as Create Proposed Ports does; with 'port_wall':
+    true, in-plane ports on the cut metal instead (the export then writes those sides as gds2palace port walls)."""
     stackup = stackup_of(request, layout)
     box = _region_box(request, layout, cell)
     if box is None:
@@ -302,9 +303,11 @@ def cmd_boundary_ports(request, layout, cell):
     ground = check_ground(layout, cell, stackup, clip, ground_seeds(layout),
                           region_ports(layout, cell, stackup, box))
     crossings = find_crossings(layout, cell, stackup, clip, ground)
-    created = create_ports(NoUndo(), cell, stackup, crossings, float(request.get("z0", 50))) if request.get("create") else []
+    wall = bool(request.get("port_wall"))
+    created = (create_ports(NoUndo(), cell, stackup, crossings, float(request.get("z0", 50)), port_wall=wall)
+               if request.get("create") else [])
     result = {"crossings": [{"side": c.side, "metal": c.name, "edge": _dbox(layout, c.edge.bbox()),
-                             "status": c.status()} for c in crossings], "created": created}
+                             "status": c.status(wall)} for c in crossings], "created": created}
     return save(request, layout, result) if created else result
 
 

@@ -13,6 +13,7 @@ from klayout_em_export.boundary import create_ports
 from klayout_em_export.gui import META_STACKUP
 from klayout_em_export.panel import EMPanel
 from klayout_em_export.stackup import Stackup
+from klayout_em_export.ports import collect_ports
 
 view = pya.LayoutView(True)   # editable, as in the GUI edit mode
 idx = view.load_layout(layout_file("BM_Ardavan_Rahimian_with_ports_partial.gds"), True)
@@ -23,7 +24,8 @@ ly.add_meta_info(pya.LayoutMetaInfo(META_STACKUP, STACKUP, "", True))   # not se
 
 _load_settings = gui._load_settings
 gui._load_settings = lambda: dict(_load_settings(), panel_mode="em")    # the EM steps, whatever the user last chose
-gui.create_boundary_ports = lambda v, c, crossings: create_ports(NoUndo(), c.cell, Stackup(STACKUP), crossings)
+gui.create_boundary_ports = lambda v, c, crossings, port_wall=False: create_ports(NoUndo(), c.cell, Stackup(STACKUP), crossings,
+                                                                               port_wall=port_wall)
 EMPanel._view = lambda self: (view, view.active_cellview())
 
 
@@ -65,5 +67,21 @@ for layer in range(209, 214):
         ly.top_cell().shapes(li).clear()
 panel.refresh()
 show(panel, "boundary ports removed")
+# as port walls: the proposed rows name the port wall, the new ports are in-plane ports on the cut metal
+panel.port_walls.setChecked(True)
+rows = [ascii(panel.table.item(r, 2).text) for r, (kind, _) in enumerate(panel.rows) if kind == "proposed"]
+print("proposed as port walls:", rows)
+if not rows or not all("port wall" in t for t in rows):
+    print("FAIL: proposed rows do not name the port wall")
+before = set(collect_ports(ly, ly.top_cell()))
+panel._create_proposed()
+made = [p.settings for layer, p in collect_ports(ly, ly.top_cell()).items() if layer not in before]
+print("made as port walls:", [str(s) for s in made])
+if not made or any(s.is_via for s in made):
+    print("FAIL: Create Proposed Ports as port walls made via ports")
+for layer in set(collect_ports(ly, ly.top_cell())) - before:
+    ly.top_cell().shapes(ly.find_layer(layer, 0)).clear()
+panel.port_walls.setChecked(False)
+panel.refresh()
 panel._create_proposed()
 show(panel, "after Create Proposed Ports")
