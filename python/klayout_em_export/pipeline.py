@@ -81,15 +81,20 @@ def export_checks(layout, cell, stackup, ports, devices, seeds=(), box=None):
     return result
 
 
-def export_em(layout, cell, stackup, gds_path, technology, box=None, selection=None, seeds=(), layout_file=None):
+def export_em(layout, cell, stackup, gds_path, technology, box=None, selection=None, seeds=(), layout_file=None,
+              ports=None):
     """Export the region (selection: a completed selection.Selection, else box, a DBox in µm, else the whole cell)
     to gds_path, with <name>.simcfg and <name>_portmap.json next to it. technology: the tech module (its NAME goes
     into the port map, Create Circuit reads it). Returns a dict: gds, simcfg, portmap, cellname, ports (in the
     region), simcfg_ports (complete ones, in the .simcfg), kept_settings (setupEM's own settings kept),
     port_list (the .simcfg ports), purposes (the datatypes kept, em_export_purposes: the previous .simcfg's and those of
     the user's own setup files for layout_file), report (what export_flat kept and dropped).
-    Raises ValueError if the ports can't be numbered (export_numbering)."""
-    ports = region_ports(layout, cell, stackup, box, selection)
+    Raises ValueError if the ports can't be numbered (export_numbering).
+    ports ({layer: Port}): the ports of this export, instead of all ports touching the region (a piece of a split
+    region, export_pieces); only their layers are written then."""
+    given = ports is not None
+    if not given:
+        ports = region_ports(layout, cell, stackup, box, selection)
     numbering = export_numbering(ports, stackup)     # ports 1..N without gaps, see export_numbering
     devices = layout_devices(layout, cell, stackup, technology)[0]
     remove = device_shapes(layout, devices, stackup)    # replaced devices: their shapes below the pins
@@ -100,7 +105,7 @@ def export_em(layout, cell, stackup, gds_path, technology, box=None, selection=N
                              port_layers=numbering, remove=remove)
     else:
         result = export_flat(layout, cell, stackup, gds_path, box=box, purposes=purposes, port_layers=numbering,
-                             remove=remove)
+                             remove=remove, numbered_ports_only=given)
     nets = port_nets(ports, check_ground(layout, cell, stackup, _clip(layout, box), seeds, ports))
     directions = export_directions(ports, nets, stackup)    # every via port: signal metal on the same end
     port_list = simcfg_ports(ports, numbering, directions)

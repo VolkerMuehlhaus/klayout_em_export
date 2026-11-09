@@ -6,6 +6,8 @@
 
 - **Ports in your layout:** click a metal edge; the settings are saved with the layout.
 - **Simulate only the part that matters:** ports are proposed where the region cuts conductors.
+- **Split a large region into pieces:** each piece is its own model, setupEM joins the results at calibrated cuts and
+  reuses the pieces that did not change.
 - **Back to your circuit:** transistors and resistors become ports, and the result returns as a circuit with the PDK
   devices, for ngspice, VACASK or Xyce (Palace only).
 - **Fewer wasted runs:** checks for ground, shorted ports and floating device terminals before you simulate.
@@ -27,6 +29,7 @@ gds2palace or gds2openEMS stackup; device recognition needs a [technology module
 | Open in EMStudio | EMStudio with the `.simcfg` import ([PR #53](https://github.com/IHP-GmbH/EMStudio/pull/53), open) |
 | Thermal (experimental) | gds2palace 0.9.4 or newer, setupEM 0.17 or newer (both on PyPI) |
 | Export again into a setupEM that is already open | Unreleased: branch `klayout-handover` of [setupEM](https://github.com/volkermuehlhaus-claude/setupEM/tree/klayout-handover) |
+| Port walls, split regions (pieces) | Unreleased: gds2palace 0.10.0 (port wall calibration) and setupEM with the split region support (branches `calibrated-deembedding` and `portwall` of the forks) |
 
 ## Install
 
@@ -73,6 +76,8 @@ Open the cascode `tests/data/1_St_Core_v1_forEM.gds` and go through the panel fr
 - Capacitors and inductors are never replaced, and neither is a resistor of several segments.
 - The Spectre circuit is written but not tested.
 - A layout saved after **Fill Density Holes** must not go to tape-out.
+- A split region's joined result has no coupling between the pieces other than through the lines that cross the
+  cuts: cut across simple feed lines, not between coupled parts.
 - Thermal: resistor temperatures are not validated yet, and the comparison with the `rth` of IHP's npn13G2
   model is not settled. Use the temperatures as estimates, and for comparing devices and layouts.
 

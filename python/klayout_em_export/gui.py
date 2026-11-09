@@ -20,9 +20,13 @@ from .simcfg import em_export_purposes, own_setup_files
 from .stackup import Stackup
 from .thermal import describe_markers, export_thermal, heat_sources, heat_target, marker_preview, target_names
 
-SETTINGS_FILE = os.path.join(os.path.expanduser("~"), ".klayout_em_export.json")
+# remembered choices; KLAYOUT_EM_EXPORT_SETTINGS moves the file (the tests use their own, never the user's)
+SETTINGS_FILE = (os.environ.get("KLAYOUT_EM_EXPORT_SETTINGS")
+                 or os.path.join(os.path.expanduser("~"), ".klayout_em_export.json"))
 PORT_ICON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icons", "em_port.png")
 GROUND_ICON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icons", "em_ground.png")
+SPLIT_ICON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icons", "em_split.png")
+REGION_ICON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icons", "em_region.png")
 
 
 def _load_settings():
@@ -507,6 +511,11 @@ def region_source(view, cv):
     if selection.regions:
         return selection.bbox().to_dtype(layout.dbu), "bounding box of the selected shapes", selection
     box = marker_box(layout, cell, EM_REGION)
+    from .regions import read_pieces
+    pieces = read_pieces(layout, cell)[0]
+    if len(pieces) > 1:
+        names = ", ".join(p.name or "(new)" for p in sorted(pieces, key=lambda p: p.number or 0))
+        return box, f"{len(pieces)} EM region pieces ({names}), each exported as its own model", None
     if box is not None:
         return box, f"EM region box (layer {EM_REGION[0]}/{EM_REGION[1]})", None
     return None, f"whole cell {cell.name} (nothing selected, no EM region box)", None
@@ -524,6 +533,12 @@ def mark_region():
                                f"region (layer {EM_REGION[0]}/{EM_REGION[1]}).", pya.MessageBox.Ok)
         return
     layout = cv.layout()
+    from .regions import read_pieces
+    count = len(read_pieces(layout, cv.cell)[0])
+    if count > 1 and pya.MessageBox.question(
+            "EM Export", f"The EM region is split into {count} pieces. Replace them by one region box from the "
+            "selection?", pya.MessageBox.Yes | pya.MessageBox.No) != pya.MessageBox.Yes:
+        return
     backup_original(layout)
     create_layers(layout, [EM_REGION])          # before the undo step (locate.create_layers)
     view.transaction("Mark EM region")
@@ -534,6 +549,41 @@ def mark_region():
         view.add_missing_layers()  # inside the step: after it, KLayout 0.29.4 clears the undo list
     finally:
         view.commit()
+
+
+def region_tool():
+    view, cv = _current()
+    if view is not None:
+        view.switch_mode("em_region_tool")
+
+
+def set_region_box(view, cv, dbox, add=False):
+    """The EM region box from a drawn rectangle (DBox in the coordinates of the view): replaces the region (asks
+    first when it is split into pieces), or with add one more box, a piece of a split region. Returns True when set."""
+    layout, cell = cv.layout(), cv.cell
+    # the view shows the context cell when you descended into an instance: the box goes into the cell itself
+    try:
+        dbox = dbox.transformed(cv.context_dtrans().inverted())
+    except Exception:           # noqa: BLE001 - an older KLayout without context_dtrans: not descended anyway
+        pass
+    from .regions import read_pieces
+    count = len(read_pieces(layout, cell)[0])
+    if not add and count > 1 and pya.MessageBox.question(
+            "EM Export", f"The EM region is split into {count} pieces. Replace them by the box you drew? (Shift+drag "
+            "adds a box instead.)", pya.MessageBox.Yes | pya.MessageBox.No) != pya.MessageBox.Yes:
+        return False
+    backup_original(layout)
+    create_layers(layout, [EM_REGION])
+    view.transaction("Draw EM region" if not add else "Add EM region box")
+    try:
+        li = layout.layer(*EM_REGION)
+        if not add:
+            cell.shapes(li).clear()
+        cell.shapes(li).insert(dbox.to_itype(layout.dbu))
+        view.add_missing_layers()
+    finally:
+        view.commit()
+    return True
 
 
 # ---------- setupEM / EMStudio ----------
@@ -914,6 +964,10 @@ def export_region():
             break
         pya.MessageBox.warning("EM Export", problem, pya.MessageBox.Ok)
 
+    from .regions import is_split
+    if selection is None and is_split(layout, cell):
+        _export_pieces(view, cv, dialog, gds_path)
+        return
     result = export_em(layout, cell, dialog.stackup, gds_path, layout_technology(layout)[0], box=box,
                        selection=dialog.completed if dialog.shapes_only() else None, seeds=ground_seeds(layout),
                        layout_file=cv.filename() or None)
@@ -932,6 +986,114 @@ def export_region():
     _warn_stale_scripts(gds_path, simcfg_path, port_list, tool if open_after else None)
     if open_after:
         open_simcfg(simcfg_path, tool)
+
+
+def _export_pieces(view, cv, dialog, gds_path):
+    """Export All of a split region (pieces.export_pieces): the whole region and every piece; the problems stop it."""
+    from .pieces import export_pieces, stale_piece_folders
+    layout, cell = cv.layout(), cv.cell
+    result = export_pieces(layout, cell, dialog.stackup, gds_path, layout_technology(layout)[0],
+                           seeds=ground_seeds(layout), layout_file=cv.filename() or None)
+    if result["problems"]:
+        pya.MessageBox.warning("EM Export", "The split region was not exported:\n\n- " +
+                               "\n- ".join(result["problems"][:15]), pya.MessageBox.Ok)
+        return
+    whole = result["whole"]
+    set_layout_value(layout, META_OUTPUT, gds_path, "EM export output file")
+    settings = _load_settings()
+    open_after = dialog.open_after.isChecked()
+    tool = TOOLS[dialog.open_tool.currentIndex]
+    settings["open_setupem"] = open_after
+    settings["open_with"] = tool
+    _save_settings(settings)
+    names = ", ".join(p["name"] for p in result["set"]["pieces"])
+    _status(f"Exported {len(result['set']['pieces'])} pieces ({names}) into {os.path.basename(result['folder'])}, "
+            f"and the whole region {os.path.basename(gds_path)} ({len(result['set']['external'])} ports of the "
+            "joined result)", 10)
+    if result["warnings"]:
+        pya.MessageBox.info("EM Export", "Exported. Please check:\n\n- " + "\n- ".join(result["warnings"]),
+                            pya.MessageBox.Ok)
+    stale = stale_piece_folders(result["folder"], result["set"])
+    if stale and pya.MessageBox.question(
+            "EM Export", "These files and model folders belong to pieces that are no longer in the region:\n\n" +
+            "\n".join(os.path.basename(p) for p in stale[:20]) + ("\n..." if len(stale) > 20 else "") +
+            "\n\nRemove them? (Their results can then no longer be reused.)",
+            pya.MessageBox.Yes | pya.MessageBox.No) == pya.MessageBox.Yes:
+        for path in stale:
+            if os.path.isdir(path):
+                shutil.rmtree(path, ignore_errors=True)
+            elif os.path.isfile(path):
+                os.remove(path)
+    _warn_stale_scripts(gds_path, whole["simcfg"], whole["port_list"], tool if open_after else None)
+    if open_after:
+        open_simcfg(whole["simcfg"], tool)
+
+
+def split_tool():
+    view, cv = _current()
+    if view is not None:
+        view.switch_mode("em_split_tool")
+
+
+def number_pieces(view, cv):
+    """Give the EM region boxes without a piece number one (regions.number_pieces), in one undo step."""
+    from .regions import needs_numbers, number_pieces as number
+    layout = cv.layout()
+    if not needs_numbers(layout, cv.cell):
+        return []
+    view.transaction("Number EM region pieces")
+    try:
+        return number(layout, cv.cell)
+    finally:
+        view.commit()
+
+
+def import_pieces():
+    """Import Pieces: the EM region boxes (with their numbers), the stackup and the ground marks of an earlier
+    export's .simcfg (pieces.read_set), then the warnings of what no longer fits."""
+    from .pieces import apply_set, import_warnings, read_set
+    from .regions import region_shapes
+    view, cv = _current()
+    if view is None:
+        return
+    layout, cell = cv.layout(), cv.cell
+    last = last_simcfg(layout)
+    start = os.path.dirname(last) if last else os.path.dirname(cv.filename() or "") or "."
+    path = pya.FileDialog.ask_open_file_name("Import Pieces from an EM Export", start, "setupEM files (*.simcfg)")
+    if not path:
+        return
+    try:
+        imported = read_set(path)
+    except (OSError, ValueError, KeyError, TypeError) as e:
+        pya.MessageBox.warning("EM Export", f"{os.path.basename(path)} can't be imported: {e}", pya.MessageBox.Ok)
+        return
+    if region_shapes(layout, cell) and pya.MessageBox.question(
+            "EM Export", "Replace the EM region box(es) of this layout by the imported pieces?",
+            pya.MessageBox.Yes | pya.MessageBox.No) != pya.MessageBox.Yes:
+        return
+    backup_original(layout)
+    create_layers(layout, [EM_REGION])
+    view.transaction("Import EM region pieces")
+    try:
+        seeds = apply_set(layout, cell, imported)
+        view.add_missing_layers()
+    finally:
+        view.commit()
+    if imported.get("stackup") and os.path.isfile(imported["stackup"]):
+        set_stackup(layout, imported["stackup"])
+    if seeds:
+        _set_ground_seeds(layout, seeds)
+    stackup = read_stackup(stackup_path(layout))[0] if stackup_path(layout) else None
+    devices = find_layout_devices(layout, cell, stackup)[0] if stackup is not None else []
+    warnings = import_warnings(layout, cell, stackup, imported, devices)
+    count = len(imported["pieces"])
+    text = (f"Imported {count} piece(s)" if count > 1 else "Imported the EM region box") + \
+        f" and {len(seeds)} ground mark(s) from {os.path.basename(path)}." + \
+        (" Create Proposed Ports puts the ports at the cuts back." if count > 1 else "")
+    if warnings:
+        pya.MessageBox.warning("EM Export", text + "\n\nPlease check:\n- " + "\n- ".join(warnings), pya.MessageBox.Ok)
+    else:
+        _status(text, 10)
 
 
 class ThermalExportDialog(pya.QDialog):
@@ -1434,8 +1596,48 @@ def show_panel():
         _dock._scroll.setWidget(_panel)
         _dock.setWidget(_dock._scroll)
         main_window.addDockWidget(pya.Qt.RightDockWidgetArea, _dock)
+        _dock.show()
+        # KLayout restores its saved window layout before the plug-in creates this dock, and Qt then gives the late
+        # dock a default, squeezed place. The saved layout has the panel's place and size from the last exit: apply it
+        # again now that the panel exists. The first time (no saved layout with the panel yet): half the window height
+        if not _restore_window_state(main_window):
+            _dock._size_timer = pya.QTimer(_dock)
+            _dock._size_timer.singleShot = True
+            _dock._size_timer.timeout = _first_panel_size
+            _dock._size_timer.start(300)
     _dock.show()
     _panel.refresh()
+
+
+def _restore_window_state(main_window):
+    """KLayout's saved window layout (config 'window-state'), applied again if it has the EM panel in it. Returns
+    True when it was applied."""
+    import base64
+    try:
+        state = pya.Application.instance().get_config("window-state")
+        data = base64.b64decode(state) if state else b""
+    except Exception:           # noqa: BLE001 - no saved layout, or one KLayout writes otherwise: the default size
+        return False
+    if "klayout_em_export_panel".encode("utf-16-be") not in data:     # the panel's objectName, as Qt saves it
+        return False
+    try:
+        return bool(main_window.restoreState(data))
+    except Exception:           # noqa: BLE001
+        return False
+
+
+def _first_panel_size():
+    """The panel's size the first time: half the window's height, 520 px wide (it can then be changed, and KLayout
+    keeps it with its window layout)."""
+    if _dock is None or _dock.isFloating():
+        return
+    main_window = pya.Application.instance().main_window()
+    h = main_window.height() if callable(main_window.height) else main_window.height
+    try:
+        main_window.resizeDocks([_dock], [max(560, int(h * 0.5))], pya.Qt.Vertical)
+        main_window.resizeDocks([_dock], [520], pya.Qt.Horizontal)
+    except Exception:           # noqa: BLE001 - only a size
+        pass
 
 
 def _with_refresh(handler):
@@ -1451,9 +1653,11 @@ def _create_circuit():
 
 
 def install_menu():
-    from .tool import GroundToolFactory, PortToolFactory
+    from .tool import GroundToolFactory, PortToolFactory, RegionToolFactory, SplitToolFactory
     _actions.append(PortToolFactory())     # registers the EM Port tool in the toolbar
     _actions.append(GroundToolFactory())   # and the EM Ground tool
+    _actions.append(SplitToolFactory())    # and the Split Region tool
+    _actions.append(RegionToolFactory())   # and the Draw Region tool
     menu = pya.Application.instance().main_window().menu()
     if not menu.is_valid("em_menu"):
         menu.insert_menu("help_menu", "em_menu", "EM")    # own menu in the menu bar, before Help
@@ -1469,6 +1673,10 @@ def install_menu():
                ("port_overview", "Port Overview", port_overview),
                None,
                ("mark_region", "Mark EM Region from Selection", mark_region),
+               ("region_tool", "Draw EM Region Tool (drag a rectangle; Shift+drag: one more box)", region_tool),
+               ("split_tool", "Split Region Tool (click in the EM region: cut it there, Shift+click: horizontal cut)",
+                split_tool),
+               ("import_pieces", "Import Pieces from an EM Export...", import_pieces),
                ("export_region", "Export for EM...", export_region),
                ("export_thermal", "Export for Thermal (setupThermal)...", export_thermal_region),
                ("open_setupem", "Open Last Export in setupEM", lambda: open_last_export("setupEM")),
@@ -1486,6 +1694,10 @@ def install_menu():
             action.icon = PORT_ICON
         elif name == "ground_tool":
             action.icon = GROUND_ICON
+        elif name == "split_tool":
+            action.icon = SPLIT_ICON
+        elif name == "region_tool":
+            action.icon = REGION_ICON
         action.on_triggered = _with_refresh(handler)
         _actions.append(action)
         menu.insert_item("em_menu.end", name, action)

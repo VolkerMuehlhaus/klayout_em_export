@@ -1,6 +1,8 @@
 """EM Port tool (toolbar): click a metal edge for a via port, Shift+click into a gap for an in-plane port.
 EM Ground tool: click a metal to mark it as ground (every traced metal drawn under the click, through the hierarchy,
 so a stacked pad frame takes one click), Shift+click to unmark.
+Split Region tool: click inside the EM region box to cut it into two pieces there, Shift+click for a horizontal cut.
+Draw Region tool: drag a rectangle, it becomes the EM region box; Shift+drag adds one more box (a piece).
 
 The port shape goes on the next free port layer of the current cell: a zero-width box along the edge (via port)
 or a box that bridges the gap (in-plane port). Then the port dialog opens; Cancel removes the shape again.
@@ -264,3 +266,192 @@ class PortToolFactory(pya.PluginFactory):
 
     def create_plugin(self, manager, root, view):
         return PortTool(view)
+
+
+SPLIT_HINT = ("Split Region: click inside an EM region box to cut it there (a vertical cut), Shift+click: a horizontal "
+              "cut. Each piece becomes its own model; setupEM joins the results.")
+
+
+class SplitTool(pya.Plugin):
+    """Split Region: one click cuts the EM region box under the cursor into two pieces (regions.split_piece), on the
+    grid. The left (lower) half keeps its number."""
+
+    def __init__(self, view):
+        super().__init__()
+        self.layout_view = view
+        self.marker = None
+
+    def activated(self):
+        _status(SPLIT_HINT, 10)
+
+    def deactivated(self):
+        self._clear()
+
+    def _clear(self):
+        if self.marker is not None:
+            self.marker._destroy()
+            self.marker = None
+
+    def _target(self, p, buttons):
+        """(cv, point dbu on the grid, the piece hit or None, vertical)."""
+        from .regions import read_pieces
+        cv = self.layout_view.active_cellview()
+        if cv is None or cv.layout() is None or cv.cell is None:
+            return None, None, None, True
+        try:
+            grid = float(self.layout_view.get_config("grid-micron") or 0)
+        except ValueError:
+            grid = 0
+        if grid > 0:
+            p = pya.DPoint(round(p.x / grid) * grid, round(p.y / grid) * grid)
+        layout = cv.layout()
+        point = p.to_itype(layout.dbu)
+        vertical = not buttons & pya.ButtonState.ShiftKey
+        minimum = round(1.0 / layout.dbu)             # no piece narrower than 1 um
+        hit = None
+        for piece in read_pieces(layout, cv.cell)[0]:
+            b = piece.box
+            if vertical and b.left + minimum <= point.x <= b.right - minimum and b.bottom < point.y < b.top:
+                hit = piece
+            elif not vertical and b.bottom + minimum <= point.y <= b.top - minimum and b.left < point.x < b.right:
+                hit = piece
+        return cv, point, hit, vertical
+
+    def mouse_moved_event(self, p, buttons, prio):
+        if not prio:
+            return False
+        self._clear()
+        cv, point, hit, vertical = self._target(p, buttons)
+        if hit is None:
+            return False
+        dbu = cv.layout().dbu
+        b = hit.box.to_dtype(dbu)
+        x, y = point.x * dbu, point.y * dbu
+        self.marker = pya.Marker(self.layout_view)
+        self.marker.set(pya.DBox(x, b.bottom, x, b.top) if vertical else pya.DBox(b.left, y, b.right, y))
+        self.marker.color = 0xdc6e14
+        self.marker.line_width = 2
+        self.marker.line_style = 2
+        _status(f"cut {hit.name or 'the EM region'} at {'x' if vertical else 'y'} = {x if vertical else y:g} µm", 2)
+        return False
+
+    def mouse_click_event(self, p, buttons, prio):
+        if not prio or not buttons & pya.ButtonState.LeftButton:
+            return False
+        from .regions import split_piece
+        self._clear()
+        cv, point, hit, vertical = self._target(p, buttons)
+        if cv is None:
+            return True
+        if hit is None:
+            _status("Click inside an EM region box, at least 1 µm from its edges (Mark Region draws the first box)", 8)
+            return True
+        gui.backup_original(cv.layout())
+        self.layout_view.transaction("Split EM region")
+        try:
+            low, high = split_piece(cv.layout(), cv.cell, point, vertical)
+        finally:
+            self.layout_view.commit()
+        _status(f"Split into {low.name} and {high.name}: Create Proposed Ports puts the ports at the new cut", 10)
+        gui.refresh_panel()
+        return True
+
+
+class SplitToolFactory(pya.PluginFactory):
+    def __init__(self):
+        super().__init__()
+        self.has_tool_entry = True
+        self.register(-998, "em_split_tool", "Split Region", gui.SPLIT_ICON)
+
+    def create_plugin(self, manager, root, view):
+        return SplitTool(view)
+
+
+REGION_HINT = ("Draw EM Region: drag a rectangle, it becomes the EM region box. Shift+drag: one more box, a piece of "
+               "a split region.")
+
+
+def _on_grid(view, p):
+    """p (DPoint) on the view's grid"""
+    try:
+        grid = float(view.get_config("grid-micron") or 0)
+    except ValueError:
+        grid = 0
+    return pya.DPoint(round(p.x / grid) * grid, round(p.y / grid) * grid) if grid > 0 else p
+
+
+class RegionTool(pya.Plugin):
+    """Draw Region: press, drag and release draws the EM region box (gui.set_region_box), on the grid."""
+
+    def __init__(self, view):
+        super().__init__()
+        self.layout_view = view
+        self.start = None
+        self.marker = None
+
+    def activated(self):
+        _status(REGION_HINT, 10)
+
+    def deactivated(self):
+        self._clear()
+        self.start = None
+
+    def _clear(self):
+        if self.marker is not None:
+            self.marker._destroy()
+            self.marker = None
+
+    def mouse_button_pressed_event(self, p, buttons, prio):
+        if not prio or not buttons & pya.ButtonState.LeftButton:
+            return False
+        self.start = _on_grid(self.layout_view, p)
+        self.grab_mouse()
+        return True
+
+    def mouse_moved_event(self, p, buttons, prio):
+        if self.start is None:
+            return False
+        self._clear()
+        box = pya.DBox(self.start, _on_grid(self.layout_view, p))
+        self.marker = pya.Marker(self.layout_view)
+        self.marker.set(box)
+        self.marker.color = 0xd23cc8
+        self.marker.line_width = 2
+        self.marker.line_style = 2
+        _status(f"EM region {box.width():g} x {box.height():g} µm" +
+                (" (one more box)" if buttons & pya.ButtonState.ShiftKey else ""), 2)
+        return True
+
+    def mouse_button_released_event(self, p, buttons, prio):
+        if self.start is None:
+            return False
+        box = pya.DBox(self.start, _on_grid(self.layout_view, p))
+        self.start = None
+        self.ungrab_mouse()
+        self._clear()
+        cv = self.layout_view.active_cellview()
+        if cv is None or cv.layout() is None or cv.cell is None:
+            return True
+        if box.width() <= 0 or box.height() <= 0:
+            _status("Drag a rectangle: press, move and release", 5)
+            return True
+        add = bool(buttons & pya.ButtonState.ShiftKey)
+        if gui.set_region_box(self.layout_view, cv, box, add=add):
+            where = ""
+            if cv.ctx_cell().cell_index() != cv.cell.cell_index():
+                where = (f" in cell {cv.cell.name}, the instance you descended into: the export takes that cell "
+                         f"(Ascend first for the region in {cv.ctx_cell().name})")
+            _status(f"EM region {'box added' if add else 'set'}: {box.width():g} x {box.height():g} µm" + where,
+                    20 if where else 8)
+            gui.refresh_panel()
+        return True
+
+
+class RegionToolFactory(pya.PluginFactory):
+    def __init__(self):
+        super().__init__()
+        self.has_tool_entry = True
+        self.register(-997, "em_region_tool", "EM Region", gui.REGION_ICON)
+
+    def create_plugin(self, manager, root, view):
+        return RegionTool(view)

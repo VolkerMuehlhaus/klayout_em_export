@@ -67,7 +67,7 @@ def _is_kept(key, keep, purposes, ports):
 
 
 def export_flat(layout, cell, stackup, gds_path, box=None, purposes=(0,), cellname=None, selection=None,
-                port_layers=None, remove=None, with_ports=True, drop=(), extra=None):
+                port_layers=None, remove=None, with_ports=True, drop=(), extra=None, numbered_ports_only=False):
     """Write cell, flattened and clipped to box (DBox in um, None = whole cell), to gds_path. With a selection
     (selection.Selection), only its shapes are written, uncut, and box is ignored.
 
@@ -78,6 +78,8 @@ def export_flat(layout, cell, stackup, gds_path, box=None, purposes=(0,), cellna
     layers (the replaced devices' own shapes below Metal1, devices.device_shapes).
     Thermal export (thermal.py): with_ports False leaves the port shapes out, drop leaves out these stackup layer
     numbers, extra {(layer, datatype): Region} is written as given (heat sources, region outline).
+    numbered_ports_only: only the port layers in port_layers are written (a piece of a split region: the other
+    piece's port at a shared cut, and ports joined away, touch the box but are not this model's).
     """
     port_layers = port_layers or {}
     remove = remove or {}
@@ -111,6 +113,8 @@ def export_flat(layout, cell, stackup, gds_path, box=None, purposes=(0,), cellna
         info = layout.get_info(li)
         key = (info.layer, info.datatype)
         is_port = info.layer in ports
+        if is_port and numbered_ports_only and info.layer not in port_layers:
+            continue
         if not _is_kept(key, keep, purposes, ports):
             it = cell.begin_shapes_rec(li) if clip is None else cell.begin_shapes_rec_touching(li, clip)
             count = sum(1 for _ in it.each())

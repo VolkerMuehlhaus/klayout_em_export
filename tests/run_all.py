@@ -50,7 +50,12 @@ def run(test, exe, root):
     os.makedirs(out, exist_ok=True)
     home = os.path.join(root, "klayout_home")
     os.makedirs(home, exist_ok=True)
-    env = dict(os.environ, KLAYOUT_HOME=home, KLAYOUT_PATH=home, OUT=out,
+    # a settings file of its own per test: the user's remembered choices (e.g. the panel in thermal mode) must not
+    # change a test, and a test must not write into them
+    settings = os.path.join(out, "klayout_em_export_settings.json")
+    if os.path.exists(settings):
+        os.remove(settings)
+    env = dict(os.environ, KLAYOUT_HOME=home, KLAYOUT_PATH=home, OUT=out, KLAYOUT_EM_EXPORT_SETTINGS=settings,
                KLAYOUT_PYTHONPATH=os.pathsep.join([os.path.join(REPO, "python"), TESTS_DIR]))
     env.setdefault("QT_QPA_PLATFORM", "offscreen")
     for name, default in INPUTS.get(test, {}).items():

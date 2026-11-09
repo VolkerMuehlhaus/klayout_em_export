@@ -57,7 +57,9 @@ modules only collect input and call the core.
 | `connectivity.py` | Traces metal through vias: the ground net (`check_ground`), shorted via ports, the net of each port (`port_nets`). Vias are traced as blocks (`via_blocks`). |
 | `dummyfill.py` | EM > Remove Dummy Fill: floating, repeated shapes on the stackup's conductor and sheet layers (any datatype), never on via layers; deleted where they are, tile cell placements one by one, empty or unplaced cells deleted. |
 | `density.py` | EM > Fill Density Holes and Merge Metal: density holes (cheesing) filled with gds_prepare_for_EM's hole rule, then each metal layer of the cell merged, with the metal of plain subcells placed twice or more or holding filled holes (`plain_cells`). |
-| `boundary.py` | Where conductors cross the EM region box: proposed via ports on the cut. |
+| `boundary.py` | Where conductors cross the EM region box: proposed via ports on the cut, or port wall ports; at a cut between two pieces always one port wall port per piece. |
+| `regions.py` | Several EM region boxes: the pieces of a split region. Names p1, p2, ... as a property on each box (`PIECE_KEY`), numbering, the cuts (shared edges), Split. |
+| `pieces.py` | The split region workflow without the GUI: each piece's ports (`piece_ports`), the cut checks, Export All (`export_pieces`: the whole region, every piece in `<name>_pieces/`, `full.simcfg`, the pieces section of the `.simcfg`, a geometry fingerprint per piece), Import Pieces. setupEM runs the pieces and joins their results. |
 | `devices.py` | Finds PDK devices (through the technology) and replaces them by a REF patch and via ports; the device shapes the export removes. |
 | `tech/` | The PDK specifics, one module per technology (see [Technologies](#technologies)): `ihp_sg13.py` (which cells are devices, their terminals, the device level for the ground check, panel texts; needs pya), `ihp_sg13_circuit.py` (device models, terminal order and model libraries for the circuit wrapper; plain Python, imported by `tools/spice_wrapper.py`), `generic.py` / `generic_circuit.py` (no device support). `tech.for_layout` chooses the technology. |
 | `selection.py` | The selected shapes, flattened, completed with connecting vias and touching port shapes. |
@@ -71,7 +73,7 @@ modules only collect input and call the core.
 | `tools/em_cli.py` | Plain-Python launcher for `cli.py`: finds KLayout, passes the request, prints the result. |
 | `gui.py` | Menu, dialogs (export, port settings), persistence (layout meta info and settings file), setupEM / EMStudio launch (`open_simcfg`, `launch_command`). |
 | `panel.py` | The docked EM panel: the workflow as a checklist. A tab bar switches the mode (remembered in the settings file): EM (Stackup, Region, Ground, Devices, Ports) or Thermal (Stackup, Region, Sources, Names, Boundary, with the heat source table). |
-| `tool.py` | The EM Port tool (`pya.Plugin`): hover preview, click for a via port, Shift+click for an in-plane port. |
+| `tool.py` | The EM Port tool (`pya.Plugin`): hover preview, click for a via port, Shift+click for an in-plane port. The EM Ground tool, the Split Region tool and the Draw Region tool (drag a rectangle: the EM region box). |
 | `circuit.py` | Create Circuit dialog; runs `tools/spice_wrapper.py`. |
 | `tools/spice_wrapper.py` | Port map + `.sNp` -> netlist with the PDK devices, per simulator. |
 | `tools/make_icon.py` | Draws the EM Port tool icon. |
@@ -128,7 +130,7 @@ All of it survives a GDS round trip, so a saved layout keeps its EM setup.
 | Boundary port tag | GDS property 201 | `boundary`: made by Create Proposed Ports, found again when the box moves. |
 | Device tag | GDS property 202 on the REF patch (`device:<id>`) and the ports (`device:<id>:<terminal>`) of a replaced device | The id is `<cell name>@<x>,<y>` (dbu), so it changes when the device moves: the old ports and patch are then orphaned, reported by `devices.orphaned_tags` in the Devices step and the export dialog. Undo Replace removes everything with this tag. |
 | REF patch | layer 300 (REF_FOR_TRANSISTOR in the stackup) | one box per replaced device: its pins' bounding box + 0.2 µm. |
-| EM region box | layer 800/0 | one box; Mark EM Region from Selection replaces it. |
+| EM region box | layer 800/0 | one box; Mark EM Region from Selection or the Draw Region tool replaces it. |
 | Stackup, last output, ground marks | layout meta info `klayout_em_export.stackup`, `.output`, `.ground` (JSON `[[layer, x, y], ...]` in dbu) | persisted meta info. |
 
 KLayout writes persisted meta info into a hidden `$$$CONTEXT_INFO$$$` cell of the GDS file (other tools may list it as
@@ -397,6 +399,21 @@ unreplaced resistor makes the Devices line a warning. Resistors of several segme
 
 A selection means "these shapes", so the export defaults to the selected shapes. That is also why clicking a port
 in the panel's table only highlights it with a marker: selecting the port shape would make it the export region.
+
+### A split region: pieces joined at calibrated cuts
+
+A large region can be split into pieces (several boxes on 800/0), each exported and simulated as its own model;
+setupEM joins the results (`join_pieces.py`). The join is exact for the line modes because a line crossing a cut
+gets a port wall port in both pieces, both calibrated with the reference plane on the cut (gds2palace port walls):
+the two results meet at the same plane and connect directly. Via ports at a cut are refused: they are not
+calibrated. What the join leaves out is coupling across the cut other than through those lines; `pieces.py` warns
+about metal close to both sides of a cut. A feasibility test (a 480 µm coplanar line with a wide and a narrow section,
+cut in the middle) joined to the full model within 0.01 in |S| up to 50 GHz, against 0.1 without the calibration.
+
+The pieces' names are a property on the boxes, not their order: moving a box or adding one renames nothing, so the
+model folders stay, and setupEM reuses a piece whose fingerprint (the exported geometry, piece-local, sorted:
+independent of the GDS file's timestamps and shape order), ports and settings did not change. A cut port carries its
+piece's name (`OWNER_KEY`), because both ports of a cut lie on the same line and touch both boxes.
 
 ### Incomplete ports and re-export
 

@@ -363,7 +363,9 @@ There are three ways to set the region:
 - **A selection:** the export offers the selected shapes only, or everything inside their bounding box (chapter
   10).
 - **The EM region box:** a box on layer 800/0, saved with your layout. Select the shapes that define the region and
-  press **EM > Mark EM Region from Selection** (or the button in the Region details), or draw the box yourself.
+  press **EM > Mark EM Region from Selection** (or the button in the Region details). Or draw it: pick the
+  **EM Region** tool in the toolbar (or **Draw Region** in the Region details) and drag a rectangle in the layout.
+  Drawing is the easy way when a click only selects a whole instance, e.g. an inductor from the PDK.
 
 In the cascode, the region box is slightly smaller than the cell on the left. It cuts the Cas_Bias wire, the input
 of the bias divider. The plug-in sees the cut and proposes a port there:
@@ -418,6 +420,50 @@ Port walls need a region box that cuts the layout where the lines are simple:
 - **No cheesing holes at the cut.** The standards copy the cross-section at the wall along their whole length, so a
   hole that the cut goes through would become a slot in them. Run **Fill Density Holes and Merge Metal** first;
   setupEM's check reports a cross-section that changes right at the wall.
+
+### Splitting the region into pieces
+
+A large region takes long to simulate, and each change to one part means simulating all of it again. You can split
+the region into pieces instead. Each piece is simulated as its own model, and setupEM joins the results into one
+result of the whole region.
+
+This works because of the port walls. Where two pieces meet, a line crossing the cut gets one port wall port in
+each piece. Both ports are calibrated with their reference plane exactly on the cut, so the two results connect
+there without an overlap or a guess. One more benefit: when you change one piece, only that piece is simulated
+again.
+
+1. **Mark the region** as usual (one box on 800/0).
+2. **Split it.** Press **Split Region** (Region details, or EM > Split Region Tool) and click in the box where you
+   want the cut: a click cuts vertically, Shift+click horizontally. The pieces are named p1, p2, ... and keep their
+   names when you move or resize them. You can also draw more boxes yourself; boxes that share an edge meet at a
+   cut.
+3. **Mark the ground**, if not done yet. The ground must reach every cut.
+4. **Create Proposed Ports.** The table lists the cut ports per piece ("p1: ... port wall at the cut to p2
+   (joined)"). Ports at a cut are always port wall ports, whatever the **as port walls** box says, because only
+   those can be joined.
+5. **Export for EM.** The export writes the whole region as usual and every piece into a folder next to it
+   (`<name>_pieces`). Open `<name>.simcfg` in setupEM: the Models list shows the pieces; Start Simulation runs them
+   and writes the joined result where a single model would have it.
+
+The **Export #** column shows each port's number in its piece and in the joined result. The **Ground of** choice
+in the Region details picks the piece whose ground the Ground line shows.
+
+Where to cut:
+
+- **Across simple feed lines**, as for any port wall: straight lines, the same cross-section for at least D on both
+  sides of the cut, no device closer than D. setupEM checks every piece's port walls as usual.
+- **Not through coupled parts.** The cut is a metal wall in both pieces, so nothing couples across it except
+  through the lines that cross it. Two inductors side by side in different pieces do not see each other in the
+  joined result. The export warns when metal lies close to both sides of a cut without crossing it.
+- **A frequency grid for all pieces.** setupEM keeps the frequency settings the same for all pieces; the mesh and
+  solver settings can differ per piece.
+
+**Reopened later, or a new revision:** the boxes are part of your layout, so they are lost when you don't save
+it (a read-only layout, for example). **Import Pieces...** in the Region details takes the boxes, their names and
+the ground marks from an earlier export's .simcfg. Then Create Proposed Ports puts the cut ports back. The import
+also works for a new revision of the design in another file, or another design on the same frame; it warns when a
+cut no longer crosses the lines it crossed, runs through a device, or a ground mark hits no metal. Because the
+names stay the same, setupEM reuses the results of the pieces that did not change.
 
 ## Transistors and resistors
 
@@ -647,12 +693,16 @@ it asks once where the program is.
 ![The Create Circuit dialog](images/13_circuit_dialog.png)
 
 1. **Port map**: the export's `_portmap.json` (the last export of this layout is filled in).
-2. **EM result**: the Palace result, preferably the `_dc.sNp` file.
+2. **EM result**: the Palace result, preferably with the 0 Hz point. Preset from the export: the calibrated
+   `_dc_deembedded.sNp` if there is one, else `_dc.sNp`, `_deembedded.sNp` or the raw result; the hint says which.
 3. **Simulator**: see below.
-4. **IHP PDK** (optional): the `ihp-sg13g2` or `ihp-sg13cmos5l` folder of IHP-Open-PDK. Then the model library lines in the circuit
-   file point to it.
+4. **IHP PDK** (optional): the `ihp-sg13g2` or `ihp-sg13cmos5l` folder inside IHP-Open-PDK, the one that contains
+   `libs.tech`. Then the model library lines in the circuit file point to it. The dialog fills it in: your last
+   choice, else the PDK that KLayout has installed (the hint says where it was found), else `PDK_ROOT`/`PDK`. Browse
+   accepts any level: the IHP-Open-PDK folder or a folder inside the PDK leads to the right one.
 5. **Output**: the circuit file (proposed from the result's name).
-6. **Python**: a Python with snp2le, by default the one of the setupEM environment.
+6. **Python**: a Python with snp2le, preset to the one setupEM runs in; the hint says when snp2le is not installed
+   there.
 7. Press **Create**.
 
 ![Choose the simulator](images/13_simulator_choice.png)
@@ -977,7 +1027,7 @@ In your circuit simulator, set each instance's temperature rise to its `dT_mean_
 | --- | --- |
 | 201 ... 299 | ports: port number = layer − 200 (layers used by the stackup itself, e.g. SUBGND, are skipped) |
 | 300 | REF_FOR_TRANSISTOR: the transistors' and resistors' REF patches |
-| 800/0 | the EM region box |
+| 800/0 | the EM region box; several boxes: the pieces of a split region |
 | 201 upward (thermal export) | in the exported layout: the region outline, then one heat source per device (stackup layers and your own markers skipped) |
 | 401 ... 499 (suggested) | your own thermal markers, apart from the EM ports |
 
@@ -990,6 +1040,8 @@ Saving the layout keeps its EM setup. The export copies none of this into `<name
 | Port settings (metals, direction, Z0) | GDS property 200 on each port shape |
 | Boundary port mark | GDS property 201 on ports made by Create Proposed Ports |
 | Replaced device | GDS property 202 on the device's REF patch and ports |
+| Piece name (p1, p2, ...) | GDS property 203 on each EM region box of a split region |
+| Piece of a cut port | GDS property 204 on ports made at a cut between two pieces |
 | Stackup, last export, ground marks | layout meta info `klayout_em_export.stackup`, `.output`, `.ground` |
 | Last thermal export, LVS database | layout meta info `klayout_em_export.thermal_output`, `.lvsdb` |
 
@@ -1027,6 +1079,7 @@ It uses that copy only when the layout has none of its own.
 | `<name>_em.gds` | Export | flat layout for the EM simulation |
 | `<name>_em.simcfg` | Export | settings for setupEM and EMStudio |
 | `<name>_em_portmap.json` | Export | ports: layout number, device and terminal, net |
+| `<name>_em_pieces/` | Export of a split region | per piece `p1.gds`, `p1.simcfg`, `p1_portmap.json`; `full.simcfg` (the whole region as one model, to check the joined result) |
 | `<name>_thermal.gds` | Export for Thermal | flat layout for the thermal simulation |
 | `<name>_thermal.tsimcfg` | Export for Thermal | settings for setupThermal |
 | `<name>_thermal_thermalmap.json` | Export for Thermal | heat sources: layer, device, instance name, heat area |
@@ -1049,6 +1102,8 @@ It uses that copy only when the layout has none of its own.
   width offset and contact end resistance. rhigh and rppd are about 10 % to 13 % low, rsil up to about 2 %
   (chapter 9). A resistor of several segments cannot be replaced yet.
 - The REF patch adds a few fF per transistor when the device is wired directly (chapter 13).
+- A split region's joined result has no coupling between the pieces other than through the lines that cross the
+  cuts. Pieces are rectangles; a port wall covers the whole side of its piece, also beyond the cut.
 - Thermal: resistor temperatures are not validated yet: the thermal resistance was 1.5 to 2.5 times the value of the PDK's resistor model (chapter 14).
 - Thermal: instance names from LVS are tested with npn transistors and resistors. MOSFETs are supported, but not
   tested yet.

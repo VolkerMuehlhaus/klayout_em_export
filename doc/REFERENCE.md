@@ -14,7 +14,7 @@ summary; the arrow shows its details and buttons.
   port directions.
 - **Region**: what the export uses right now, following the selection: the bounding box of the selection, else
   the EM region box (layer 800/0), else the whole cell. A selection of port shapes only does not count (details:
-  Mark Region from Selection).
+  Mark Region from Selection, Draw Region, Split Region).
 - **Ground**: the ground net, traced through the vias in the EM region box (or the whole cell). It is checked on
   every refresh (a very large region: Run Checks in the details).
   - The ground is found from the via ports: of the nets at both ends of the via ports, the one most ports reach (on
@@ -133,7 +133,15 @@ The same steps are in the **EM** menu in the menu bar, top to bottom in workflow
      so they are saved with the layout.
 4. **Port Overview**: all ports of the current cell with their settings and problems.
 5. **Mark EM Region from Selection**: draws the bounding box of the selected shapes on layer **800/0**, replacing an
-   earlier box. Saved with the layout, it gives the same region on the next export.
+   earlier box. Saved with the layout, it gives the same region on the next export. Selected instances count with
+   all their shapes.
+   - **Draw EM Region Tool** (toolbar "EM Region", button Draw Region in the Region details): drag a rectangle in the
+     layout, it becomes the EM region box, on the grid; the size shows in the status bar while you drag. Shift+drag
+     adds one more box, a piece of a split region. A plain drag over a split region asks before it replaces the
+     pieces. Easier than a selection when the region should not follow shapes, or when a click only selects a
+     whole instance.
+   - Both put the box into the cell shown. After Descend into an instance, that is the instance's cell, and the
+     export then takes that cell too; the status bar says so.
 6. **Export for EM...**: one dialog with everything about the export, then one click.
    - With a selection: "Selected shapes only (+ connecting vias and ports)", the default, exports just the selected
      shapes, uncut. It adds what is easy to miss when selecting: the vias that land on two selected metals, and the
@@ -241,7 +249,7 @@ every device still in the region. Headless: the CLI command `export_thermal` (`l
 
 After the Palace run, **EM > Create Circuit (EM Result with Devices)...** turns the result into a circuit with the
 PDK devices put back. Choose the port map (the last export's is preselected), the EM result (`<model>_dc.sNp`), the
-simulator, optionally the IHP PDK folder, and the Python with snp2le (by default the one next to setupEM). The
+simulator, optionally the IHP PDK folder (`ihp-sg13g2`, the one with `libs.tech`; found from KLayout's installed PDK technology, `PDK_ROOT`/`PDK` or `IHP_PDK_ROOT` when not chosen before), and the Python with snp2le (by default the one setupEM runs in: the interpreter of its entry script, the venv a wrapper script activates, or the Python next to setupEM.exe; the hint says when snp2le is not installed there). The EM result is preset from the port map: the export's model in setupEM's folder, best first `_dc_deembedded`, `_dc`, `_deembedded`, the raw result (a split region: the joined result). The
 dialog runs `tools/spice_wrapper.py`, which also works on its own:
 
 ```bash
@@ -301,11 +309,13 @@ file or on stdin: `{"command": "status", "gds": "core.gds", ...}`. Coordinates a
 | `add_via_port` | A via port on the metal edge nearest to `x`, `y` (within `tol`, default 0.5 µm), from that metal down to the next metal at the port, as the EM Port tool does. `metal` limits the search, `to`, `z0`, `excited` override. |
 | `add_inplane_port` | An in-plane port across the narrowest gap around `x`, `y` (within `reach`, default 20 µm). |
 | `set_port`, `remove_port` | Change (`direction`, `from`, `to`, `target`, `z0`, `excited`) or remove port `port`. |
-| `set_region` | The EM region box: `box` [x1, y1, x2, y2], or `null` to remove it. |
-| `boundary_ports` | Metals crossing the region's edge; with `create: true`, ports on those that need one (Create Proposed Ports); with `port_wall: true`, in-plane ports for a port wall. |
+| `set_region` | The EM region box: `box` [x1, y1, x2, y2], or `null` to remove it; or `boxes` [[x1, y1, x2, y2], ...]: a split region, the boxes named p1, p2, ... in that order. |
+| `split_region` | Split the EM region box at `at` [x, y] as the Split Region tool: a vertical cut at x, with `horizontal: true` at y. The left (lower) half keeps its name. |
+| `import_pieces` | Import Pieces: the EM region boxes with their names, the ground marks and the stackup of an earlier export's .simcfg (`from`); returns the warnings of what no longer fits. |
+| `boundary_ports` | Metals crossing the region's edge; with `create: true`, ports on those that need one (Create Proposed Ports); with `port_wall: true`, in-plane ports for a port wall. A split region: every piece, and one port wall port per piece at each cut (`cut_to` names the other piece). |
 | `mark_ground` | Ground marks: `points` [[metal, x, y], ...]; `clear: true` removes the earlier ones. |
 | `devices` | `action`: `list`, `replace` (`resistors`, default true) or `unreplace`. |
-| `export` | The EM layout `out` (.gds) with its .simcfg and port map, from `box`, else the EM region, else the whole cell (`whole: true` ignores the region). Same result as the export dialog. |
+| `export` | The EM layout `out` (.gds) with its .simcfg and port map, from `box`, else the EM region, else the whole cell (`whole: true` ignores the region). Same result as the export dialog. A split region (several boxes, no `box`): Export All, the whole region and every piece in `<out>_pieces/`; returns the pieces section (`set`) and the warnings. |
 
 Every command takes `gds`, `cell` (needed when the file has several top cells), `stackup` (default: the layout's
 own), `technology` (default: from the layout) and `pdk`. The layout gets a KLayout technology (`sg13g2`, or

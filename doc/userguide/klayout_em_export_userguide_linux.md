@@ -365,7 +365,9 @@ There are three ways to set the region:
 - **A selection:** the export offers the selected shapes only, or everything inside their bounding box (chapter
   10).
 - **The EM region box:** a box on layer 800/0, saved with your layout. Select the shapes that define the region and
-  press **EM > Mark EM Region from Selection** (or the button in the Region details), or draw the box yourself.
+  press **EM > Mark EM Region from Selection** (or the button in the Region details). Or draw it: pick the
+  **EM Region** tool in the toolbar (or **Draw Region** in the Region details) and drag a rectangle in the layout.
+  Drawing is the easy way when a click only selects a whole instance, e.g. an inductor from the PDK.
 
 In the cascode, the region box is slightly smaller than the cell on the left. It cuts the Cas_Bias wire, the input
 of the bias divider. The plug-in sees the cut and proposes a port there:

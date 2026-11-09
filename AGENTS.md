@@ -50,7 +50,9 @@ python tests/run_all.py thermal panel   # the tests whose name contains one of t
   write a small GUI script that sends Qt events to the canvas (`pya.QApplication.widgetAt` finds it). Batch mode
   cannot test them: `select_from` selects nothing and there is no main window.
 - The capture backs up and restores `~/.klayout_em_export.json`. Any script of your own that calls
-  `gui.set_stackup` or other setters writes to that file: back it up and restore it.
+  `gui.set_stackup` or other setters writes to that file: back it up and restore it, or set
+  `KLAYOUT_EM_EXPORT_SETTINGS` to a file of its own (`tests/run_all.py` gives every test a fresh one, so the user's
+  remembered choices, such as the panel left in thermal mode, can't change a test).
 - Physics claims (resistances, S-parameters, DC points) need a simulation, not an estimate. Circuit simulators run
   in the IIC-OSIC-TOOLS Docker image (`tests/simulators/README.md`).
 

@@ -10,6 +10,7 @@ import pya
 
 from .export import EM_REGION, marker_box, port_layer_numbers
 from .locate import drawn_metals, metals_at
+from .regions import OWNER_KEY, region_shapes
 from .simcfg import port_entry
 
 PROP_KEY = 200
@@ -77,6 +78,7 @@ class Port:
         self.conflict = False       # shapes on this layer carry different settings
         self.available = None       # stackup metals drawn at every shape of the port (set), None if not checked
         self.on_wall = False        # a zero-width shape on the edge of the EM region box: a gds2palace port wall port
+        self.owner = None           # a port at a cut between two EM region pieces: the piece it belongs to ("p1")
         self.items = []             # (shape, trans into the cell, instance path or None) per shape
         self.dbu = 0.001            # of the layout, for messages
 
@@ -105,12 +107,15 @@ def collect_ports(layout, cell, box=None, datatype=0, stackup=None):
 def ports_of(layout, cell, items, datatype=0, stackup=None, region=None):
     """{layer: Port} from [((layer, datatype), shape, trans into cell[, instance path])], e.g. a Selection's
     ports. With a stackup, its own layers in the port layer range (SUBGND, ...) are left out. A zero-width in-plane
-    shape on the edge of region (Box in dbu; default: the EM region box drawn in cell) is a port wall port."""
+    shape on the edge of region (Box in dbu; default: the EM region box drawn in cell, or with several boxes any of
+    them, so a port at a cut between two pieces counts too) is a port wall port."""
     ports = {}
     port_layers = port_layer_numbers(stackup)
     if region is None:
         region = marker_box(layout, cell, EM_REGION)
         region = None if region is None else region.to_itype(layout.dbu)
+    regions = [region] if region is not None else []
+    regions += [b for b, _ in region_shapes(layout, cell) if b is not None and b != region]
     for item in items:
         (layer, dt), shape, trans = item[:3]
         if shape.is_text() or dt != datatype or layer not in port_layers:
@@ -119,11 +124,15 @@ def ports_of(layout, cell, items, datatype=0, stackup=None, region=None):
         port.dbu = layout.dbu
         port.shapes += 1
         port.items.append((shape, trans, item[3] if len(item) > 3 else None))
-        if region is not None:
-            b = shape.bbox().transformed(trans)
-            if ((b.width() == 0 and b.left in (region.left, region.right) and b.height() > 0)
-                    or (b.height() == 0 and b.bottom in (region.bottom, region.top) and b.width() > 0)):
+        b = shape.bbox().transformed(trans)
+        for r in regions:
+            if ((b.width() == 0 and b.left in (r.left, r.right) and b.height() > 0 and r.bottom <= b.bottom and b.top <= r.top)
+                    or (b.height() == 0 and b.bottom in (r.bottom, r.top) and b.width() > 0
+                        and r.left <= b.left and b.right <= r.right)):
                 port.on_wall = True
+        owner = shape.property(OWNER_KEY)
+        if isinstance(owner, str):
+            port.owner = owner
         settings = settings_of(shape)
         if settings is not None:
             if port.settings is not None and port.settings.encode() != settings.encode():

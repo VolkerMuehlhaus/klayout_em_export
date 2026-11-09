@@ -17,8 +17,8 @@ layout write it to "output" (it may be "gds" only with "overwrite": true), with 
 info, so KLayout and the plug-in open it as if the steps were done by hand. The settings file
 (~/.klayout_em_export.json) is never read or written.
 
-Commands: status, add_via_port, add_inplane_port, set_port, remove_port, boundary_ports, set_region, mark_ground,
-devices, export, export_thermal. See doc/REFERENCE.md, "Headless use".
+Commands: status, add_via_port, add_inplane_port, set_port, remove_port, boundary_ports, set_region, split_region,
+import_pieces, mark_ground, devices, export, export_thermal. See doc/REFERENCE.md, "Headless use".
 """
 import json
 import os
@@ -294,8 +294,12 @@ def cmd_remove_port(request, layout, cell):
 def cmd_boundary_ports(request, layout, cell):
     """Signal metals crossing the region's edge ('box', else the EM region): listed, and with 'create': true, via
     ports at those that need one (to the ground metal at the cut), as Create Proposed Ports does; with 'port_wall':
-    true, in-plane ports on the cut metal instead (the export then writes those sides as gds2palace port walls)."""
+    true, in-plane ports on the cut metal instead (the export then writes those sides as gds2palace port walls).
+    A split region (several boxes, no 'box' given): every piece, and at the cuts one port wall port per piece."""
     stackup = stackup_of(request, layout)
+    from klayout_em_export.regions import is_split
+    if not request.get("box") and is_split(layout, cell):
+        return _boundary_ports_pieces(request, layout, cell, stackup)
     box = _region_box(request, layout, cell)
     if box is None:
         raise RequestError("no region: give 'box' or set the EM region (set_region)")
@@ -311,13 +315,78 @@ def cmd_boundary_ports(request, layout, cell):
     return save(request, layout, result) if created else result
 
 
+def _boundary_ports_pieces(request, layout, cell, stackup):
+    from klayout_em_export.pieces import piece_ports, split_state
+    from klayout_em_export.regions import cuts_of, number_pieces
+    number_pieces(layout, cell)
+    pieces, cuts, problems = split_state(layout, cell)
+    if problems:
+        raise RequestError("; ".join(problems))
+    wall = bool(request.get("port_wall"))
+    crossings = []
+    for piece in pieces:
+        ground = check_ground(layout, cell, stackup, piece.box, ground_seeds(layout),
+                              piece_ports(layout, cell, stackup, piece, cuts))
+        crossings += find_crossings(layout, cell, stackup, piece.box, ground, piece.name, cuts_of(cuts, piece.name))
+    created = (create_ports(NoUndo(), cell, stackup, crossings, float(request.get("z0", 50)), port_wall=wall)
+               if request.get("create") else [])
+    result = {"crossings": [{"piece": c.piece, "side": c.side, "metal": c.name, "edge": _dbox(layout, c.edge.bbox()),
+                             "cut_to": c.cut.other(c.piece) if c.cut else None, "status": c.status(wall)}
+                            for c in crossings], "created": created}
+    return save(request, layout, result) if created or request.get("output") else result
+
+
 def cmd_set_region(request, layout, cell):
-    """The EM region box (layer 800/0): 'box' [x1, y1, x2, y2] µm, or null to remove it."""
+    """The EM region box (layer 800/0): 'box' [x1, y1, x2, y2] µm, or null to remove it; or 'boxes' [[x1, y1, x2,
+    y2], ...]: a split region, the boxes numbered p1, p2, ... in the order given."""
+    from klayout_em_export.regions import Piece, set_pieces
     li = layout.layer(*EM_REGION)
     cell.shapes(li).clear()
+    if request.get("boxes"):
+        set_pieces(layout, cell, [Piece(i + 1, _box(layout, b).to_itype(layout.dbu))
+                                  for i, b in enumerate(request["boxes"])])
+        return save(request, layout, {"pieces": {f"p{i + 1}": b for i, b in enumerate(request["boxes"])}})
     if request.get("box"):
         cell.shapes(li).insert(_box(layout, request["box"]).to_itype(layout.dbu))
     return save(request, layout, {"region": request.get("box")})
+
+
+def cmd_split_region(request, layout, cell):
+    """Split the EM region box at 'at' [x, y] µm, as the Split Region tool: a vertical cut at x, or with
+    'horizontal': true at y. The left (lower) half keeps its number."""
+    from klayout_em_export.regions import split_piece
+    try:
+        x, y = request["at"]
+    except (KeyError, TypeError, ValueError):
+        raise RequestError("give 'at': [x, y] (µm), a point inside an EM region box")
+    split = split_piece(layout, cell, pya.Point(_um(layout, float(x)), _um(layout, float(y))),
+                        vertical=not request.get("horizontal"))
+    if split is None:
+        raise RequestError("no EM region box contains 'at'")
+    return save(request, layout, {"pieces": {p.name: _dbox(layout, p.box) for p in split}})
+
+
+def cmd_import_pieces(request, layout, cell):
+    """Import Pieces from an earlier export's .simcfg ('from'): its EM region boxes with their numbers, its ground
+    marks and stackup (the meta info), as the panel's Import Pieces. Returns the warnings of what no longer fits."""
+    from klayout_em_export.pieces import apply_set, import_warnings, read_set
+    source = request.get("from")
+    if not source or not os.path.isfile(source):
+        raise RequestError("give 'from', the .simcfg of an earlier export")
+    try:
+        imported = read_set(source)
+    except (OSError, ValueError, KeyError, TypeError) as e:
+        raise RequestError(f"{os.path.basename(source)} can't be imported: {e}")
+    seeds = apply_set(layout, cell, imported)
+    if imported.get("stackup") and os.path.isfile(imported["stackup"]) and not request.get("stackup"):
+        layout.add_meta_info(pya.LayoutMetaInfo(META_STACKUP, imported["stackup"], "stackup for EM export", True))
+    if seeds:
+        layout.add_meta_info(pya.LayoutMetaInfo(META_GROUND, json.dumps([[l, p.x, p.y] for l, p in seeds]),
+                                                "EM export: points in the marked ground shapes", True))
+    stackup = stackup_of(request, layout)
+    devices = layout_devices(layout, cell, stackup, technology_of(request, layout)[0])[0]
+    warnings = import_warnings(layout, cell, stackup, imported, devices)
+    return save(request, layout, {"pieces": len(imported["pieces"]), "ground_marks": len(seeds), "warnings": warnings})
 
 
 def cmd_mark_ground(request, layout, cell):
@@ -326,7 +395,7 @@ def cmd_mark_ground(request, layout, cell):
     the layout's marks; 'clear': true removes the marks first."""
     stackup = stackup_of(request, layout)
     seeds = [] if request.get("clear") else ground_seeds(layout)
-    from .gui import metals_at_point
+    from klayout_em_export.gui import metals_at_point
     for item in request.get("at", []):
         try:
             x, y = item
@@ -379,8 +448,16 @@ def cmd_export(request, layout, cell):
         raise RequestError("give 'out', the EM layout to write (.gds)")
     if os.path.abspath(out) == os.path.abspath(request["gds"]):
         raise RequestError("'out' is the layout itself")
-    box = None if request.get("whole") else _region_box(request, layout, cell)
     seeds = ground_seeds(layout)
+    from klayout_em_export.regions import is_split
+    if not request.get("whole") and not request.get("box") and is_split(layout, cell):
+        from klayout_em_export.pieces import export_pieces
+        result = export_pieces(layout, cell, stackup, out, technology, seeds=seeds, layout_file=request["gds"])
+        if result["problems"]:
+            raise RequestError("the split region was not exported: " + "; ".join(result["problems"]))
+        return {"whole": {k: v for k, v in result["whole"].items() if k != "port_list"}, "set": result["set"],
+                "warnings": result["warnings"], "folder": result["folder"]}
+    box = None if request.get("whole") else _region_box(request, layout, cell)
     ports = region_ports(layout, cell, stackup, box)
     checks = export_checks(layout, cell, stackup, ports, layout_devices(layout, cell, stackup, technology)[0],
                            seeds, box)

@@ -17,7 +17,9 @@ from .boundary import WALL_OF, find_crossings
 from .connectivity import check_ground, wiring
 from .export import marker_box
 from .lvs import assign_names, read_lvs_devices
+from .pieces import outer_ports, piece_ports, split_state
 from .ports import collect_ports, device_of, export_numbering, export_port_numbers, is_complete, port_problems
+from .regions import cuts_of, is_split
 from .thermal import describe_markers, heat_sources, heat_target, marker_layers, marker_preview, target_names
 
 OK, WARN, ERROR = gui.OK, gui.WARN, gui.ERROR
@@ -144,6 +146,9 @@ class EMPanel(pya.QWidget):
         self.result = None          # GroundCheck of the last refresh, None if not run
         self.ground_markers = []
         self.highlight = []
+        self.piece_markers = []     # outlines and names of the EM region pieces (several boxes)
+        self.pieces, self.cuts, self.piece_problems = [], [], []
+        self.active_name = None     # the piece whose ground the Ground step shows (several boxes)
         self._bound = set()
         self.source_rows = []       # the HeatSource of each row of sources_table
         self._lvs_cache = {}        # {(lvsdb, mtime, layout, cell): (LVS devices, notes)}
@@ -161,9 +166,28 @@ class EMPanel(pya.QWidget):
         self.stackup_detail = _label()
         self.stackup_step = Step("Stackup", _details(self.stackup_detail, [_button("Change...", self._change_stackup)]))
         self.region_detail = _label()
+        self.piece_choice = pya.QComboBox()
+        self.piece_choice.setToolTip("the piece whose ground the Ground step shows")
+        self.piece_choice.currentIndexChanged += self._piece_chosen
+        self.piece_label = pya.QLabel("Ground of:")
+        split_button = _button("Split Region", lambda: self._run(gui.split_tool),
+                               "Split Region tool: click in the EM region box to cut it there into two pieces "
+                               "(Shift+click: a horizontal cut). Each piece is exported and simulated as its own "
+                               "model; setupEM joins the results at the cuts")
+        split_button.setIcon(pya.QIcon(gui.SPLIT_ICON))
+        draw_button = _button("Draw Region", lambda: self._run(gui.region_tool),
+                              "Draw Region tool: drag a rectangle in the layout, it becomes the EM region box "
+                              "(Shift+drag: one more box, a piece of a split region)")
+        draw_button.setIcon(pya.QIcon(gui.REGION_ICON))
         self.region_step = Step("Region", _details(self.region_detail, [
             _button("Mark Region from Selection", lambda: self._run(gui.mark_region),
-                    f"draw the selection's bounding box on layer {gui.EM_REGION[0]}/{gui.EM_REGION[1]}")]))
+                    f"draw the selection's bounding box on layer {gui.EM_REGION[0]}/{gui.EM_REGION[1]}"),
+            draw_button,
+            split_button,
+            _button("Import Pieces...", lambda: self._run(gui.import_pieces),
+                    "the region box(es), piece numbers and ground marks of an earlier export (its .simcfg): for this "
+                    "layout reopened unsaved, a new revision of it, or another design on the same frame")],
+            [self.piece_label, self.piece_choice]))
         self.ground_detail = _label()
         self.show_ground = _button("Show in Layout", self._show_ground, "outline the ground net in green")
         self.show_ground.setCheckable(True)
@@ -306,6 +330,7 @@ class EMPanel(pya.QWidget):
     def refresh(self, run_checks=False):
         self._clear_markers(self.highlight)
         self._clear_markers(self.ground_markers)
+        self._clear_markers(self.piece_markers)
         self.show_ground.setChecked(False)
         view, cv = self._view()
         if view is None:
@@ -344,16 +369,35 @@ class EMPanel(pya.QWidget):
 
         # ground and boundary: in the EM region box (else the whole cell), not in a selection - one selects metal
         # to mark it as ground
+        # several EM region boxes: the pieces of a split region (regions.py), each checked on its own
+        self.pieces, self.cuts, self.piece_problems = [], [], []
+        if is_split(layout, cell):
+            gui.number_pieces(view, cv)
+            self.pieces, self.cuts, self.piece_problems = split_state(layout, cell)
+        self._show_pieces(view, layout)
         marker = marker_box(layout, cell, gui.EM_REGION)
         clip = None if marker is None else marker.to_itype(layout.dbu)
         self.result, crossings = None, []
         if stackup is not None:
             size = self._region_size(layout, cell, stackup, clip)
             if run_checks or size <= AUTO_CHECK_LIMIT:
-                self.result = check_ground(layout, cell, stackup, clip, gui.ground_seeds(layout),
-                                           collect_ports(layout, cell, clip, stackup=stackup))
-                if clip is not None:
-                    crossings = find_crossings(layout, cell, stackup, clip, self.result)
+                seeds = gui.ground_seeds(layout)
+                if self.pieces:
+                    active = self._active_piece()
+                    for piece in self.pieces:
+                        if piece.name is None:
+                            continue
+                        ground = check_ground(layout, cell, stackup, piece.box, seeds,
+                                              piece_ports(layout, cell, stackup, piece, self.cuts))
+                        if piece is active:
+                            self.result = ground
+                        crossings += find_crossings(layout, cell, stackup, piece.box, ground, piece.name,
+                                                    cuts_of(self.cuts, piece.name))
+                else:
+                    self.result = check_ground(layout, cell, stackup, clip, seeds,
+                                               collect_ports(layout, cell, clip, stackup=stackup))
+                    if clip is not None:
+                        crossings = find_crossings(layout, cell, stackup, clip, self.result)
         self._show_ground_step(stackup, layout)
         self._show_devices_step(stackup, layout, cell)
         self._fill_table(layout, cell, stackup, crossings)
@@ -541,8 +585,12 @@ class EMPanel(pya.QWidget):
         proposed = [c for c in crossings if c.needs(wall)]
         unground = [c for c in crossings if not c.ground and not c.plane and c.port is None and not c.needs(wall)]
         for c in proposed:
-            to = f"in-plane, port wall {WALL_OF[c.side]}" if wall else c.ground_layer[1]
-            self._add_row(("proposed", c), ("–", "–", f"{c.name} cut ({c.side} edge) → {to}",
+            if c.cut is not None:
+                to = f"port wall at the cut to {c.cut.other(c.piece)} (joined)"
+            else:
+                to = f"in-plane, port wall {WALL_OF[c.side]}" if wall else c.ground_layer[1]
+            where = f"{c.piece}: " if c.piece else ""
+            self._add_row(("proposed", c), ("–", "–", f"{where}{c.name} cut ({c.side} edge) → {to}",
                                             "", "proposed: double-click or Create Proposed Ports"))
         no_ground = self.result is not None and not self.result.net
         if unground and no_ground:
@@ -552,7 +600,8 @@ class EMPanel(pya.QWidget):
                                                  "are sorted into ground and signal"))
         else:
             for c in unground:
-                self._add_row(("cut", c), ("–", "–", f"{c.name} cut ({c.side} edge)", "",
+                where = f"{c.piece}: " if c.piece else ""
+                self._add_row(("cut", c), ("–", "–", f"{where}{c.name} cut ({c.side} edge)", "",
                                            "signal cut, but no ground metal reaching this side: mark ground or add a "
                                            "port by hand" if wall else
                                            "signal cut, but no ground metal at the cut: add a port by hand"))
@@ -589,7 +638,14 @@ class EMPanel(pya.QWidget):
         layout, cell = cv.layout(), cv.cell
         box, source, selection = gui.region_source(view, cv)
         state = WARN if selection is not None else OK
-        self.region_step.set(state, source + ("" if box is None else f": {box}"))
+        split = bool(self.pieces) and selection is None and not self._thermal()
+        self.piece_label.setVisible(split)
+        self.piece_choice.setVisible(split)
+        if split:
+            cuts = ", ".join(f"{c.a}|{c.b}" for c in self.cuts) or "none (the boxes do not touch)"
+            self.region_step.set(ERROR if self.piece_problems else OK, source, "cuts: " + cuts)
+        else:
+            self.region_step.set(state, source + ("" if box is None else f": {box}"))
         thermal = self._thermal()
         if selection is not None:
             detail = ("The export uses the bounding box of the selection" +
@@ -598,6 +654,11 @@ class EMPanel(pya.QWidget):
         else:
             detail = (f"Keep the region with the layout: select shapes and Mark Region (layer {gui.EM_REGION[0]}/"
                       f"{gui.EM_REGION[1]})." + ("" if thermal else " Ports proposed at the cut need this box."))
+        if split:
+            detail = ("The region is split: each box is a piece (p1, p2, ...), exported and simulated as its own model; "
+                      "setupEM joins the results at the cuts (where two boxes share an edge). Lines crossing a cut get "
+                      "one port wall port per piece. Split Region cuts a box at a click; moving a box keeps its number." +
+                      ("\nProblems: " + "; ".join(self.piece_problems) if self.piece_problems else ""))
         self.region_detail.setText(detail + "\nA selection of port shapes only does not count as a region.")
         path = gui.stackup_path(layout, "thermal" if thermal else "em")
         stackup = gui.read_stackup(path)[0] if path else None
@@ -605,6 +666,9 @@ class EMPanel(pya.QWidget):
             self._show_thermal(layout, cell, stackup, box)
             return
         clip = None if box is None else box.to_itype(layout.dbu)
+        if split and stackup is not None:
+            self._piece_numbers(layout, cell, stackup)
+            return
         try:
             self.numbering = export_numbering(collect_ports(layout, cell, clip, stackup=stackup), stackup)
         except ValueError:
@@ -617,6 +681,73 @@ class EMPanel(pya.QWidget):
                 text = "– (outside)" if new is None else str(new)
                 cell_item.setText(text)
                 cell_item.setToolTip("number in the .simcfg and .snp" if new else "not in the region")
+
+    def _piece_numbers(self, layout, cell, stackup):
+        """Export # column of a split region: the port's number in its piece, and in the joined result."""
+        texts = {}
+        for piece in self.pieces:
+            if piece.name is None:
+                continue
+            try:
+                numbering = export_numbering(piece_ports(layout, cell, stackup, piece, self.cuts), stackup)
+            except ValueError:
+                continue
+            for layer, n in export_port_numbers(numbering).items():
+                texts.setdefault(layer, []).append(f"{piece.name} #{n}")
+        try:
+            joined = export_port_numbers(export_numbering(outer_ports(layout, cell, stackup, self.pieces, self.cuts),
+                                                          stackup))
+        except ValueError:
+            joined = {}
+        for layer, n in joined.items():
+            texts.setdefault(layer, []).append(f"joined #{n}")
+        for row, (kind, item) in enumerate(self.rows):
+            if kind == "port":
+                cell_item = self.table.item(row, 3)
+                text = ", ".join(texts.get(item.layer, [])) or "– (outside)"
+                cell_item.setText(text)
+                cell_item.setToolTip("number in its piece's model, and in the joined result (setupEM joins the "
+                                     "pieces at the cuts)")
+        self.table.resizeColumnsToContents()        # the numbers are longer than the column was sized for
+
+    # ---------- pieces ----------
+
+    def _active_piece(self):
+        named = [p for p in self.pieces if p.name is not None]
+        active = next((p for p in named if p.name == self.active_name), named[0] if named else None)
+        self.active_name = active.name if active is not None else None
+        return active
+
+    def _show_pieces(self, view, layout):
+        """The piece choice and the pieces' outlines and names in the layout view."""
+        names = sorted((p.name for p in self.pieces if p.name), key=lambda n: int(n[1:]))
+        active = self._active_piece()
+        self.piece_choice.blockSignals(True)
+        self.piece_choice.clear()
+        for name in names:
+            self.piece_choice.addItem(name)
+        if active is not None:
+            self.piece_choice.setCurrentIndex(names.index(active.name))
+        self.piece_choice.blockSignals(False)
+        for piece in self.pieces:
+            b = piece.dbox(layout.dbu)
+            outline = pya.Marker(view)
+            outline.set(b)
+            outline.color = 0xdc6e14 if piece is active else 0x808080
+            outline.line_width = 2 if piece is active else 1
+            outline.dither_pattern = 1          # hollow
+            self.piece_markers.append(outline)
+            if piece.name:
+                label = pya.Marker(view)
+                label.set(pya.DText(piece.name, pya.DTrans(b.center())))
+                label.color = outline.color
+                self.piece_markers.append(label)
+
+    def _piece_chosen(self, index):
+        text = self.piece_choice.itemText(index) if index >= 0 else None
+        if text and text != self.active_name:
+            self.active_name = text
+            self.refresh()
 
     # ---------- thermal ----------
 
