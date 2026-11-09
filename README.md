@@ -58,7 +58,7 @@ Open the cascode `tests/data/1_St_Core_v1_forEM.gds` and go through the panel fr
 2. **Ports:** click a pad's metal edge with the **EM Port** tool.
 3. **Devices:** press **Replace All**.
 4. **Export for EM...** opens setupEM with your model. Run Palace.
-5. **EM > Create Circuit...** gives the circuit for your testbench.
+5. **EM > Create Circuit from EM Result...** gives the circuit for your testbench.
 
 ## Documentation
 

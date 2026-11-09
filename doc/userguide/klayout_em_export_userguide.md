@@ -132,14 +132,14 @@ and contains `grain.xml`. If transistors are not recognized later (chapter 9), t
 > **Why it matters:** with the big picture in mind, the following chapters are easier to place. Each step here
 > points to the chapter that explains it.
 
-1. Open your layout in KLayout. Choose the stackup: **EM > Choose Stackup...**, e.g. `SG13G2_FEM_200um.xml` from
+1. Open your layout in KLayout. Choose the stackup: **EM > Stackup...**, e.g. `SG13G2_FEM_200um.xml` from
    gds2palace (chapter 5).
 2. Place a port at each pad with the **EM Port** tool: click the edge of the pad metal (chapter 6).
 3. Check the **Ground** line in the EM panel: it should show the ground metals with a green check (chapter 7).
 4. In the panel's **Devices** line, open the details and press **Replace All** (chapter 9).
 5. Press **Export for EM...** and **Export** (chapter 10). setupEM opens with your model.
 6. In setupEM, set the frequencies, starting at **0 GHz**, create the model and run Palace (chapter 11).
-7. Back in KLayout: **EM > Create Circuit (EM Result with Devices)...**, choose the result `_dc.sNp` and your
+7. Back in KLayout: **EM > Create Circuit from EM Result...**, choose the result `_dc.sNp` and your
    simulator (chapter 12).
 8. Include the circuit file in your testbench and simulate (chapter 12).
 
@@ -150,7 +150,9 @@ and contains `grain.xml`. If transistors are not recognized later (chapter 9), t
 > **Why it matters:** most of the work happens in the EM panel. It works like a checklist: a green check on each
 > line means that step is ready.
 
-**The EM menu** has all functions, top to bottom in the order you use them:
+**The EM menu** has all functions, top to bottom in the order you use them. The EM tools (EM Port, EM Ground, Split
+Region, EM Region) are in the toolbar too, while the EM panel is open: close the panel when you work on other things,
+and the toolbar is yours again; **EM > EM Panel** brings both back.
 
 ![The EM menu](images/04_em_menu.png)
 
@@ -189,7 +191,7 @@ At the start, the panel shows a red mark at **Stackup**:
 
 ![No stackup chosen yet](images/05_panel_no_stackup.png)
 
-1. Open the details of the **Stackup** line (arrow on the right), or use **EM > Choose Stackup...**.
+1. Open the details of the **Stackup** line (arrow on the right), or use **EM > Stackup...**.
 2. Press **Change...** and choose the stackup XML, e.g. `SG13G2_FEM_200um.xml` from gds2palace
    (`XML_stackup/latest/IHP/`).
 
@@ -203,7 +205,7 @@ openEMS. They look similar but contain different modelling assumptions.
 ### Dummy metal fill
 
 A layout ready for tape-out is full of dummy metal fill: tens of thousands of small tiles that clutter the view and
-are hard to hide. **EM > Remove Dummy Fill** removes them from the current cell, in one undo step (**Edit > Undo**).
+are hard to hide. **EM > Clean Up Layout > Remove Dummy Fill** removes them from the current cell, in one undo step (**Edit > Undo**).
 
 - **What counts as fill:** a shape on a metal of the stackup, on any datatype, that floats and repeats. It floats
   when nothing connects to it: no via of the stackup, no label, no port, and it is not part of a device. Markers on
@@ -225,7 +227,7 @@ are hard to hide. **EM > Remove Dummy Fill** removes them from the current cell,
 Density rules put many small openings into wide metal ("cheesing"), and a layout is often drawn from many
 overlapping pieces: via stacks with their own metal pads, tiles, lines. To the EM fields this is solid metal, but
 every opening and every piece adds edges that the mesh must follow, and the plug-in's checks get slower. Convert the
-layout once, before you place ports: **EM > Fill Density Holes and Merge Metal**.
+layout once, before you place ports: **EM > Clean Up Layout > Fill Density Holes and Merge Metal**.
 
 - **Holes:** on every metal of the stackup (not the vias), an opening size found at least 20 times is cheesing and
   is filled, in any shape. Openings of other sizes belong to your circuit and stay.
@@ -293,7 +295,7 @@ In the cascode, the two RF pads get a via port each, at the outer edge of the pa
 - **Z0**: the port impedance, usually 50 Ohm.
 - **excited**: whether the simulation feeds signal into this port. Leave it ticked.
 
-To change a port later: select its shape and use **EM > Port Settings...**, or double-click its line in the panel's
+To change a port later: select its shape and use **EM > Ports > Port Settings...**, or double-click its line in the panel's
 port table. A port shape you drew yourself, without settings yet, starts like a new port: from the top metal at the
 port down to the next metal below. If only one metal is at the port, the dialog offers all stackup metals.
 
@@ -303,7 +305,7 @@ The panel's table lists all ports with their status:
 
 ![Two ports placed](images/07_panel_two_ports.png)
 
-**EM > Port Overview** shows the same as text, checked against the stackup:
+**EM > Ports > Port Overview** shows the same as text, checked against the stackup:
 
 ![Port overview](images/07_port_overview.png)
 
@@ -365,7 +367,7 @@ There are three ways to set the region:
 - **A selection:** the export offers the selected shapes only, or everything inside their bounding box (chapter
   10).
 - **The EM region box:** a box on layer 800/0, saved with your layout. Select the shapes that define the region and
-  press **EM > Mark EM Region from Selection** (or the button in the Region details). Or draw it: pick the
+  press **EM > Region > Region from Selection** (or the button in the Region details). Or draw it: pick the
   **EM Region** tool in the toolbar (or **Draw Region** in the Region details) and drag a rectangle in the layout.
   Drawing is the easy way when a click only selects a whole instance, e.g. an inductor from the PDK.
 
@@ -435,7 +437,7 @@ there without an overlap or a guess. One more benefit: when you change one piece
 again.
 
 1. **Mark the region** as usual (one box on 800/0).
-2. **Split it.** Press **Split Region** (Region details, or EM > Split Region Tool) and click in the box where you
+2. **Split it.** Press **Split Region** (Region details, or EM > Region > Split Region Tool) and click in the box where you
    want the cut: a click cuts vertically, Shift+click horizontally. The pieces are named p1, p2, ... and keep their
    names when you move or resize them. You can also draw more boxes yourself; boxes that share an edge meet at a
    cut.
@@ -703,7 +705,7 @@ it asks once where the program is.
 
 ### Creating the circuit
 
-**EM > Create Circuit (EM Result with Devices)...**:
+**EM > Create Circuit from EM Result...**:
 
 ![The Create Circuit dialog](images/13_circuit_dialog.png)
 
@@ -1019,7 +1021,7 @@ In your circuit simulator, set each instance's temperature rise to its `dT_mean_
 | N pair(s) of REF patches touch | two devices would share a reference | keep devices apart, or check the layout |
 | N terminal(s) not connected | a device terminal has no wiring in the region | enlarge the region, or check the layout |
 | resistor "not replaced: EM gives R too low" | a resistor stays in the EM model as a sheet of drawn size, without the PDK's width offset and contact end resistance (about 10 % low) | tick include resistors and press Replace All (chapter 9) |
-| port N ... not simulated (incomplete) | port settings missing | set them (EM > Port Settings...) |
+| port N ... not simulated (incomplete) | port settings missing | set them (EM > Ports > Port Settings...) |
 | layer '...' is not a metal of the stackup | a port uses a layer the stackup does not know | choose another layer in the port dialog |
 | ... is not drawn at the port | the port's from/to layer has no metal at the port | check the port position and layers |
 | All port layers 201..299 are used | no free port layer left | remove unused ports |

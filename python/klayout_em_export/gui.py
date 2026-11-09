@@ -1639,6 +1639,9 @@ def show_panel():
         _dock._scroll.setWidget(_panel)
         _dock.setWidget(_dock._scroll)
         main_window.addDockWidget(pya.Qt.RightDockWidgetArea, _dock)
+        # the EM tools' toolbar icons follow the panel: closed (X), they go; EM > EM Panel brings both back. The
+        # toggle-view action tells closed from merely hidden behind another tab (Layers), which keeps them
+        _dock.toggleViewAction().toggled += _show_tools
         _dock.show()
         # KLayout restores its saved window layout before the plug-in creates this dock, and Qt then gives the late
         # dock a default, squeezed place. The saved layout has the panel's place and size from the last exit: apply it
@@ -1649,7 +1652,30 @@ def show_panel():
             _dock._size_timer.timeout = _first_panel_size
             _dock._size_timer.start(300)
     _dock.show()
+    _show_tools(True)
     _panel.refresh()
+
+
+TOOL_ENTRIES = ("@toolbar.em_port_tool", "@toolbar.em_ground_tool", "@toolbar.em_split_tool", "@toolbar.em_region_tool")
+TOOL_MODES = tuple(name.split(".", 1)[1] for name in TOOL_ENTRIES)
+
+
+def _show_tools(shown):
+    """The EM tools in the toolbar while the EM panel is open, not when it is closed (working on other things, with
+    other plug-ins' icons); they stay in the EM menu. An EM tool still active when the panel closes gives way to
+    Select."""
+    main_window = pya.Application.instance().main_window()
+    menu = main_window.menu()
+    for name in TOOL_ENTRIES:
+        if menu.is_valid(name):
+            menu.action(name).visible = bool(shown)
+    if not shown:
+        view = main_window.current_view()
+        try:
+            if view is not None and view.mode_name() in TOOL_MODES:
+                view.switch_mode("select")
+        except Exception:       # noqa: BLE001 - a KLayout without mode_name: the tool stays, harmless
+            pass
 
 
 def _restore_window_state(main_window):
@@ -1696,6 +1722,9 @@ def _create_circuit():
 
 
 def install_menu():
+    if _actions:
+        show_panel()        # installed already (a second autorun, a reloaded macro): the menu stays as it is
+        return
     from .tool import GroundToolFactory, PortToolFactory, RegionToolFactory, SplitToolFactory
     _actions.append(PortToolFactory())     # registers the EM Port tool in the toolbar
     _actions.append(GroundToolFactory())   # and the EM Ground tool
@@ -1704,44 +1733,66 @@ def install_menu():
     menu = pya.Application.instance().main_window().menu()
     if not menu.is_valid("em_menu"):
         menu.insert_menu("help_menu", "em_menu", "EM")    # own menu in the menu bar, before Help
-    entries = (("show_panel", "EM Panel", show_panel),
+    # in the order of the panel's steps; the tools' how-to is their tooltip and their status bar hint
+    entries = (("show_panel", "EM Panel", show_panel, None),
                None,
-               ("choose_stackup", "Choose Stackup...", choose_stackup),
-               ("remove_dummy_fill", "Remove Dummy Fill", remove_dummy_fill),
-               ("fill_and_merge", "Fill Density Holes and Merge Metal", fill_and_merge),
+               ("choose_stackup", "Stackup...", choose_stackup, None),
+               ("em_cleanup", "Clean Up Layout", [
+                   ("remove_dummy_fill", "Remove Dummy Fill", remove_dummy_fill, None),
+                   ("fill_and_merge", "Fill Density Holes and Merge Metal", fill_and_merge, None)]),
                None,
-               ("port_tool", "EM Port Tool (click edge: via port, Shift+click gap: in-plane port)", port_tool),
-               ("ground_tool", "EM Ground Tool (click metal: mark it as ground, Shift+click: unmark)", ground_tool),
-               ("port_settings", "Port Settings...", port_settings),
-               ("port_overview", "Port Overview", port_overview),
+               ("em_region", "Region", [
+                   ("region_tool", "Draw Region Tool", region_tool,
+                    "drag a rectangle: the EM region box; Shift+drag: one more box (a piece)"),
+                   ("mark_region", "Region from Selection", mark_region,
+                    "the bounding box of the selected shapes becomes the EM region box"),
+                   ("split_tool", "Split Region Tool", split_tool,
+                    "click in the EM region: cut it there into two pieces; Shift+click: a horizontal cut"),
+                   ("import_pieces", "Import Pieces from an Export...", import_pieces,
+                    "the region boxes, their names and the ground marks of an earlier export's .simcfg")]),
+               ("em_ground", "Ground", [
+                   ("ground_tool", "Ground Tool", ground_tool,
+                    "click metal: mark it as ground (every metal under the click); Shift+click: unmark"),
+                   ("mark_ground", "Mark Selected as Ground", mark_ground, "mark the selected metal shapes as ground"),
+                   ("clear_ground", "Use Ports (Forget the Marks)", clear_ground,
+                    "forget the ground marks: ground is the net that most via ports reach")]),
+               ("em_ports", "Ports", [
+                   ("port_tool", "Port Tool", port_tool,
+                    "click a metal edge: via port; Shift+click into a gap: in-plane port"),
+                   ("port_settings", "Port Settings...", port_settings, "settings of the selected port shapes"),
+                   ("port_overview", "Port Overview", port_overview, "all ports of the cell, checked")]),
                None,
-               ("mark_region", "Mark EM Region from Selection", mark_region),
-               ("region_tool", "Draw EM Region Tool (drag a rectangle; Shift+drag: one more box)", region_tool),
-               ("split_tool", "Split Region Tool (click in the EM region: cut it there, Shift+click: horizontal cut)",
-                split_tool),
-               ("import_pieces", "Import Pieces from an EM Export...", import_pieces),
-               ("export_region", "Export for EM...", export_region),
-               ("export_thermal", "Export for Thermal (setupThermal)...", export_thermal_region),
-               ("open_setupem", "Open Last Export in setupEM", lambda: open_last_export("setupEM")),
-               ("open_emstudio", "Open Last Export in EMStudio", lambda: open_last_export("EMStudio")),
-               ("open_setupthermal", "Open Last Thermal Export in setupThermal", open_last_thermal_export),
-               ("create_circuit", "Create Circuit (EM Result with Devices)...", _create_circuit))
-    for n, entry in enumerate(entries):
-        if entry is None:
-            menu.insert_separator("em_menu.end", f"separator{n}")
-            continue
-        name, title, handler = entry
-        action = pya.Action()
-        action.title = title
-        if name == "port_tool":
-            action.icon = PORT_ICON
-        elif name == "ground_tool":
-            action.icon = GROUND_ICON
-        elif name == "split_tool":
-            action.icon = SPLIT_ICON
-        elif name == "region_tool":
-            action.icon = REGION_ICON
-        action.on_triggered = _with_refresh(handler)
-        _actions.append(action)
-        menu.insert_item("em_menu.end", name, action)
+               ("export_region", "Export for EM...", export_region, None),
+               ("em_open", "Open Last Export", [
+                   ("open_setupem", "in setupEM", lambda: open_last_export("setupEM"), None),
+                   ("open_emstudio", "in EMStudio", lambda: open_last_export("EMStudio"), None)]),
+               ("create_circuit", "Create Circuit from EM Result...", _create_circuit,
+                "the EM result with the PDK devices put back, for your circuit simulator"),
+               None,
+               ("em_thermal", "Thermal", [
+                   ("export_thermal", "Export for Thermal...", export_thermal_region, None),
+                   ("open_setupthermal", "Open Last Export in setupThermal", open_last_thermal_export, None)]))
+    icons = {"port_tool": PORT_ICON, "ground_tool": GROUND_ICON, "split_tool": SPLIT_ICON, "region_tool": REGION_ICON}
+
+    def add(path, items):
+        for n, entry in enumerate(items):
+            if entry is None:
+                menu.insert_separator(path + ".end", f"separator{n}")
+            elif isinstance(entry[2], list):
+                name, title, children = entry
+                if not menu.is_valid(path + "." + name):
+                    menu.insert_menu(path + ".end", name, title)
+                add(path + "." + name, children)
+            else:
+                name, title, handler, tip = entry
+                action = pya.Action()
+                action.title = title
+                if name in icons:
+                    action.icon = icons[name]
+                if tip:
+                    action.tool_tip = tip
+                action.on_triggered = _with_refresh(handler)
+                _actions.append(action)
+                menu.insert_item(path + ".end", name, action)
+    add("em_menu", entries)
     show_panel()

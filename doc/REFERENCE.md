@@ -99,14 +99,26 @@ summary; the arrow shows its details and buttons.
 - **Export for EM...** and **Open in setupEM** or **Open in EMStudio** (the last export of this layout, without
   exporting again; the program last chosen in the export dialog, the other one is in the EM menu).
 
-The same steps are in the **EM** menu in the menu bar, top to bottom in workflow order:
+The same steps are in the **EM** menu in the menu bar, in workflow order (the tools are in the toolbar too; a
+tool's how-to is its tooltip and, while it is active, the status bar):
 
-1. **Choose Stackup...**: the stackup XML for this layout (gds2palace for Palace, gds2openEMS for openEMS). It is chosen once and used by every step. It
+- **EM Panel** (the EM tools are in the toolbar while the panel is open; closed, their icons go and the menu keeps
+  them)
+- **Stackup...**; **Clean Up Layout** > Remove Dummy Fill, Fill Density Holes and Merge Metal
+- **Region** > Draw Region Tool, Region from Selection, Split Region Tool, Import Pieces from an Export...
+- **Ground** > Ground Tool, Mark Selected as Ground, Use Ports (Forget the Marks)
+- **Ports** > Port Tool, Port Settings..., Port Overview
+- **Export for EM...**; **Open Last Export** > in setupEM, in EMStudio; **Create Circuit from EM Result...**
+- **Thermal** > Export for Thermal..., Open Last Export in setupThermal
+
+In detail:
+
+1. **Stackup...**: the stackup XML for this layout (gds2palace for Palace, gds2openEMS for openEMS). It is chosen once and used by every step. It
    is stored in the layout (meta info, saved with it) and as the default for other layouts. The port dialog and the
    export dialog show it and can change it too. Until you choose one for a layout, the plug-in takes the stackup of
    your own setupThermal / setupEM file for it (a `.tsimcfg` / `.simcfg` next to it with this GDS file), else the
    last one you chose; then the Stackup row says "last used, not chosen for this layout".
-   - **Remove Dummy Fill** (next in the menu, once, if the layout has fill): removes the dummy metal fill of the
+   - **Clean Up Layout > Remove Dummy Fill** (once, if the layout has fill): removes the dummy metal fill of the
      current cell, one undo step. Process independent, told by what it is, not by datatype or cell names: a shape
      on a conductor or sheet layer of the stackup (any datatype) that floats (merged with the drawn metal of its
      layer, datatype 0, it touches no via of the stackup, no label, no port and no device or PDK cell; other
@@ -115,7 +127,7 @@ The same steps are in the **EM** menu in the menu bar, top to bottom in workflow
      another datatype stays. Vias and via arrays are never removed: via layers are not searched. A fill tile cell
      loses the placements that are fill; a cell left empty or unplaced is deleted. On a 60 GHz PA: 68,312 fill
      shapes in about 14 s, on a 180 GHz PA 617,659 (all of its fill, Activ included) in about 60 s.
-   - **Fill Density Holes and Merge Metal** (next in the menu, once, before ports): fewer edges to mesh and fewer
+   - **Clean Up Layout > Fill Density Holes and Merge Metal** (once, before ports): fewer edges to mesh and fewer
      polygons for the checks, in the current cell, one undo step (Edit > Undo). Per metal layer of the stackup
      (conductors and sheets, not vias): the repeated small openings that density rules put into wide metal
      (cheesing; a hole size found at least 20 times, in any shape) are filled, other holes stay; then the cell's
@@ -124,13 +136,13 @@ The same steps are in the **EM** menu in the menu bar, top to bottom in workflow
      its own). Devices, PDK pcells, cells placed once otherwise, cells also placed elsewhere, vias, texts and shapes
      with properties stay as they are. On a 60 GHz PA: 2899 -> 387 metal polygons. Once saved, the change stays:
      such a layout must not go to tape-out (the fill breaks the density rules).
-2. **EM Port Tool** (also in the toolbar as "EM Port"): click a metal edge to create a via port, a zero-width line
+2. **Ports > Port Tool** (toolbar "EM Port"): click a metal edge to create a via port, a zero-width line
    along that edge; Shift+click into the gap between two shapes of one metal to create an in-plane port, a box that
    bridges the gap. The edge or gap under the cursor is highlighted first. Only metals visible in the layer panel
    are picked (a hidden group hides its layers); when the only edge or gap under the cursor is on a hidden layer,
    the status bar says so. The port dialog still offers every metal drawn at the port. The shape goes on the next
    free port layer (port number = layer - 200), then the port dialog opens; Cancel removes the shape again.
-3. **Port Settings...**: the same dialog for selected port shapes (layers 201..299, datatype 0; from the tool or
+3. **Ports > Port Settings...**: the same dialog for selected port shapes (layers 201..299, datatype 0; from the tool or
    drawn with KLayout's own tools): direction, from/to layer (via port, Z/-Z) or target layer (in-plane port), Z0
    and excitation.
    - Shows which stackup metals are drawn at the port and offers only those, unless "offer all stackup metals" is
@@ -138,11 +150,11 @@ The same steps are in the **EM** menu in the menu bar, top to bottom in workflow
      it at the port (a via port must not pass through a metal); without one below, the next metal above.
    - The settings are stored on the shape as GDS property 200, e.g. `port:dir=-Z;from=Metal3;to=TopMetal2;z0=50;v=1`,
      so they are saved with the layout.
-4. **Port Overview**: all ports of the current cell with their settings and problems.
-5. **Mark EM Region from Selection**: draws the bounding box of the selected shapes on layer **800/0**, replacing an
+4. **Ports > Port Overview**: all ports of the current cell with their settings and problems.
+5. **Region > Region from Selection**: draws the bounding box of the selected shapes on layer **800/0**, replacing an
    earlier box. Saved with the layout, it gives the same region on the next export. Selected instances count with
    all their shapes.
-   - **Draw EM Region Tool** (toolbar "EM Region", button Draw Region in the Region details): drag a rectangle in the
+   - **Region > Draw Region Tool** (toolbar "EM Region", button Draw Region in the Region details): drag a rectangle in the
      layout, it becomes the EM region box, on the grid; the size shows in the status bar while you drag. Shift+drag
      adds one more box, a piece of a split region. A plain drag over a split region asks before it replaces the
      pieces. Easier than a selection when the region should not follow shapes, or when a click only selects a
@@ -190,7 +202,7 @@ The same steps are in the **EM** menu in the menu bar, top to bottom in workflow
      setupEM and choosing Continue with the script (setupEM 0.16 or newer):
      ports and layout come from the export, everything else stays. When the export opens EMStudio, the EMStudio
      model `<name>.py` next to the `.simcfg` is not reported: EMStudio updates its ports on that import.
-7. **Create Circuit (EM Result with Devices)...**: after the Palace run, the EM result with the PDK devices put
+7. **Create Circuit from EM Result...**: after the Palace run, the EM result with the PDK devices put
    back, for ngspice, VACASK, Xyce or Spectre; see [Circuit wrapper](#circuit-wrapper-ngspice-vacask-xyce-spectre).
 
 **Backup of the original layout:** before the plug-in first changes a layout that holds none of its data (no meta
@@ -212,7 +224,7 @@ Experimental: it needs gds2palace 0.9.4 and setupEM 0.17 or newer (gds2palace 0.
 target layers `HEAT_TRANSISTOR` and `HEAT_RESISTOR`; without them every heat source sits in Activ and the devices
 come out too cool), and resistor temperatures are not validated yet.
 
-**EM > Export for Thermal (setupThermal)...** exports the same region as a model for setupThermal / gds2palace's
+**EM > Thermal > Export for Thermal...** exports the same region as a model for setupThermal / gds2palace's
 Elmer thermal mode. In the EM panel, switch to the **Thermal** tab at the top: it shows the heat sources of the
 region with their layers and schematic names, the LVS database, and the boundaries of the last thermal export, with
 **Export for Thermal...** and **Open in setupThermal** below (the EM steps, which a thermal model does not need, are
@@ -254,7 +266,7 @@ every device still in the region. Headless: the CLI command `export_thermal` (`l
 
 ## Circuit wrapper (ngspice, VACASK, Xyce, Spectre)
 
-After the Palace run, **EM > Create Circuit (EM Result with Devices)...** turns the result into a circuit with the
+After the Palace run, **EM > Create Circuit from EM Result...** turns the result into a circuit with the
 PDK devices put back. Choose the port map (the last export's is preselected), the EM result (`<model>_dc.sNp`), the
 simulator, optionally the IHP PDK folder (`ihp-sg13g2`, the one with `libs.tech`; found from KLayout's installed PDK technology, `PDK_ROOT`/`PDK` or `IHP_PDK_ROOT` when not chosen before), and the Python with snp2le (by default the one setupEM runs in: the interpreter of its entry script, the venv a wrapper script activates, or the Python next to setupEM.exe; the hint says when snp2le is not installed there). The EM result is preset from the port map: the export's model in setupEM's folder, best first `_dc_deembedded`, `_dc`, `_deembedded`, the raw result (a split region: the joined result). The
 dialog runs `tools/spice_wrapper.py`, which also works on its own:
