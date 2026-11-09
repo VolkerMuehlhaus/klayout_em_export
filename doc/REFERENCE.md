@@ -38,6 +38,9 @@ summary; the arrow shows its details and buttons.
   - With an EM region box: only the devices reaching into it (all pieces of a split region) are listed and
     replaced; without one, those of the whole cell. The CLI's `devices` command does the same (`whole: true` for
     the whole cell).
+  - Right-click in the device table: **Replace N Selected** / **Undo Replace of N Selected**, for the selected
+    devices only (a selected resistor whatever include resistors says). An unreplaced device is simulated as its
+    drawn metal and is not in Create Circuit's wrapper.
   - **Replace All** adds, in the layout and tagged (GDS property 202): one `REF_FOR_TRANSISTOR` patch per device,
     under its pins (their bounding box + 0.2 um; separate for devices side by side, the Devices step warns if two
     patches touch), and one via port per terminal from the pin's metal down to that patch, along

@@ -556,6 +556,11 @@ The ports appear in the table. In the layout, each transistor now has its REF pa
 
 **Undo Replace** removes all patches and ports made by Replace All.
 
+**Only some devices:** select rows in the device table and right-click: **Replace N Selected** or **Undo Replace of
+N Selected** (a selected resistor is replaced even with include resistors unticked). Leave a device as drawn when it
+is not on the EM signal path, e.g. a bias transistor far from the RF lines. Such a device is simulated as its drawn
+metal only, and Create Circuit does not put it back: keep it in your schematic outside the EM block.
+
 With an EM region box, the Devices line counts and Replace All replaces only the devices that reach into the box
 (all pieces of a split region). The rest of a large design stays as it is, and its devices don't use up the port
 layers 201..299.

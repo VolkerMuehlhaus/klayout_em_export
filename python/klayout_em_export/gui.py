@@ -495,25 +495,31 @@ def device_clip(layout, cell):
     return None if box is None else box.to_itype(layout.dbu)
 
 
-def replace_devices(view, cv, include_resistors=False):
+def replace_devices(view, cv, include_resistors=False, ids=None):
+    """Replace the devices of the region by ports (Replace All), or only those with the ids given (the device table's
+    right-click menu; a chosen resistor is replaced whatever include_resistors says)."""
     from .devices import replace
     layout, cell = cv.layout(), cv.cell
     stackup = read_stackup(stackup_path(layout))[0]
     if stackup is None:
         return {}
     backup_original(layout)
+    devices = find_layout_devices(layout, cell, stackup, device_clip(layout, cell))[0]
+    if ids is not None:
+        devices = [d for d in devices if d.id in set(ids)]
+        include_resistors = True
     try:
-        return replace(view, cell, stackup, find_layout_devices(layout, cell, stackup, device_clip(layout, cell))[0],
-                       include_resistors)
+        return replace(view, cell, stackup, devices, include_resistors)
     except ValueError as e:
         pya.MessageBox.warning("EM Export", str(e), pya.MessageBox.Ok)
         return {}
 
 
-def unreplace_devices(view, cv):
+def unreplace_devices(view, cv, ids=None):
+    """Undo the replacement of all devices, or of those with the ids given."""
     from .devices import unreplace
     backup_original(cv.layout())
-    return unreplace(view, cv.cell)
+    return unreplace(view, cv.cell, ids)
 
 
 def region_source(view, cv):

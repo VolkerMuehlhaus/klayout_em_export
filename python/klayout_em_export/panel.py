@@ -201,10 +201,15 @@ class EMPanel(pya.QWidget):
             self.show_ground,
             _button("Run Checks", lambda: self.refresh(run_checks=True),
                     "ground and boundary checks for a region too large to check on every refresh")]))
-        self.devices_table = _table(DEVICE_COLUMNS, "click: highlight the device; double-click: zoom to it. #: its "
-                                    "number in Create Circuit (X# in the subcircuit, R# for a resistor from its label)")
+        self.devices_table = _table(DEVICE_COLUMNS, "click: highlight the device; double-click: zoom to it; right-click: "
+                                    "replace or undo the selected devices only. #: its number in Create Circuit (X# "
+                                    "in the subcircuit, R# for a resistor from its label)")
         self.devices_table.itemSelectionChanged += self._devices_selected
         self.devices_table.cellDoubleClicked += lambda row, col: self._zoom_to_device(row)
+        # right-click: replace or undo only the selected devices (one that does not touch the EM signal path can
+        # stay as drawn)
+        self.devices_table.setContextMenuPolicy(pya.Qt.CustomContextMenu)
+        self.devices_table.customContextMenuRequested += self._device_menu
         self.device_rows = []       # the Device of each row of devices_table
         self.device_numbers = {}    # {device id: its # in devices_table}, for the port table
         self.device_types = {}      # {device id: its type, e.g. rhigh}, for the port table
@@ -559,6 +564,46 @@ class EMPanel(pya.QWidget):
             removed = gui.unreplace_devices(view, cv)
             self.refresh()
             gui._status(f"device replacement undone ({removed} shape(s) removed)", 10)
+
+    def _selected_devices(self):
+        return [self.device_rows[r] for r in sorted({_get(i.row) for i in self.devices_table.selectedItems()})]
+
+    def _device_menu(self, pos):
+        row = self.devices_table.rowAt(_get(pos.y))
+        if row < 0:
+            return
+        if row not in {_get(i.row) for i in self.devices_table.selectedItems()}:
+            self.devices_table.selectRow(row)
+        chosen = self._selected_devices()
+        menu = pya.QMenu(self)
+        actions = []
+        todo = [d for d in chosen if not d.replaced and not d.problems]
+        done = [d for d in chosen if d.replaced]
+        if todo:
+            actions.append((menu.addAction(f"Replace {len(todo)} Selected"), lambda: self._replace_selected(todo)))
+        if done:
+            actions.append((menu.addAction(f"Undo Replace of {len(done)} Selected"),
+                            lambda: self._unreplace_selected(done)))
+        if not actions:
+            menu.addAction("cannot be replaced (see Status)").setEnabled(False)
+        chosen_action = menu.exec_(_get(pya.QCursor.pos))
+        for action, handler in actions:
+            if chosen_action is not None and chosen_action == action:
+                handler()
+
+    def _replace_selected(self, devices):
+        view, cv = self._view()
+        if view is not None:
+            done = gui.replace_devices(view, cv, True, ids=[d.id for d in devices])
+            self.refresh()
+            gui._status(f"{len(done)} selected device(s) replaced by ports", 10)
+
+    def _unreplace_selected(self, devices):
+        view, cv = self._view()
+        if view is not None:
+            removed = gui.unreplace_devices(view, cv, ids=[d.id for d in devices])
+            self.refresh()
+            gui._status(f"replacement of {len(devices)} device(s) undone ({removed} shape(s) removed)", 10)
 
     def _fill_table(self, layout, cell, stackup, crossings):
         self.table.setRowCount(0)

@@ -212,14 +212,23 @@ def replace(view, cell, stackup, devices, include_resistors=False):
     return done
 
 
-def unreplace(view, cell):
-    """Remove all REF patches and ports made by replace (tagged with DEVICE_KEY). Returns the number of shapes."""
+def device_of_tag(value):
+    """The device id of a DEVICE_KEY tag ('device:<id>' or 'device:<id>:<terminal>'), else None."""
+    if not isinstance(value, str) or not value.startswith("device:"):
+        return None
+    return value[len("device:"):].split(":")[0]
+
+
+def unreplace(view, cell, ids=None):
+    """Remove the REF patches and ports made by replace (tagged with DEVICE_KEY): all, or those of the devices ids.
+    Returns the number of shapes."""
     layout = cell.layout()
+    wanted = None if ids is None else set(ids)
     tagged = []
     for li in layout.layer_indexes():
         for shape in cell.shapes(li).each():
-            value = shape.property(DEVICE_KEY)
-            if isinstance(value, str) and value.startswith("device:"):
+            device = device_of_tag(shape.property(DEVICE_KEY))
+            if device is not None and (wanted is None or device in wanted):
                 tagged.append(shape)
     view.transaction("Undo device replacement")
     try:
