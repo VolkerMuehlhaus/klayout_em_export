@@ -120,6 +120,27 @@ print("unmark by the outside click:", gui.unmark_ground_at(ly, top, st, outside)
 if gui.ground_seeds(ly):
     print("FAIL: unmark must find the moved points through the clicked shapes")
 
+# 4b. a ground plane that enters the box in two parts, joined only outside it (a U around a slot): a click on it
+# outside the box marks both parts, not only the first (lo_core: the chip's Metal4 plane and a strip of it)
+top.shapes(ly.layer(*EM_REGION)).clear()
+top.shapes(ly.layer(*EM_REGION)).insert(pya.Box(um(1050), um(1200), um(1250), um(1300)))
+u = pya.Region(pya.Box(um(1000), um(1000), um(1300), um(1300))) - pya.Region(pya.Box(um(1100), um(1050), um(1200), um(1300)))
+for poly in u.each():
+    top.shapes(ly.layer(50, 0)).insert(poly)
+print("click on the U's base outside the box marks:", gui.mark_ground_at(ly, top, st, pya.Point(um(1150), um(1020))))
+seeds = [(l, p) for l, p in gui.ground_seeds(ly) if l == 50]
+xs = sorted(p.x * ly.dbu for _, p in seeds)
+print("stored Metal4 points:", [(p.x * ly.dbu, p.y * ly.dbu) for _, p in seeds])
+if len(seeds) != 2 or not (xs[0] < 1100 < 1200 < xs[1]):
+    print("FAIL: both arms of the plane inside the box must get a ground mark")
+check = check_ground(ly, top, st, pya.Box(um(1050), um(1200), um(1250), um(1300)), seeds=gui.ground_seeds(ly), ports={})
+if len(check.net.get(50, [])) != 2 if isinstance(check.net, dict) else False:
+    print("FAIL: the ground check must see both arms")
+gui.unmark_ground_at(ly, top, st, pya.Point(um(1150), um(1020)))
+if gui.ground_seeds(ly):
+    print("FAIL: unmark at the same click must remove both marks")
+top.shapes(ly.layer(*EM_REGION)).clear()
+
 # 5. a click on something that is not a traced metal: nothing marked, the layers there are named
 from klayout_em_export.tool import _no_metal
 top.shapes(ly.layer(8, 2)).insert(pya.Box(um(400), um(400), um(420), um(420)))     # Metal1.pin

@@ -340,8 +340,10 @@ The buttons:
   choice is wrong.
 - **Mark at Click** (the **EM Ground** tool, also in the toolbar and the EM menu): click a metal in the layout to
   mark it as ground. Every metal drawn under the click is marked, through the hierarchy, so a pad frame stacked on
-  several metals in a subcell takes one click, with nothing to select. Shift+click removes the marks of the shapes
-  under the click. The status bar names the metals under the pointer.
+  several metals in a subcell takes one click, with nothing to select. You can click outside the EM region box:
+  the chip's ground plane counts in every part where it enters the box, also where these parts connect only outside
+  it. Shift+click removes the marks of the shapes under the click. The status bar names the metals under the
+  pointer.
 - **Use Ports**: forget the marks and use the automatic choice again.
 - **Run Checks**: for large regions the checks do not run on every change; press it to run them.
 
@@ -555,6 +557,10 @@ The ports appear in the table. In the layout, each transistor now has its REF pa
 ![Q1 after: REF patch and ports P3 (base), P4 (collector), P5 (emitter)](images_linux/10_q1_after.png)
 
 **Undo Replace** removes all patches and ports made by Replace All.
+
+With an EM region box, the Devices line counts and Replace All replaces only the devices that reach into the box
+(all pieces of a split region). The rest of a large design stays as it is, and its devices don't use up the port
+layers 201..299.
 
 **What can go wrong:**
 

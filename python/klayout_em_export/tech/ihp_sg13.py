@@ -97,7 +97,41 @@ def identify(c, ctx):
         if m:
             return name, {"Nx": int(m.group(1)), "Ny": int(m.group(2)), "we": m.group(3) + "u",
                           "le": m.group(4) + "u"}, None
+    if name in MOSFET_PCELLS:
+        return name, _mos_size_from_gates(c), None
     return name, {}, None
+
+
+def _mos_size_from_gates(c):
+    """w, l, ng of a static MOSFET cell without a label, as the pcell has them, from its drawn gates (GatPoly over
+    Activ): ng = the number of gate fingers, l = their length along the channel (towards source and drain), w = the
+    total width of all fingers (the pcell's w; the drawn value, e.g. 9.99 µm for a pcell w = 10u with ng = 3 on the
+    5 nm grid). {} if a gate is not a rectangle with source and drain on two opposite sides, or the gates differ in
+    length. Checked against the SG13_dev nmos, pmos, nmosHV, pmosHV pcells (tests/test_technology.py)."""
+    layout = c.layout()
+    poly_li, activ_li = layout.find_layer(POLY_LAYER, 0), layout.find_layer(*ACTIV_LAYER)
+    if poly_li is None or activ_li is None:
+        return {}
+    poly = pya.Region(c.begin_shapes_rec(poly_li)).merged()
+    activ = pya.Region(c.begin_shapes_rec(activ_li)).merged()
+    sizes = []
+    for gate in (poly & activ).merged().each():
+        if not gate.is_box():
+            return {}           # a bent or notched gate: no size to read off
+        g = gate.bbox()
+        # the channel length runs where source and drain are: Activ without poly on both sides of the gate (the
+        # shorter side of the gate is not always L: a narrow long-channel device has W < L)
+        outside = lambda x, y: activ.interacting(pya.Region(pya.Box(x - 1, y - 1, x + 1, y + 1))).count() > 0 and             poly.interacting(pya.Region(pya.Box(x - 1, y - 1, x + 1, y + 1))).count() == 0
+        cx, cy = g.center().x, g.center().y
+        along_x = outside(g.left - 2, cy) and outside(g.right + 2, cy)
+        along_y = outside(cx, g.bottom - 2) and outside(cx, g.top + 2)
+        if along_x == along_y:
+            return {}           # source and drain not on two opposite sides
+        sizes.append((g.width(), g.height()) if along_x else (g.height(), g.width()))
+    if not sizes or len({length for length, _ in sizes}) != 1:
+        return {}
+    um = lambda v: f"{round(v * layout.dbu, 4):g}u"
+    return {"w": um(sum(width for _, width in sizes)), "l": um(sizes[0][0]), "ng": len(sizes), "from_gates": True}
 
 
 def _static_name(cell_name):
@@ -122,7 +156,7 @@ def terminals(layout, top, c, trans, device, ctx, m1_li, m1, stackup):
     if not device.params and device.pcell not in RESISTOR_PCELLS:
         # a static cell without a parameter label: Create Circuit would put in the model with default size
         device.problems.append("no parameters: a static device cell (no pcell context) without a parameter label "
-                               "(npn: 'Ae=Nx*Ny*we*le')")
+                               "(npn: 'Ae=Nx*Ny*we*le'; a MOSFET's size comes from its gates, all of one length)")
     if device.pcell in MOSFET_PCELLS:
         _mosfet_terminals(layout, top, c, trans, device, m1_li, m1, stackup)
     elif device.pcell in RESISTOR_PCELLS:
@@ -200,7 +234,7 @@ def describe(device):
     parts = [f"{k}={p[k]}" for k in ("Nx", "Ny") if k in p and not (k == "Ny" and str(p[k]) == "1")]
     parts += [f"{k} {_size(p[k])}" for k in ("le", "we", "w", "l") if k in p]
     parts += [f"{k}={p[k]}" for k in ("ng", "b") if k in p and str(p[k]) not in ("0", "1")]
-    return ", ".join(parts)
+    return ", ".join(parts) + (" (from the drawn gates)" if p.get("from_gates") else "")
 
 
 def resistor_note(device):
@@ -237,8 +271,10 @@ def _resistor_terminals(layout, c, trans, device, pin_layers, m1):
     """rsil, rppd, rhigh: two Metal1 pins without names, one per contact head. PLUS is the one with the lower
     coordinate along the resistor in the cell's own coordinates (the pcell draws PLUS at the bottom contact area).
     A resistor of several segments has more pins and is not replaced."""
-    pins = [s.bbox() for li in pin_layers if layout.get_info(li).layer == m1 for s in c.shapes(li).each()
-            if not s.is_text()]
+    # a pin drawn twice (identical shapes, e.g. a cell copied onto itself) is one pin
+    pins = list({(b.left, b.bottom, b.right, b.top): b for b in (
+        s.bbox() for li in pin_layers if layout.get_info(li).layer == m1 for s in c.shapes(li).each()
+        if not s.is_text())}.values())
     if len(pins) != 2:
         device.problems.append(f"{len(pins)} Metal1 pins, expected 2 (a resistor of several segments?)")
         return

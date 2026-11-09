@@ -115,3 +115,15 @@ cports = collect_ports(cas, ccell, stackup=st)
 export_flat(cas, ccell, st, cgds, port_layers=export_numbering(cports), remove=device_shapes(cas, mark_replaced(cas, ccell, find_devices(cas, ccell, st)[0]), st))
 cchk = pya.Layout(); cchk.read(cgds)
 print("exported REF polygons:", [str(p.bbox().to_dtype(cchk.dbu)) for p in pya.Region(cchk.top_cell().shapes(cchk.find_layer(300, 0))).merged().each()])
+
+# devices of the EM region only: a large design has more device terminals than the port layers 201..299
+vcell = view.active_cellview().cell
+everything = gui.find_layout_devices(vly, vcell, st)[0]
+first = everything[0].bbox
+inside = gui.find_layout_devices(vly, vcell, st, first)[0]
+away = gui.find_layout_devices(vly, vcell, st, first.moved(first.width() + 10000, 0))[0]
+print("ok  " if inside and all(d.bbox.overlaps(first) for d in inside) and
+      len(away) == sum(1 for d in everything if d.bbox.overlaps(first.moved(first.width() + 10000, 0))) else "FAIL",
+      f"devices in a region: {len(inside)} at the first device, {len(away)} beside it, {len(everything)} in the cell")
+vcell.shapes(vly.layer(*gui.EM_REGION)).insert(first)
+print("ok  " if gui.device_clip(vly, vcell) == first else "FAIL", "the EM region box is where devices count and are replaced")

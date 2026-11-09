@@ -399,7 +399,7 @@ class EMPanel(pya.QWidget):
                     if clip is not None:
                         crossings = find_crossings(layout, cell, stackup, clip, self.result)
         self._show_ground_step(stackup, layout)
-        self._show_devices_step(stackup, layout, cell)
+        self._show_devices_step(stackup, layout, cell, clip)
         self._fill_table(layout, cell, stackup, crossings)
         self._update_region()
         last = gui.last_simcfg(layout)
@@ -437,7 +437,7 @@ class EMPanel(pya.QWidget):
             self.ground_step.set(state, f"{names} ({how})", self.result.summary())
             self.ground_detail.setText(self.result.summary())
 
-    def _show_devices_step(self, stackup, layout, cell):
+    def _show_devices_step(self, stackup, layout, cell, clip=None):
         self._fill_devices([], layout)
         if stackup is None:
             self.devices_step.set(ERROR, "needs a stackup")
@@ -445,7 +445,7 @@ class EMPanel(pya.QWidget):
             return
         technology, reason = gui.layout_technology(layout)
         self.devices_step.summary.setToolTip(f"technology: {technology.LABEL} ({reason})")
-        devices, unknown = gui.find_layout_devices(layout, cell, stackup)
+        devices, unknown = gui.find_layout_devices(layout, cell, stackup, clip)
         transistors = [d for d in devices if not d.is_resistor]
         resistors = [d for d in devices if d.is_resistor]
         self._fill_devices(devices, layout, technology)
@@ -491,6 +491,8 @@ class EMPanel(pya.QWidget):
         # end resistance, so its R is too low (Palace: rhigh and rppd by 9 to 13 %, see tests/resistor_palace)
         state = (OK if all(d.replaced for d in devices) and not unknown and not touching and not loose and not orphans
                  else WARN)
+        if clip is not None and parts and (transistors or resistors):
+            parts[0] = "in the region: " + parts[0]
         self.devices_step.set(state, ", ".join(parts))
 
     def _fill_devices(self, devices, layout, technology=None):
@@ -506,7 +508,9 @@ class EMPanel(pya.QWidget):
             if d.replaced:
                 state, why = "replaced", "replaced by ports; Create Circuit puts the PDK model back"
             elif d.problems:
-                state, why = "cannot be replaced", "; ".join(d.problems)
+                # the reason in short in the cell (the full text in the tooltip)
+                short = d.problems[0].split(" (")[0].split(":")[0]
+                state, why = f"cannot be replaced: {short}", "; ".join(d.problems)
             elif d.is_resistor:
                 state, why = "not replaced: EM gives R too low", technology.resistor_note(d)
             else:

@@ -76,6 +76,45 @@ top.insert(pya.CellInstArray(ly.cell_by_name("npn13G2$2"), pya.Trans()))
 problems = [d.problems for d in find_devices(ly, top, st, ihp_sg13)[0] if d.id.startswith("npn13G2$2")]
 check(problems and any(p.startswith("no parameters") for p in problems[0]),
       f"static npn without Ae= label is not replaced: {problems}")
+
+# a static nmos without a label (as in lo_core): w, l, ng from its gates, GatPoly over Activ; a static rhigh whose
+# two Metal1 pins are drawn twice (identical shapes) has two pins, not four
+um = lambda v: round(v / ly.dbu)
+mos = ly.create_cell("nmos$7")
+mos.shapes(ly.layer(*ihp_sg13.ACTIV_LAYER)).insert(pya.Box(0, 0, um(6.42), um(2)))
+for k in range(12):
+    x = 0.34 + 0.51 * k
+    mos.shapes(ly.layer(ihp_sg13.POLY_LAYER, 0)).insert(pya.Box(um(x), um(-0.18), um(x + 0.13), um(2.18)))
+got = ihp_sg13.identify(mos, ihp_sg13.context(ly, st))[:2]
+check(got == ("nmos", {"w": "24u", "l": "0.13u", "ng": 12, "from_gates": True}), f"static nmos from its gates: {got}")
+check(ihp_sg13.describe(type("D", (), {"params": got[1]})()).endswith("(from the drawn gates)"),
+      "the Value column says where the size comes from")
+# the same rule on the PDK's own MOSFET pcells made static: w (total width), l, ng read back, also for a narrow
+# long-channel device (W < L) and rotated by 90 degrees; a width off the 5 nm grid comes back as drawn (w=10u, ng=3:
+# fingers of 3.33 um, 9.99u)
+lib = pya.Library.library_by_name("SG13_dev", "sg13g2")
+for name, w, l, ng, expected_w in (("nmos", "2u", "0.13u", 2, 2.0), ("pmos", "5u", "0.5u", 4, 5.0),
+                                   ("nmosHV", "0.15u", "0.45u", 1, 0.15), ("pmos", "0.3u", "2u", 2, 0.3),
+                                   ("nmos", "10u", "1u", 3, 9.99)):
+    decl = lib.layout().pcell_declaration(name)
+    values = {d.name: d.default for d in decl.get_parameters()}
+    values.update(w=w, l=l, ng=str(ng))
+    static = ly.cell(ly.convert_cell_to_static(ly.add_pcell_variant(lib, decl.id(), values)))
+    rotated = ly.create_cell(f"{name}$rot")
+    rotated.copy_shapes(static)
+    rotated.transform(pya.Trans(pya.Trans.R90))
+    got, got_rotated = ihp_sg13._mos_size_from_gates(static), ihp_sg13._mos_size_from_gates(rotated)
+    check(got == got_rotated and got.get("ng") == ng and abs(float(got["w"][:-1]) - expected_w) < 1e-6
+          and got["l"] == l, f"pcell {name} w={w} l={l} ng={ng} made static: {got}")
+res = ly.create_cell("rhigh$5")
+res.shapes(ly.layer(*ihp_sg13.TEXT_LAYER)).insert(pya.Text("rhigh r=19993.333", 0, 0))
+for _ in range(2):
+    for y in (-0.41, 14.15):
+        res.shapes(ly.layer(8, ihp_sg13.PIN_DATATYPE)).insert(pya.Box(um(0.02), um(y), um(0.98), um(y + 0.26)))
+top.insert(pya.CellInstArray(res.cell_index(), pya.Trans(pya.Point(um(100), 0))))
+found = [d for d in find_devices(ly, top, st, ihp_sg13)[0] if d.id.startswith("rhigh$5")]
+check(found and not found[0].problems and set(found[0].terminals) == {"PLUS", "MINUS"},
+      f"rhigh with its pins drawn twice: {found[0].problems if found else 'not found'}")
 ly = pya.Layout()
 ly.technology_name = "sg13g2"       # the PDK library binds its pcells to this technology
 ly.read(layout_file("1_St_Core_v1.gds"))

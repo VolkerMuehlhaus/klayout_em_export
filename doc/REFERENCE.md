@@ -31,9 +31,13 @@ summary; the arrow shows its details and buttons.
   (rsil, rppd, rhigh) found in the cell, and whether they are replaced by ports. Recognized as SG13_dev pcells, or
   as static device cells: exported from Cadence (`<device>_CDNS_<number>`) or saved without pcell context
   (`<device>$<number>`, e.g. after a fill tool). These have the same pins but no parameters: a resistor's value
-  comes from its label, an npn's size from its `Ae=Nx*Ny*we*le` label; any other static device without a parameter
-  label is not replaced ("no parameters"). The reference plane is at the pcell's pins: the device model
+  comes from its label, an npn's size from its `Ae=Nx*Ny*we*le` label, a MOSFET's w, l and ng from its drawn gates
+  (GatPoly over Activ; Value says "from the drawn gates"); any other static device without a parameter label is
+  not replaced ("no parameters"). A pin drawn twice (identical shapes) counts once. The reference plane is at the pcell's pins: the device model
   (circuit simulator) covers the device up to its pins, the EM model everything from there on.
+  - With an EM region box: only the devices reaching into it (all pieces of a split region) are listed and
+    replaced; without one, those of the whole cell. The CLI's `devices` command does the same (`whole: true` for
+    the whole cell).
   - **Replace All** adds, in the layout and tagged (GDS property 202): one `REF_FOR_TRANSISTOR` patch per device,
     under its pins (their bounding box + 0.2 um; separate for devices side by side, the Devices step warns if two
     patches touch), and one via port per terminal from the pin's metal down to that patch, along

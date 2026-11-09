@@ -39,6 +39,7 @@ from klayout_em_export.locate import (drawn_metals, edge_at, gap_at, metals_at, 
                                       via_layers)
 from klayout_em_export.pipeline import (EM_REGION, META_GROUND, META_STACKUP, NoUndo, export_checks,  # noqa: E402
                                         export_em, layout_devices, region_ports)
+_layout_devices = layout_devices
 from klayout_em_export.ports import PROP_KEY, PortSettings, port_problems, is_complete            # noqa: E402
 from klayout_em_export.stackup import Stackup                            # noqa: E402
 from klayout_em_export.thermal import export_thermal                      # noqa: E402
@@ -421,6 +422,13 @@ def cmd_devices(request, layout, cell):
     technology = technology_of(request, layout)[0]
     action = request.get("action", "list")
     result = {"technology": technology.NAME}
+    # the devices of the EM region (all its pieces), as in the panel; 'whole': true for the whole cell
+    region = None if request.get("whole") else marker_box(layout, cell, EM_REGION)
+    clip = None if region is None else region.to_itype(layout.dbu)
+
+    def layout_devices(layout, cell, stackup, technology):
+        devices, unknown = _layout_devices(layout, cell, stackup, technology)
+        return ([d for d in devices if clip is None or d.bbox.overlaps(clip)], unknown)
     if action == "replace":
         try:
             result["replaced"] = replace(NoUndo(), cell, stackup, layout_devices(layout, cell, stackup, technology)[0],

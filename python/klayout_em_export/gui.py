@@ -344,21 +344,23 @@ def metals_at_point(layout, cell, stackup, point):
 
 
 def mark_ground_at(layout, cell, stackup, point):
-    """Mark every traced metal drawn at point (Point in dbu, through the hierarchy) as ground: one mark per
-    metal, added to the layout's marks. The stored point is the click, or a point of the shape inside the EM
-    region box when the shape reaches into it (the ground check looks there). Returns the metals' names."""
+    """Mark every traced metal drawn at point (Point in dbu, through the hierarchy) as ground, added to the
+    layout's marks. The stored point is the click; when the shape reaches into the EM region box, one point in each
+    part of it inside the box (the ground check looks there): a chip's ground plane can enter the box in several
+    parts that join only outside it, and each part is ground. Returns the metals' names."""
     region = marker_box(layout, cell, EM_REGION)
     region = None if region is None else pya.Region(region.to_itype(layout.dbu))
     seeds, names = ground_seeds(layout), []
     for layer, name, polygon in _shapes_at_point(layout, cell, stackup, point):
-        inside = point
+        points = [point]
         if region is not None:
-            for part in (pya.Region(polygon) & region).each():
-                if not part.inside(point):
-                    inside = part.decompose_trapezoids()[0].bbox().center()
-                break
-        if (layer, inside) not in seeds:
-            seeds.append((layer, inside))
+            parts = list((pya.Region(polygon) & region).each())
+            if parts:
+                points = [point if part.inside(point) else part.decompose_trapezoids()[0].bbox().center()
+                          for part in parts]
+        for inside in points:
+            if (layer, inside) not in seeds:
+                seeds.append((layer, inside))
         names.append(name)
     _set_ground_seeds(layout, seeds)
     return names
@@ -475,11 +477,22 @@ def layout_technology(layout):
     return for_layout(layout, _load_settings().get("technology"))
 
 
-def find_layout_devices(layout, cell, stackup):
-    """(devices, unknown) of cell, with the replaced ones marked (devices.find_devices, mark_replaced)."""
+def find_layout_devices(layout, cell, stackup, clip=None):
+    """(devices, unknown) of cell, with the replaced ones marked (devices.find_devices, mark_replaced); with clip
+    (Box, dbu) only the devices that reach into it."""
     from .devices import find_devices, mark_replaced
     devices, unknown = find_devices(layout, cell, stackup, layout_technology(layout)[0])
+    if clip is not None:
+        devices = [d for d in devices if d.bbox.overlaps(clip)]
     return mark_replaced(layout, cell, devices), unknown
+
+
+def device_clip(layout, cell):
+    """Where devices count and are replaced: the EM region box (all pieces of a split region), else None (the
+    whole cell). A large design has more device terminals than port layers 201..299; outside the region they
+    would only use them up."""
+    box = marker_box(layout, cell, EM_REGION)
+    return None if box is None else box.to_itype(layout.dbu)
 
 
 def replace_devices(view, cv, include_resistors=False):
@@ -490,7 +503,8 @@ def replace_devices(view, cv, include_resistors=False):
         return {}
     backup_original(layout)
     try:
-        return replace(view, cell, stackup, find_layout_devices(layout, cell, stackup)[0], include_resistors)
+        return replace(view, cell, stackup, find_layout_devices(layout, cell, stackup, device_clip(layout, cell))[0],
+                       include_resistors)
     except ValueError as e:
         pya.MessageBox.warning("EM Export", str(e), pya.MessageBox.Ok)
         return {}
@@ -935,7 +949,8 @@ class ExportDialog(pya.QDialog):
         else:
             clip = None if self.box is None else self.box.to_itype(self.em_layout.dbu)
             ports = collect_ports(self.em_layout, self.cell, clip, stackup=self.stackup)
-        devices = find_layout_devices(self.em_layout, self.cell, self.stackup)[0]
+        clip = None if self.box is None else self.box.to_itype(self.em_layout.dbu)
+        devices = find_layout_devices(self.em_layout, self.cell, self.stackup, clip)[0]
         checks = export_checks(self.em_layout, self.cell, self.stackup, ports, devices,
                                ground_seeds(self.em_layout), self.box)
         problems, left_out = checks["problems"], checks["left_out"]
