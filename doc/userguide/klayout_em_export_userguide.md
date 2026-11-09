@@ -299,6 +299,13 @@ To change a port later: select its shape and use **EM > Ports > Port Settings...
 port table. A port shape you drew yourself, without settings yet, starts like a new port: from the top metal at the
 port down to the next metal below. If only one metal is at the port, the dialog offers all stackup metals.
 
+**The port numbers** are the order of the ports in the result. A port is the shapes on layer 200 + its number, so a
+port you added later gets the next free number. To put it in its place, right-click its line in the port table:
+**Move Up** / **Move Down** swaps it with its neighbour, **Set Number...** moves it to a number and shifts the ports
+in between by one place (a port added last as 7 that should be 3: Set Number 3, the old 3..6 become 4..7). Device
+ports and the ports at a split region's cut move along with their tags. A model script made in setupEM before keeps
+the old order: export again, and setupEM's model check says what changed.
+
 ### Checking your ports
 
 The panel's table lists all ports with their status:

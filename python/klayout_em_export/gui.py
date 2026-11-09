@@ -593,6 +593,50 @@ def mark_region():
         view.commit()
 
 
+# ---------- port numbers: a port is the shapes on layer 200 + its number ----------
+
+def port_numbers(layout):
+    """The port layers that can hold ports for this layout's stackup (201..299 without the stackup's own layers)."""
+    from .export import port_layer_numbers
+    stackup = read_stackup(stackup_path(layout))[0] if stackup_path(layout) else None
+    return list(port_layer_numbers(stackup))
+
+
+def renumber_port(view, cv, layer, target):
+    """Give the port on GDS layer `layer` the number of `target` (a port layer): the ports from target up to (or
+    down to) the moved one shift by one place to make room, in the order of the usable port layers. Move Up / Move
+    Down is a target next to the port: a swap. The shapes move with their properties (settings, device and cut
+    tags), in every cell. Returns {old layer: new layer} of the moves."""
+    layout = cv.layout()
+    allowed = port_numbers(layout)
+    if layer not in allowed or target not in allowed or layer == target:
+        return {}
+    i, j = allowed.index(layer), allowed.index(target)
+    chain = allowed[j:i + 1] if j < i else allowed[i:j + 1]
+    # the moved port goes to target; the others in between move one place towards where it came from
+    mapping = {layer: target}
+    if j < i:
+        mapping.update({chain[k]: chain[k + 1] for k in range(len(chain) - 1)})
+    else:
+        mapping.update({chain[k]: chain[k - 1] for k in range(1, len(chain))})
+    backup_original(layout)
+    create_layers(layout, [(l, 0) for l in mapping.values()])
+    view.transaction("Renumber ports")
+    try:
+        temp = {src: layout.insert_layer(pya.LayerInfo()) for src in mapping}
+        for src in mapping:                      # all out first: a permutation must not move a shape twice
+            li = layout.find_layer(src, 0)
+            if li is not None:
+                layout.move_layer(li, temp[src])
+        for src, dst in mapping.items():
+            layout.move_layer(temp[src], layout.find_layer(dst, 0))
+            layout.delete_layer(temp[src])
+        view.add_missing_layers()
+    finally:
+        view.commit()
+    return mapping
+
+
 def region_tool():
     view, cv = _current()
     if view is not None:

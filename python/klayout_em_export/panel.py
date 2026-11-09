@@ -1039,6 +1039,21 @@ class EMPanel(pya.QWidget):
         if ports:
             actions.append((menu.addAction("Settings..."), lambda: self._edit(ports)))
             actions.append((menu.addAction("Delete"), lambda: self._delete(ports)))
+        if len(ports) == 1 and len(chosen) == 1:
+            # the port number: a port is the shapes on layer 200 + its number
+            view, cv = self._view()
+            allowed = gui.port_numbers(cv.layout()) if view is not None else []
+            port = ports[0]
+            if port.layer in allowed:
+                menu.addSeparator()
+                k = allowed.index(port.layer)
+                up = menu.addAction("Move Up (Number - 1)")
+                up.setEnabled(k > 0)
+                down = menu.addAction("Move Down (Number + 1)")
+                down.setEnabled(k < len(allowed) - 1)
+                actions.append((up, lambda: self._renumber(port, allowed[k - 1])))
+                actions.append((down, lambda: self._renumber(port, allowed[k + 1])))
+                actions.append((menu.addAction("Set Number..."), lambda: self._ask_number(port, allowed)))
         if proposed:
             actions.append((menu.addAction(f"Create {len(proposed)} Port(s)"), lambda: self._create(proposed)))
         chosen_action = menu.exec_(_get(pya.QCursor.pos))
@@ -1079,6 +1094,33 @@ class EMPanel(pya.QWidget):
             return
         gui.edit_ports(view, cv, [(shape, trans) for port in ports for shape, trans, _ in port.items])
         self.refresh()
+
+    def _renumber(self, port, target):
+        view, cv = self._view()
+        if view is None:
+            return
+        moves = gui.renumber_port(view, cv, port.layer, target)
+        self.refresh()
+        if moves:
+            shifted = len(moves) - 1
+            gui._status(f"port {port.number} is now port {target - 200}" +
+                        (f"; {shifted} other port number(s) moved by one" if shifted > 1 else
+                         f"; port {target - 200} is now {port.number}" if shifted == 1 else ""), 10)
+
+    def _ask_number(self, port, allowed):
+        numbers = [layer - 200 for layer in allowed]
+        # KLayout's ask_int: title, label, start value only (no range): the range is checked here
+        number = pya.InputDialog.ask_int("Set Port Number",
+                                         f"New number for port {port.number}, {numbers[0]}..{numbers[-1]} (the ports "
+                                         "from there up to it move by one place):", port.number)
+        if number is None or number == port.number:
+            return
+        if number + 200 not in allowed:
+            why = (f"layer {number + 200} is a layer of the stackup" if numbers[0] <= number <= numbers[-1]
+                   else f"port numbers are {numbers[0]}..{numbers[-1]}")
+            pya.MessageBox.warning("EM Export", f"No port number {number}: {why}.", pya.MessageBox.Ok)
+            return
+        self._renumber(port, number + 200)
 
     def _delete(self, ports):
         view, cv = self._view()

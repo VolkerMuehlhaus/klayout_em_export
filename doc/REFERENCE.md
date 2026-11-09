@@ -84,7 +84,9 @@ summary; the arrow shows its details and buttons.
     circuit: both ends on one net), "proposed" or "cut without ground".
   - Click a row to highlight it in the layout (a marker, not a selection: a selected port would become the
     export region); double-click to edit a port or create a proposed one; right-click for Settings, Delete or
-    Create.
+    Create, and for one port **Move Up** / **Move Down** (a swap with the neighbouring number) or **Set Number...**
+    (to that number, the ports in between shift by one place; the stackup's own layers in 201..299 are skipped).
+    The shapes move to the new layer with their settings and device or cut tags, in every cell.
   - **EM Port tool** starts the tool. **Create Proposed Ports** adds a via port on each signal conductor the EM
     region box cuts: a zero-width line on the box edge, from the signal metal to the ground metal at the cut (the
     closest in height), from = lower, to = upper, direction Z, Z0 50 Ohm. The export cuts the metal there, so the
