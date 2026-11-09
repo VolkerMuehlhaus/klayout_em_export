@@ -6,8 +6,34 @@ import re
 
 NAME = "ihp_sg13"
 PDK_LABEL = "IHP PDK"
-PDK_HINT = "Optional: the ihp-sg13g2 or ihp-sg13cmos5l folder of IHP-Open-PDK, for the model library paths."
-PDK_BROWSE_TITLE = "IHP-Open-PDK folder (ihp-sg13g2 or ihp-sg13cmos5l)"
+PDK_HINT = ("The ihp-sg13g2 (or ihp-sg13cmos5l) folder inside IHP-Open-PDK, the one that contains libs.tech, for the "
+            "model library paths. Optional.")
+PDK_BROWSE_TITLE = "IHP-Open-PDK: the ihp-sg13g2 or ihp-sg13cmos5l folder"
+# KLayout technology name -> the PDK folder of IHP-Open-PDK (the circuit dialog finds it from KLayout's technology)
+PDK_FOLDERS = {"sg13g2": "ihp-sg13g2", "sg13cmos5l": "ihp-sg13cmos5l"}
+
+
+def pdk_folder(path):
+    """The PDK folder (the one with libs.tech) for path: path itself, its ihp-sg13g2 / ihp-sg13cmos5l subfolder (the
+    IHP-Open-PDK folder chosen), or the folder above it that has libs.tech (a folder inside the PDK chosen). None if
+    there is none."""
+    if not path:
+        return None
+    path = os.path.abspath(path)
+    if os.path.isdir(os.path.join(path, "libs.tech")):
+        return path
+    for name in PDK_FOLDERS.values():
+        if os.path.isdir(os.path.join(path, name, "libs.tech")):
+            return os.path.join(path, name)
+    up = path
+    for _ in range(6):
+        parent = os.path.dirname(up)
+        if parent == up:
+            break
+        up = parent
+        if os.path.isdir(os.path.join(up, "libs.tech")):
+            return up
+    return None
 STATIC_SUFFIX = "_CDNS_"            # a device cell exported from Cadence: <pcell name>_CDNS_<number>
 
 # pcell -> (subcircuit or None for the pcell's 'model' parameter, kind)

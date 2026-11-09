@@ -5,6 +5,11 @@ NAME = "generic"
 PDK_LABEL = "PDK"
 PDK_HINT = "Not needed: the port map's technology has no device models."
 PDK_BROWSE_TITLE = "PDK folder"
+PDK_FOLDERS = {}
+
+
+def pdk_folder(path):
+    return path or None
 LIBRARIES = {}
 SPECTRE_NOTE = "PDK model libraries: none (no device models)"
 VACASK_HEADER = ()
