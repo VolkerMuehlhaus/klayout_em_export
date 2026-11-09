@@ -115,11 +115,14 @@ folder = os.path.join(OUT, "split_em_pieces")
 for name in ("p1", "p2"):
     data = json.load(open(os.path.join(folder, name + ".simcfg")))
     check(data["saved_values"]["boundary"][:2] == ["PORTWALL", "PORTWALL"] and data.get("piece") == name and
-          data.get("piece_of") == "split_em.simcfg" and len(data["ports"]) == 2,
-          f"{name}.simcfg: port walls both x sides, piece_of, two ports: {data['saved_values']['boundary']}")
+          data.get("piece_of") == "split_em.simcfg" and len(data["ports"]) == 2
+          and data.get("wall_sides") == ["xmax", "xmin"],
+          f"{name}.simcfg: port walls both x sides, wall sides, piece_of, two ports: "
+          f"{data['saved_values']['boundary']} {data.get('wall_sides')}")
 full = json.load(open(os.path.join(folder, "full.simcfg")))
 check(full["saved_values"]["model_basename"] == "full" and full["saved_values"]["sim_path"] == folder.replace("\\", "/")
       and full.get("piece") == "full" and full["saved_values"]["GdsFile"].endswith("split_em.gds")
+      and full.get("wall_sides") == ["xmax", "xmin"]
       and section.get("full") == "split_em_pieces/full.simcfg",
       "the full check model: the whole region's GDS, in the pieces folder, named full")
 p1cfg = json.load(open(os.path.join(folder, "p1.simcfg")))

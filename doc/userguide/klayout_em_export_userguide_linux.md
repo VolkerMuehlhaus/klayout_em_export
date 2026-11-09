@@ -423,6 +423,50 @@ Port walls need a region box that cuts the layout where the lines are simple:
   hole that the cut goes through would become a slot in them. Run **Fill Density Holes and Merge Metal** first;
   setupEM's check reports a cross-section that changes right at the wall.
 
+### Splitting the region into pieces
+
+A large region takes long to simulate, and each change to one part means simulating all of it again. You can split
+the region into pieces instead. Each piece is simulated as its own model, and setupEM joins the results into one
+result of the whole region.
+
+This works because of the port walls. Where two pieces meet, a line crossing the cut gets one port wall port in
+each piece. Both ports are calibrated with their reference plane exactly on the cut, so the two results connect
+there without an overlap or a guess. One more benefit: when you change one piece, only that piece is simulated
+again.
+
+1. **Mark the region** as usual (one box on 800/0).
+2. **Split it.** Press **Split Region** (Region details, or EM > Split Region Tool) and click in the box where you
+   want the cut: a click cuts vertically, Shift+click horizontally. The pieces are named p1, p2, ... and keep their
+   names when you move or resize them. You can also draw more boxes yourself; boxes that share an edge meet at a
+   cut.
+3. **Mark the ground**, if not done yet. The ground must reach every cut.
+4. **Create Proposed Ports.** The table lists the cut ports per piece ("p1: ... port wall at the cut to p2
+   (joined)"). Ports at a cut are always port wall ports, whatever the **as port walls** box says, because only
+   those can be joined.
+5. **Export for EM.** The export writes the whole region as usual and every piece into a folder next to it
+   (`<name>_pieces`). Open `<name>.simcfg` in setupEM: the Models list shows the pieces; Start Simulation runs them
+   and writes the joined result where a single model would have it.
+
+The **Export #** column shows each port's number in its piece and in the joined result. The **Ground of** choice
+in the Region details picks the piece whose ground the Ground line shows.
+
+Where to cut:
+
+- **Across simple feed lines**, as for any port wall: straight lines, the same cross-section for at least D on both
+  sides of the cut, no device closer than D. setupEM checks every piece's port walls as usual.
+- **Not through coupled parts.** The cut is a metal wall in both pieces, so nothing couples across it except
+  through the lines that cross it. Two inductors side by side in different pieces do not see each other in the
+  joined result. The export warns when metal lies close to both sides of a cut without crossing it.
+- **One set of settings.** In setupEM the frequencies, mesh, solver and boundaries are those of the whole region,
+  the same for all pieces; a cut is a port wall in both pieces. One piece can have its own mesh, e.g. a finer one.
+
+**Reopened later, or a new revision:** the boxes are part of your layout, so they are lost when you don't save
+it (a read-only layout, for example). **Import Pieces...** in the Region details takes the boxes, their names and
+the ground marks from an earlier export's .simcfg. Then Create Proposed Ports puts the cut ports back. The import
+also works for a new revision of the design in another file, or another design on the same frame; it warns when a
+cut no longer crosses the lines it crossed, runs through a device, or a ground mark hits no metal. Because the
+names stay the same, setupEM reuses the results of the pieces that did not change.
+
 ## Transistors and resistors
 
 > **In this chapter:** replacing the transistors and resistors by ports.
@@ -1031,6 +1075,7 @@ It uses that copy only when the layout has none of its own.
 | `<name>_em.gds` | Export | flat layout for the EM simulation |
 | `<name>_em.simcfg` | Export | settings for setupEM and EMStudio |
 | `<name>_em_portmap.json` | Export | ports: layout number, device and terminal, net |
+| `<name>_em_pieces/` | Export of a split region | per piece `p1.gds`, `p1.simcfg`, `p1_portmap.json`; `full.simcfg` (the whole region as one model, to check the joined result) |
 | `<name>_thermal.gds` | Export for Thermal | flat layout for the thermal simulation |
 | `<name>_thermal.tsimcfg` | Export for Thermal | settings for setupThermal |
 | `<name>_thermal_thermalmap.json` | Export for Thermal | heat sources: layer, device, instance name, heat area |

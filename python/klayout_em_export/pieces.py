@@ -285,8 +285,10 @@ def export_pieces(layout, cell, stackup, gds_path, technology, seeds=(), layout_
             by_layer.setdefault(layer, (piece.name, number))
         fp = fingerprint(path, r["port_list"], stackup_path, piece.box.p1)
 
-        def update(data, piece=piece, fp=fp):
+        def update(data, piece=piece, fp=fp, walls=list(r["port_walls"])):
             data["saved_values"].update(frequency)
+            # the sides with port wall ports: setupEM derives the piece's box sides from the region's with them
+            data["wall_sides"] = sorted(walls)
             # the model folder and name: in the pieces folder, named after the piece (setupEM's default would be
             # the GDS file's, the same here, but stated so that nothing depends on it)
             data["saved_values"]["sim_path"] = folder.replace("\\", "/")
@@ -332,6 +334,7 @@ def export_pieces(layout, cell, stackup, gds_path, technology, seeds=(), layout_
         data.pop("written_with", None)
         data["piece_of"] = os.path.basename(whole["simcfg"])
         data["piece"] = "full"
+        data["wall_sides"] = sorted(whole["port_walls"])
     _update_json(full, update_full)
     section["full"] = f"{folder_name}/full.simcfg"
     _update_json(whole["simcfg"], lambda data: data.__setitem__("pieces", section))

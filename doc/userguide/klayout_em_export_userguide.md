@@ -455,8 +455,8 @@ Where to cut:
 - **Not through coupled parts.** The cut is a metal wall in both pieces, so nothing couples across it except
   through the lines that cross it. Two inductors side by side in different pieces do not see each other in the
   joined result. The export warns when metal lies close to both sides of a cut without crossing it.
-- **A frequency grid for all pieces.** setupEM keeps the frequency settings the same for all pieces; the mesh and
-  solver settings can differ per piece.
+- **One set of settings.** In setupEM the frequencies, mesh, solver and boundaries are those of the whole region,
+  the same for all pieces; a cut is a port wall in both pieces. One piece can have its own mesh, e.g. a finer one.
 
 **Reopened later, or a new revision:** the boxes are part of your layout, so they are lost when you don't save
 it (a read-only layout, for example). **Import Pieces...** in the Region details takes the boxes, their names and
