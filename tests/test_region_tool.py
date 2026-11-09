@@ -83,4 +83,19 @@ drag((400, 0), (520, 100))
 expected = pya.DBox(400, 0, 520, 100).transformed(inst.dcplx_trans.inverted())
 check(boxes(cv.cell) == [str(expected)], f"the box in the coil cell where it was drawn: {boxes(cv.cell)} vs {expected}")
 check(len(boxes(view_top)) == 1, "the top cell's region is untouched")
+text = gui.region_source(view, cv)[1]
+check("in cell coil, the instance you descended into" in text and "Ascend for top" in text,
+      f"the Region line says the export takes the descended cell: {text}")
+check(gui.descended_from(cv) == "top", "descended from top")
+
+# the pieces must fill one rectangle: an L shape (or a gap) is refused, two halves of a rectangle are fine
+from klayout_em_export.regions import Piece, read_pieces, set_pieces  # noqa: E402
+ly2 = pya.Layout()
+c2 = ly2.create_cell("c")
+um = lambda v: round(v / ly2.dbu)
+set_pieces(ly2, c2, [Piece(1, pya.Box(0, 0, um(100), um(100))), Piece(2, pya.Box(um(100), 0, um(200), um(50)))])
+problems = read_pieces(ly2, c2)[1]
+check(any("do not fill one rectangle" in p for p in problems), f"an L shape is refused: {problems}")
+set_pieces(ly2, c2, [Piece(1, pya.Box(0, 0, um(100), um(100))), Piece(2, pya.Box(um(100), 0, um(200), um(100)))])
+check(read_pieces(ly2, c2)[1] == [], "two halves of a rectangle are fine")
 print("FAIL: " + "; ".join(failures) if failures else "all passed")

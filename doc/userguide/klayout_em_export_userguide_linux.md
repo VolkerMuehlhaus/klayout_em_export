@@ -454,6 +454,10 @@ Where to cut:
 
 - **Across simple feed lines**, as for any port wall: straight lines, the same cross-section for at least D on both
   sides of the cut, no device closer than D. setupEM checks every piece's port walls as usual.
+- **Ground metal at the cut.** The cut is a metal wall through the whole stack, the substrate included. The join
+  was checked with ground metal along the cut lines (coplanar grounds, a Metal1 plate under a microstrip). Where the
+  return current of a line flows in the substrate instead (no ground metal near it, e.g. a coil over bare
+  substrate), the wall changes that current. Cut there only after a check against the full model.
 - **Not through coupled parts.** The cut is a metal wall in both pieces, so nothing couples across it except
   through the lines that cross it. Two inductors side by side in different pieces do not see each other in the
   joined result. The export warns when metal lies close to both sides of a cut without crossing it.

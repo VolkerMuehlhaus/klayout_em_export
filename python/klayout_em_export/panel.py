@@ -637,7 +637,7 @@ class EMPanel(pya.QWidget):
             return
         layout, cell = cv.layout(), cv.cell
         box, source, selection = gui.region_source(view, cv)
-        state = WARN if selection is not None else OK
+        state = WARN if selection is not None or gui.descended_from(cv) else OK
         split = bool(self.pieces) and selection is None and not self._thermal()
         self.piece_label.setVisible(split)
         self.piece_choice.setVisible(split)

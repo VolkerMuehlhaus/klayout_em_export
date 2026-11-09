@@ -507,18 +507,40 @@ def region_source(view, cv):
     The selection counts only if it holds something besides port shapes: a selected port line (e.g. from
     clicking a port) never defines a region. Else the EM region box, else the whole cell."""
     layout, cell = cv.layout(), cv.cell
+    where = cell_note(cv)
     selection = Selection.from_view(view, cv)
     if selection.regions:
-        return selection.bbox().to_dtype(layout.dbu), "bounding box of the selected shapes", selection
+        return selection.bbox().to_dtype(layout.dbu), "bounding box of the selected shapes" + where, selection
     box = marker_box(layout, cell, EM_REGION)
     from .regions import read_pieces
     pieces = read_pieces(layout, cell)[0]
     if len(pieces) > 1:
         names = ", ".join(p.name or "(new)" for p in sorted(pieces, key=lambda p: p.number or 0))
-        return box, f"{len(pieces)} EM region pieces ({names}), each exported as its own model", None
+        return box, f"{len(pieces)} EM region pieces ({names}), each exported as its own model" + where, None
     if box is not None:
-        return box, f"EM region box (layer {EM_REGION[0]}/{EM_REGION[1]})", None
-    return None, f"whole cell {cell.name} (nothing selected, no EM region box)", None
+        return box, f"EM region box (layer {EM_REGION[0]}/{EM_REGION[1]})" + where, None
+    whole = f"whole cell {cell.name} (nothing selected, no EM region box)"
+    return None, (whole + where.replace(f" in cell {cell.name}", "", 1) if descended_from(cv) else whole), None
+
+
+def descended_from(cv):
+    """The name of the cell shown around the active cell when you descended into an instance, else None."""
+    try:
+        context = cv.ctx_cell()
+    except Exception:       # noqa: BLE001 - a KLayout without ctx_cell: no descend to tell about
+        return None
+    if context is None or cv.cell is None or context.cell_index() == cv.cell.cell_index():
+        return None
+    return context.name
+
+
+def cell_note(cv):
+    """' in cell X' for the Region line; after Descend, that X is the instance's cell and the export takes it."""
+    context = descended_from(cv)
+    if context:
+        return (f" in cell {cv.cell.name}, the instance you descended into: the export takes this cell "
+                f"(Ascend for {context})")
+    return f" in cell {cv.cell.name}"
 
 
 def mark_region():

@@ -133,6 +133,16 @@ def read_pieces(layout, cell):
             if not overlap.empty() and overlap.width() > 0 and overlap.height() > 0:
                 problems.append(f"the EM region boxes {a.name or '(new)'} and {b.name or '(new)'} overlap: pieces "
                                 "must only touch")
+    if len(found) > 1 and not problems:
+        # the whole export, the full check model and the joined result are of the bounding box: the pieces must
+        # fill it (no gap, no L shape), or layout outside every piece would be in the full model only
+        bbox = pya.Box()
+        for piece in found:
+            bbox += piece.box
+        gap = bbox.area() - sum(piece.box.area() for piece in found)
+        if gap > 0:
+            problems.append(f"the EM region boxes do not fill one rectangle ({gap * layout.dbu ** 2:.6g} µm² of their "
+                            "bounding box is in no box): the pieces must fill a rectangle together, without gaps")
     return found, problems
 
 
