@@ -36,7 +36,9 @@ gds2palace or gds2openEMS stackup; device recognition needs a [technology module
 1. [KLayout](https://www.klayout.de) 0.29 or newer (tested: 0.29.4 on Windows, 0.30.12 on Linux) with the
    [IHP SG13G2 PDK](https://github.com/IHP-GmbH/IHP-Open-PDK).
 2. `pip install setupEM snp2le` in a Python environment. Palace runs on Linux, see gds2palace.
-3. Clone this repo and link it into KLayout's package folder, then restart KLayout:
+3. Clone this repo and link it into KLayout's `salt` folder, then restart KLayout. KLayout loads its add-on packages
+   from that folder at every start; the plug-in is not in KLayout's package manager (Salt Mine) yet, so the link is
+   the installation:
 
    ```powershell
    # Windows, PowerShell
@@ -64,6 +66,8 @@ Open the cascode `tests/data/1_St_Core_v1_forEM.gds` and go through the panel fr
 
 - [User's guide](doc/userguide/klayout_em_export_userguide.md): step by step with screenshots, for designers. PDF:
   [Windows](doc/userguide/klayout_em_export_userguide.pdf), [Linux](doc/userguide/klayout_em_export_userguide_linux.pdf).
+- [FAQ](doc/FAQ.md): the questions designers ask, from ground and ports to port walls, split regions and Create
+  Circuit.
 - [Reference](doc/REFERENCE.md): every panel step, menu item and rule; the circuit wrapper; the headless JSON interface.
 - [Cascode test report](doc/test_cascode_wrapper/README.md): from layout to circuit, with results.
 - [Architecture](doc/ARCHITECTURE.md): modules, data formats and design decisions.

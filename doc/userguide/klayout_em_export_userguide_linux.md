@@ -106,18 +106,23 @@ You need:
 | --- | --- | --- |
 | KLayout 0.29 or newer | the layout editor the plug-in runs in | [klayout.de](https://www.klayout.de) |
 | IHP SG13G2 PDK for KLayout | recognizes your transistors and resistors (PDK cells) | [IHP-Open-PDK](https://github.com/IHP-GmbH/IHP-Open-PDK), KLayout setup as described there |
-| the plug-in | this guide | copy the `klayout_em_export` folder into KLayout's package folder (below) |
+| the plug-in | this guide | copy the `klayout_em_export` folder into KLayout's `salt` folder (below) |
 | a Python environment with setupEM | setupEM, gds2palace, snp2le | `pip install setupEM snp2le` (setupEM installs gds2palace) |
 | Palace | the EM simulator, on Linux | see the gds2palace documentation |
 | a circuit simulator | ngspice, VACASK, Xyce or Spectre | ngspice, VACASK and Xyce come with the IHP PDK models, e.g. in the IIC-OSIC-TOOLS image |
 
-**Installing the plug-in:**
+**Installing the plug-in:** KLayout loads add-on packages from a folder named `salt` in your home directory, at
+every start. The plug-in is not in KLayout's package manager (Tools > Manage Packages) yet, so you put it into that
+folder yourself:
 
 1. Close KLayout.
-2. Copy the `klayout_em_export` folder into KLayout's package folder:
+2. Copy the `klayout_em_export` folder into the `salt` folder (create it if it is not there):
    - Windows: `%USERPROFILE%\KLayout\salt\`
    - Linux: `~/.klayout/salt/`
 3. Start KLayout.
+
+If you have the plug-in as a git clone, link the clone there instead of copying it (see the README): every update of
+the clone is then the plug-in KLayout loads.
 
 **Check:** the menu bar now has an **EM** menu, the toolbar an **EM Port** button, and the **EM Export** panel
 opens on the right.
