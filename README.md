@@ -72,7 +72,6 @@ Open the cascode `tests/data/1_St_Core_v1_forEM.gds` and go through the panel fr
 - [Cascode test report](doc/test_cascode_wrapper/README.md): from layout to circuit, with results.
 - [Architecture](doc/ARCHITECTURE.md): modules, data formats and design decisions.
 - [AGENTS.md](AGENTS.md): working rules, tests and KLayout pitfalls for development.
-- [Link prototype](doc/LINK_PROTOTYPE.md): driving the plug-in from another program, tried and dropped.
 
 ## Known limits
 
