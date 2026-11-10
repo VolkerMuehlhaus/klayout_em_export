@@ -1,5 +1,13 @@
 # What's new
 
+## Next version (not released yet)
+
+**Fix:** stackups that write the layer type in another case, e.g. `Type="Conductor"` in a PCB stackup, now work:
+the plug-in read only `conductor`, found no metals, and the panel failed on every refresh with
+"min() iterable argument is empty" (the Devices and Ports lines showed "no layout loaded"). The layer type and
+`ReferenceEdge` are now read in any case, as gds2palace does. A stackup without any conductor lists no devices
+instead of failing.
+
 ## 0.3.0 (10 November 2026)
 
 First version in KLayout's package manager (Tools > Manage Packages).

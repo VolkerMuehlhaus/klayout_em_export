@@ -33,7 +33,7 @@ class StackupLayer:
         self.layer = layer
         self.material = material
         get = element.get if element is not None else (lambda key: None)
-        self.reference, self.reference_edge = get("Reference"), get("ReferenceEdge") or "Top"
+        self.reference, self.reference_edge = get("Reference"), (get("ReferenceEdge") or "Top").capitalize()
         self.zmin_attr, self.zmax_attr = get("Zmin"), get("Zmax")
 
     @property
@@ -48,10 +48,13 @@ class Stackup:
     def __init__(self, path):
         self.path = path
         root = ET.parse(path).getroot()
-        self.layers = [StackupLayer(e.get("Name"), e.get("Type"), _layer_number(e, path), e.get("Material"), e)
+        # the layer type in lower case: stackups write conductor, Conductor or CONDUCTOR (gds2palace reads any case)
+        self.layers = [StackupLayer(e.get("Name"), (e.get("Type") or "").lower(), _layer_number(e, path),
+                                    e.get("Material"), e)
                        for e in root.iter("Layer")]
         # dielectric name -> (Reference, ReferenceEdge, Thickness), for the z positions of the layers
-        self.dielectrics = {e.get("Name"): (e.get("Reference"), e.get("ReferenceEdge") or "Top", e.get("Thickness"))
+        self.dielectrics = {e.get("Name"): (e.get("Reference"), (e.get("ReferenceEdge") or "Top").capitalize(),
+                                          e.get("Thickness"))
                             for e in root.iter("Dielectric")}
         # derived layer number -> (name, operation, operand layer numbers)
         self.derived = {_layer_number(e, path): (e.get("Name"), e.get("Operation"),

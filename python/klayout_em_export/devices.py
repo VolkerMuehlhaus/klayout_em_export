@@ -46,6 +46,8 @@ def _lowest_wiring_metal(stackup):
     below it, which no via connects."""
     metals, connections = wiring(stackup)
     connected = {layer for _, below, above in connections for layer in (below, above)} or set(metals)
+    if not connected:
+        return None, None               # no conductor in the stackup: no device can be replaced
     z = {l.layer: stackup.z_range(l) for l in stackup.layers}
     layer = min(connected, key=lambda l: z[l][1] if z.get(l) else 1e9)
     return layer, metals[layer]
@@ -55,6 +57,8 @@ def device_level_layers(stackup):
     """GDS layers below the lowest wiring metal (Activ, Cont, the gate poly and resistor sources, ...): their device
     shapes are removed when a device is replaced. Derived layers count by their source layers."""
     m1, _ = _lowest_wiring_metal(stackup)
+    if m1 is None:
+        return set()
     m1_zmin = stackup.z_range(next(l for l in stackup.layers if l.layer == m1))[1]
     out = set()
 
@@ -79,6 +83,8 @@ def find_devices(layout, cell, stackup, technology=None):
     cells that cannot be evaluated (PDK library not loaded). technology: a tech module, else found from the layout."""
     tech = technology or for_layout(layout)[0]
     m1, _ = _lowest_wiring_metal(stackup)
+    if m1 is None:
+        return [], []
     m1_li = layout.find_layer(m1, 0)
     ctx = tech.context(layout, stackup)
     devices, unknown = [], {}
