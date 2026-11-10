@@ -81,7 +81,8 @@ Much of the work that makes an EM model tedious, and easy to get wrong, is done 
   file. The EM panel shows with green, orange and red marks what is done and what is still missing (chapter 4).
 
 This guide follows one example from start to end: a cascode core with two npn13G2 transistors, a bias divider of
-three resistors, and two RF pads.
+three resistors, and two RF pads. The layout is `examples/cascode/cascode.gds` in the plug-in's folder; the
+[examples](../../examples/README.md) also have its EM result, and a split region with port walls.
 
 ![The example: a cascode core](images/03_circuit.png)
 

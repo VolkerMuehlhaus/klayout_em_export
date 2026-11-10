@@ -42,6 +42,13 @@ python tests/run_all.py thermal panel   # the tests whose name contains one of t
   a folder with `Palace_testcases/klayout_export/` that holds them. `GDS2PALACE` names the gds2palace repo (default:
   next to this repo), `OUT` the output folder (default: a temp folder). New tests use the helpers in
   `tests/testpaths.py`, never a fixed path.
+- `examples/` is for users, not for the tests: the guide's cascode (`tests/data/1_St_Core_v1_forEM.gds` without the
+  plug-in's path meta info) with the port map and Palace result of the guide's export, and a prepared split region
+  (two inductors, from the split region validation) with reference results. No machine paths in the layouts' meta
+  info (stackup, last export). If the guide's port numbering changes, the cascode's `em_result/` no longer fits.
+  Its README reuses the guide's images for the cascode; the split region images come from
+  `doc/userguide/capture/capture_examples.py` (KLayout, -r), `capture_setupem_set.py` (setupEM, on that export) and
+  `plot_examples.py` (plot_snp).
 - The headless interface (`cli.py`, `tools/em_cli.py`): `test_cli.py` drives every command in batch mode. After a
   change to the export, the ports or the devices, also run one command end to end through the launcher
   (`python tools/em_cli.py status gds=... stackup=...`), which starts KLayout with `-zz -nc -rx`. New workflow logic
