@@ -231,7 +231,7 @@ resistor of its label value), 1 mH ties per net, 1 µF DC blocks when the `.sNp`
   device, not per finger.
 - **In the z range of a stackup layer per device kind** (`thermal.heat_target`). IHP: `HEAT_TRANSISTOR` (the top
   40 nm of Activ) for transistors and `HEAT_RESISTOR` (a 0.16 µm polysilicon body on the field oxide) for
-  resistors, the heat target layers of gds2palace's IHP stackups from 0.9.5. A heat source takes only the z range
+  resistors, the heat target layers of gds2palace's IHP stackups from 0.10.0. A heat source takes only the z range
   and the material of its target, and nothing is drawn on these layers, so they are in no EM model. A stackup
   without them: `HEAT_TARGET` (IHP: `Activ`, a slab on top of EPI) for every device, as before. The export stops
   if the stackup lacks `HEAT_TARGET` or it has no thickness.

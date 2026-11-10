@@ -222,7 +222,7 @@ when the layout is closed without saving. If `setupEM` or `EMStudio` is not on t
 
 ## Thermal export (setupThermal)
 
-Experimental: it needs gds2palace 0.9.4 and setupEM 0.17 or newer (gds2palace 0.9.5 for the stackups with the heat
+Experimental: it needs gds2palace 0.9.4 and setupEM 0.17 or newer (gds2palace 0.10.0 for the stackups with the heat
 target layers `HEAT_TRANSISTOR` and `HEAT_RESISTOR`; without them every heat source sits in Activ and the devices
 come out too cool), and resistor temperatures are not validated yet.
 

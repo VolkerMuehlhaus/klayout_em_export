@@ -887,7 +887,7 @@ Each heat source:
 - goes on a marker layer of its own, from 201 upward. Layers that the stackup or your own markers use are skipped;
 - sits in a heat target layer of the stackup: **HEAT_TRANSISTOR** (the top 40 nm of the silicon) for a transistor,
   **HEAT_RESISTOR** (the resistor's polysilicon body, on the field oxide) for a resistor. A stackup without these
-  layers (gds2palace before 0.9.5) puts every heat source in the height of **Activ**, and the devices come out
+  layers (gds2palace before 0.10.0) puts every heat source in the height of **Activ**, and the devices come out
   too cool;
 - gets one power, which Elmer spreads over the device's fingers by their area.
 

@@ -27,9 +27,9 @@ gds2palace or gds2openEMS stackup; device recognition needs a [technology module
 | EM export, device replacement, Create Circuit | gds2palace 0.9.3 or newer, setupEM 0.16 or newer (both on PyPI), snp2le |
 | openEMS models | gds2openEMS, with an openEMS stackup; open the export in EMStudio |
 | Open in EMStudio | EMStudio with the `.simcfg` import ([PR #53](https://github.com/IHP-GmbH/EMStudio/pull/53), open) |
-| Thermal (experimental) | gds2palace 0.9.4 or newer, setupEM 0.17 or newer (both on PyPI) |
+| Thermal (experimental) | gds2palace 0.9.4 or newer, setupEM 0.17 or newer (both on PyPI); gds2palace 0.10.0 for the stackups with heat target layers |
 | Export again into a setupEM that is already open | Unreleased: branch `klayout-handover` of [setupEM](https://github.com/volkermuehlhaus-claude/setupEM/tree/klayout-handover) |
-| Port walls, split regions (pieces) | Unreleased: gds2palace 0.10.0 (port wall calibration) and setupEM with the split region support (branches `calibrated-deembedding` and `portwall` of the forks) |
+| Port walls, split regions (pieces) | gds2palace 0.10.0 or newer, setupEM 0.18 or newer (both on PyPI) |
 
 ## Install
 

@@ -42,7 +42,7 @@ not change the stackup or the solver settings.
 KLayout 0.29 or newer with the IHP SG13G2 PDK, the plug-in in KLayout's `salt` folder (next question), and a Python
 environment with `pip install setupEM snp2le`. Palace runs on Linux; on Windows, setupEM hands the run to WSL or to
 a Linux machine. The [user's guide](userguide/klayout_em_export_userguide.md#installation) has the table, and the
-[README](../README.md) lists which features need unreleased versions of gds2palace and setupEM.
+[README](../README.md) lists which versions of gds2palace and setupEM each feature needs.
 
 ### What is "salt", and can I install the plug-in from KLayout's package manager?
 

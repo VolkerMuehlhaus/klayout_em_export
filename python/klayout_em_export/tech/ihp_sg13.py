@@ -40,7 +40,7 @@ EMWIND_HEAT_GROW = 0.05             # µm
 POLYRES_LAYER = (128, 0)            # PolyRes.drawing: resistor body; HeatRes = the same rectangles
 ACTIV_LAYER = (1, 0)                # Activ.drawing: a MOS gate is GatPoly over Activ
 HEAT_TARGET = "Activ"               # stackup layer whose z range holds the heat sources (thermal export)
-# the heat target layers of gds2palace's IHP stackups (0.9.5): a transistor's heat in the top 40 nm of the silicon,
+# the heat target layers of gds2palace's IHP stackups (0.10.0): a transistor's heat in the top 40 nm of the silicon,
 # a resistor's in its polysilicon body on the field oxide. A stackup without them: HEAT_TARGET for every device
 HEAT_TARGET_TRANSISTOR = "HEAT_TRANSISTOR"
 HEAT_TARGET_RESISTOR = "HEAT_RESISTOR"
