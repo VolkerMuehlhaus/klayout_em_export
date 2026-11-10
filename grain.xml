@@ -4,7 +4,7 @@
  <version>0.2.1</version>
  <api-version>0.29; python</api-version>
  <title>RFIC EM export: layouts to Palace and openEMS EM models</title>
- <doc>Exports part of a layout for EM simulation with Palace (gds2palace) or openEMS (gds2openEMS): a flat GDS with only the layers of the stackup and the ports, plus a settings file (.simcfg) for setupEM or EMStudio. Menu: EM (in the menu bar), panel: EM Panel.</doc>
+ <doc>Exports part of a layout for EM simulation with Palace (gds2palace) or openEMS (gds2openEMS): a flat GDS with only the layers of the stackup and the ports, plus a settings file (.simcfg) for setupEM. Menu: EM (in the menu bar), panel: EM Panel.</doc>
  <doc-url>https://github.com/VolkerMuehlhaus/klayout_em_export/blob/main/doc/userguide/klayout_em_export_userguide.md</doc-url>
  <url>https://github.com/VolkerMuehlhaus/klayout_em_export</url>
  <license>GPL-3.0</license>

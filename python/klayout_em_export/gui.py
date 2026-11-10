@@ -675,9 +675,13 @@ def set_region_box(view, cv, dbox, add=False):
 # ---------- setupEM / EMStudio ----------
 
 # The programs that open the exported .simcfg. EMStudio imports it as a Palace or OpenEMS model (it asks which;
-# File > Import setupEM Config);
+# File > Import setupEM Config, from IHP-GmbH/EMStudio PR #53, not merged);
 # when <name>.py exists next to it, EMStudio updates only that model's ports, layout file, stackup, cell and purpose.
-TOOLS = ("setupEM", "EMStudio")
+# EMSTUDIO = False hides EMStudio from the user (export dialog, menu, panel; a remembered choice gives setupEM)
+# until EMStudio has the import; the code stays, so True brings it back.
+EMSTUDIO = False
+ALL_TOOLS = ("setupEM", "EMStudio")
+TOOLS = ALL_TOOLS if EMSTUDIO else ("setupEM",)
 THERMAL_TOOL = "setupThermal"       # opens the thermal export's .tsimcfg (setupThermal -simcfg <file>)
 META_THERMAL_OUTPUT = "klayout_em_export.thermal_output"
 META_LVSDB = "klayout_em_export.lvsdb"     # the LVS database for the thermal export's instance names
@@ -687,7 +691,8 @@ _TOOL_HINT = {"setupEM": "e.g. <venv>\\Scripts\\setupEM.exe or <venv>/bin/setupE
 
 
 def open_with(settings=None):
-    """The program that opens exports: 'setupEM' (default) or 'EMStudio', as last chosen in the export dialog."""
+    """The program that opens exports: 'setupEM' (default) or 'EMStudio', as last chosen in the export dialog;
+    setupEM while EMStudio is hidden (EMSTUDIO)."""
     tool = (settings if settings is not None else _load_settings()).get("open_with", "setupEM")
     return tool if tool in TOOLS else "setupEM"
 
@@ -896,7 +901,7 @@ class ExportDialog(pya.QDialog):
                                   "export and of your own setupEM / setupThermal files for this layout")
         add_form_row(self, form, "<b>Datatypes</b>", self.datatypes)
         self.output = pya.QLineEdit(self._default_output(cv))
-        self.output.setToolTip("The .simcfg (for setupEM and EMStudio) and the port map are written next to it, "
+        self.output.setToolTip(f"The .simcfg (for {' and '.join(TOOLS)}) and the port map are written next to it, "
                                "with the same name")
         browse = pya.QPushButton("Browse...")
         browse.clicked += self._browse
@@ -914,11 +919,12 @@ class ExportDialog(pya.QDialog):
         line.setFrameShadow(pya.QFrame.Sunken)
         add_form_row(self, form, line)
         settings = _load_settings()
-        self.open_after = pya.QCheckBox("Open in")
+        self.open_after = pya.QCheckBox("Open in" if len(TOOLS) > 1 else f"Open in {TOOLS[0]}")
         self.open_after.setChecked(settings.get("open_setupem", True))
         self.open_tool = pya.QComboBox()
         self.open_tool.addItems(list(TOOLS))
         self.open_tool.setCurrentIndex(TOOLS.index(open_with(settings)))
+        self.open_tool.setVisible(len(TOOLS) > 1)       # one program: the check box names it
         self.open_tool.setToolTip("EMStudio imports the .simcfg as a Palace or OpenEMS model (it asks which); when "
                                   "<name>.py exists next to it, only that model's ports, layout file, stackup, cell "
                                   "and purpose are updated")
@@ -1440,8 +1446,9 @@ def _warn_stale_scripts(gds_path, simcfg_path, port_list, opened_in=None):
         "not match the new port map.\n\n"
         "setupEM: \"Continue with the script\" opens the script for editing in place and takes the ports, GDSII "
         "file, stackup and cell from the export. Your other settings (frequencies, mesh, ...) and your own code "
-        "stay. Create Model writes the script.\n\n"
-        "EMStudio: File > Import setupEM Config with the .simcfg; <name>.py next to it takes the new ports.")
+        "stay. Create Model writes the script." +
+        ("\n\nEMStudio: File > Import setupEM Config with the .simcfg; <name>.py next to it takes the new ports."
+         if EMSTUDIO else ""))
     box = pya.QMessageBox(pya.Application.instance().main_window())
     box.setWindowTitle("EM Export")
     box.setIcon(pya.QMessageBox.Warning)
@@ -1450,7 +1457,7 @@ def _warn_stale_scripts(gds_path, simcfg_path, port_list, opened_in=None):
     else:
         box.setText(f"{len(stale)} model scripts have other ports than this export: {', '.join(names)}.")
     box.setInformativeText("Before you simulate: open this export in setupEM, choose \"Continue with the script\" "
-                           "and press Create Model. In EMStudio: import the .simcfg.")
+                           "and press Create Model." + (" In EMStudio: import the .simcfg." if EMSTUDIO else ""))
     box.setDetailedText("\n\n".join(details))
     box.setStandardButtons(pya.QMessageBox.Ok)
     box.exec_()
@@ -1809,7 +1816,8 @@ def install_menu():
                ("export_region", "Export for EM...", export_region, None),
                ("em_open", "Open Last Export", [
                    ("open_setupem", "in setupEM", lambda: open_last_export("setupEM"), None),
-                   ("open_emstudio", "in EMStudio", lambda: open_last_export("EMStudio"), None)]),
+                   ("open_emstudio", "in EMStudio", lambda: open_last_export("EMStudio"), None)]) if EMSTUDIO else
+               ("open_setupem", "Open Last Export in setupEM", lambda: open_last_export("setupEM"), None),
                ("create_circuit", "Create Circuit from EM Result...", _create_circuit,
                 "the EM result with the PDK devices put back, for your circuit simulator"),
                None,

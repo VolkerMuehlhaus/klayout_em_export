@@ -2,7 +2,7 @@
 
 Volker Mühlhaus, volker@muehlhaus.com
 ---
-Document version: 2026-11-05, plug-in version 0.2.1
+Document version: 2026-11-10, plug-in version 0.2.1
 
 ## Contents
 [What the plug-in does](#what-the-plug-in-does)
@@ -40,15 +40,15 @@ The plug-in connects the two worlds:
 
 1. **In KLayout** you open your layout and mark what to simulate. The plug-in replaces each transistor by ports at
    its pins, places ports at the pads, and exports a clean layout for the EM simulation.
-2. **Palace** (set up in setupEM or EMStudio) or **openEMS** (set up in EMStudio) simulates that layout. The result
-   is an S-parameter file: the interconnect, seen from all ports.
+2. **Palace** (set up in setupEM) or **openEMS** (with a gds2openEMS model script) simulates that layout. The
+   result is an S-parameter file: the interconnect, seen from all ports.
 3. **Create Circuit** builds a circuit from it: the EM result, with the PDK transistor models connected again at
    their ports.
 4. **Your circuit simulator** (ngspice, VACASK, Xyce or Spectre) then simulates bias, gain and everything else, with
    the real wiring included.
 
 This guide follows the Palace flow with setupEM, the one that puts the transistors back. For openEMS, see
-[EMStudio instead of setupEM](#emstudio-instead-of-setupem) in chapter 11. The same layout can also go to a
+[openEMS](#openems) in chapter 11. The same layout can also go to a
 thermal simulation with setupThermal, for the temperature of each device: chapter 14.
 
 ### What the plug-in does for you
@@ -81,7 +81,8 @@ Much of the work that makes an EM model tedious, and easy to get wrong, is done 
   file. The EM panel shows with green, orange and red marks what is done and what is still missing (chapter 4).
 
 This guide follows one example from start to end: a cascode core with two npn13G2 transistors, a bias divider of
-three resistors, and two RF pads.
+three resistors, and two RF pads. The layout is `examples/cascode/cascode.gds` in the plug-in's folder; the
+[examples](../../examples/README.md) also have its EM result, and a split region with port walls.
 
 ![The example: a cascode core](images/03_circuit.png)
 
@@ -599,11 +600,11 @@ When the panel shows green checks (or orange ones you have checked), press **Exp
 ![The export dialog](images/11_export_dialog.png)
 
 - **Region** and **Stackup**: as in the panel.
-- **Output**: where to write the layout. The settings file for setupEM and EMStudio (`.simcfg`) and the port map
-  are written next to it, with the same name.
+- **Output**: where to write the layout. The settings file for setupEM (`.simcfg`) and the port map are written next
+  to it, with the same name.
 - **Ports**: how many, and whether they are complete. A warning sign marks ports that need attention; the grey
   lines below say which and why.
-- **Open in**: starts setupEM (chapter 11) or EMStudio with the result. The choice is remembered.
+- **Open in setupEM**: starts setupEM (chapter 11) with the result. Whether to open it is remembered.
 
 Press **Export**. You get three files, e.g. for `cascode_em.gds`:
 
@@ -623,8 +624,8 @@ Good to know:
   signal metal on the same end. That is why port 15 (Metal2 below its ground on Metal5) comes out as `-Z` in setupEM.
 - **Exporting again** keeps everything you set in setupEM (frequencies, mesh, ...) and only updates layout, stackup
   and ports.
-- **Open in setupEM** (or **Open in EMStudio**) in the panel opens the last export again, without exporting. The
-  other program is in the EM menu.
+- **Open in setupEM** in the panel (or EM > Open Last Export in setupEM) opens the last export again, without
+  exporting.
 
 **What can go wrong:** you export again after a layout change, but run the old model script (`.py`) from setupEM.
 The script reads the new layout under the same file name, with its old port list. Port numbers can shift when a
@@ -632,8 +633,7 @@ port is added or removed, so the old script's port 3 may now be another port, an
 belong to the port map. The export checks the model scripts next to the layout (and in setupEM's output folder)
 and warns about each one whose ports differ. Then open the export in setupEM: it asks whether to **Continue with
 the script**. Choose that, and setupEM takes the ports, layout file, stackup and cell from the export and keeps your
-other settings (frequencies, mesh, ...) and any code you added to the script. Create Model writes the script. An
-EMStudio model next to the layout is updated by EMStudio itself when the export opens it there, see below.
+other settings (frequencies, mesh, ...) and any code you added to the script. Create Model writes the script.
 
 ## setupEM and the Palace run
 
@@ -676,37 +676,21 @@ of gds2palace). After the run, `combine_snp` writes the S-parameter files, for t
 DC paths are not accurate enough for a bias network with kOhm resistors. Create Circuit then protects the bias with
 DC blocks (chapter 12), but the cleaner way is to start at 0.
 
-### EMStudio instead of setupEM
+### openEMS
 
-EMStudio does the same job in one window: model settings, the simulation run and the results. Choose **EMStudio**
-next to **Open in**. EMStudio then reads the export the way setupEM does, and asks whether the model
-is for **Palace** or **OpenEMS**.
+The export works for openEMS (gds2openEMS) too, but setupEM sets up Palace models only: for openEMS you write the
+model script yourself, as in the gds2openEMS examples. It reads the exported layout (`cascode_em.gds`) and its cell.
+The `ports` list in `cascode_em.simcfg` has each port's number, GDS layer, layers and direction, the values a port
+takes in a gds2openEMS script; `cascode_em_portmap.json` says which port is what.
 
-- **The first time**, EMStudio makes a new model for the simulator you chose: layout, cell, stackup and ports. Set
-  the frequencies there, starting at **0 GHz** as above, and save. The model is saved as `<name>.py` next to the
-  layout, e.g. `cascode_em.py`.
-- **After a layout change**, export again. EMStudio finds `cascode_em.py` and updates only its ports, layout,
-  stackup and cell. Your frequencies and mesh stay. Save to keep the update.
-- **The stackup always comes from the export.** A stackup you picked in EMStudio is replaced on the next export, so
-  choose it in the export dialog.
-- **The first import fixes the simulator.** EMStudio asks only once. For the other simulator, rename or delete
-  `cascode_em.py` and export again; you get a new model and set its frequencies again.
-- **Keep the model where EMStudio put it.** If you save it elsewhere or under another name, the next export does not
-  find it and makes a new model.
-- The port directions arrive as exported, `-Z` included, so the circuit wrapper fits.
+Prepare the export differently:
 
-**For OpenEMS**, prepare the export differently:
-
-- **Stackup:** choose an OpenEMS stackup (from gds2openEMS), never a Palace one. They model some layers, e.g. the
+- **Stackup:** choose an openEMS stackup (from gds2openEMS), never a Palace one. They model some layers, e.g. the
   MIM dielectric, differently.
 - **Devices:** don't replace them. Device ports end on a reference layer that only the Palace stackups have; for
-  OpenEMS, simulate the layout without device replacement.
+  openEMS, simulate the layout without device replacement.
 
 Nothing stops you from mixing these up, so check both before the export.
-
-You need an EMStudio whose **File > Import setupEM Config** asks for Palace or OpenEMS (IHP-GmbH/EMStudio PR #53).
-An older build has the menu too, but imports every export as a Palace model. If the plug-in cannot find EMStudio,
-it asks once where the program is.
 
 ## Back to the circuit: Create Circuit
 
@@ -1037,8 +1021,7 @@ In your circuit simulator, set each instance's temperature rise to its `dT_mean_
 | layer '...' is not a metal of the stackup | a port uses a layer the stackup does not know | choose another layer in the port dialog |
 | ... is not drawn at the port | the port's from/to layer has no metal at the port | check the port position and layers |
 | All port layers 201..299 are used | no free port layer left | remove unused ports |
-| This layout has not been exported yet | Open in setupEM or EMStudio needs an export first | press Export for EM... |
-| EMStudio ended at once (exit code 1): this EMStudio cannot open a .simcfg | your EMStudio has no .simcfg import yet (it ends on a .simcfg on its command line) | open the export with setupEM, or use an EMStudio with File > Import setupEM Config |
+| This layout has not been exported yet | Open in setupEM needs an export first | press Export for EM... |
 | no 0 Hz point in the .sNp | the EM result has no DC point | start the sweep at 0 Hz (chapter 11) |
 | Thermal: the stackup ... has no layer Activ | the heat sources sit in Activ, which this stackup lacks | choose a stackup for EM and thermal (chapter 14) |
 | Thermal: no devices in the region | the export has no heat sources | choose another region, or draw your own heat sources |
@@ -1106,7 +1089,7 @@ It uses that copy only when the layout has none of its own.
 | File | Written by | Content |
 | --- | --- | --- |
 | `<name>_em.gds` | Export | flat layout for the EM simulation |
-| `<name>_em.simcfg` | Export | settings for setupEM and EMStudio |
+| `<name>_em.simcfg` | Export | settings for setupEM |
 | `<name>_em_portmap.json` | Export | ports: layout number, device and terminal, net |
 | `<name>_em_pieces/` | Export of a split region | per piece `p1.gds`, `p1.simcfg`, `p1_portmap.json`; `full.simcfg` (the whole region as one model, to check the joined result) |
 | `<name>_thermal.gds` | Export for Thermal | flat layout for the thermal simulation |
@@ -1116,7 +1099,7 @@ It uses that copy only when the layout has none of its own.
 | `<model>.sNp`, `<model>_dc.sNp` | gds2palace after Palace | S-parameters, without and with the 0 Hz point |
 | `..._<simulator>.cir` / `.inc` / `.scs` | Create Circuit | the circuit |
 | `..._le.cir` / `_le.inc` | Create Circuit (snp2le) | the EM model's equivalent circuit |
-| `~/.klayout_em_export.json` | the plug-in | remembered choices: stackup, setupEM and EMStudio, Create Circuit settings |
+| `~/.klayout_em_export.json` | the plug-in | remembered choices: stackup, where setupEM is, Create Circuit settings |
 
 ### Limits
 

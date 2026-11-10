@@ -6,7 +6,7 @@ data formats, and the design decisions with their reasons. The user-facing behav
 
 ## Repository and git
 
-- Original repo `VolkerMuehlhaus/klayout_em_export` (private), remote `upstream` with its push URL set to `DISABLED`.
+- Original repo `VolkerMuehlhaus/klayout_em_export` (public), remote `upstream` with its push URL set to `DISABLED`.
   All work goes to the fork `volkermuehlhaus-claude/klayout_em_export`, remote `origin`; a PR from the fork to the
   original only when the user asks for it.
 - Local git identity: `volkermuehlhaus-claude`, `claude@muehlhaus.com`. Commit or push only when the user asks.
@@ -42,6 +42,13 @@ python tests/run_all.py thermal panel   # the tests whose name contains one of t
   a folder with `Palace_testcases/klayout_export/` that holds them. `GDS2PALACE` names the gds2palace repo (default:
   next to this repo), `OUT` the output folder (default: a temp folder). New tests use the helpers in
   `tests/testpaths.py`, never a fixed path.
+- `examples/` is for users, not for the tests: the guide's cascode (`tests/data/1_St_Core_v1_forEM.gds` without the
+  plug-in's path meta info) with the port map and Palace result of the guide's export, and a prepared split region
+  (two inductors, from the split region validation) with reference results. No machine paths in the layouts' meta
+  info (stackup, last export). If the guide's port numbering changes, the cascode's `em_result/` no longer fits.
+  Its README reuses the guide's images for the cascode; the split region images come from
+  `doc/userguide/capture/capture_examples.py` (KLayout, -r), `capture_setupem_set.py` (setupEM, on that export) and
+  `plot_examples.py` (plot_snp).
 - The headless interface (`cli.py`, `tools/em_cli.py`): `test_cli.py` drives every command in batch mode. After a
   change to the export, the ports or the devices, also run one command end to end through the launcher
   (`python tools/em_cli.py status gds=... stackup=...`), which starts KLayout with `-zz -nc -rx`. New workflow logic
@@ -126,10 +133,6 @@ cascode test (`tests/run_cascode_export.py`, `tests/simulators/`).
   Check the result as rendered pages, not only the Markdown. `build_pdf.py` runs the shared
   `doc/pdf_build/build_userguide_pdf.py` on a copy of the Markdown with explicit figure widths: 70% of the builder's
   size, except the layout views and the first main window shot. Don't call the builder directly.
-- Linux edition (`klayout_em_export_userguide_linux.md`/`.pdf`): generated from the main guide by
-  `doc/userguide/capture/linux_guide.py --pdf`, with the screenshots in `images_linux/` (capture.py and
-  capture_setupem.py run on Linux with `SHOTS`/output folder `images_linux`, paths from the environment, see the
-  header of capture.py). Never edit the Linux .md by hand; rerun the script after editing the main guide.
 - Layout screenshots for docs: `gds_viewer --screenshot` (sibling repo), not ad-hoc matplotlib.
 - Never invent a number or a physical property: trace it to the PDK, a simulation or a citation, or leave it out.
 - No results from commercial EM tools in this repo, its docs or commit messages.

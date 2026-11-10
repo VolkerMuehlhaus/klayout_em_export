@@ -1,0 +1,250 @@
+{
+  "note": "port = number in the .simcfg and .snp, layer = its layer in the exported GDS; layout_port = number in the layout (layer - 200). Ports not in the .simcfg are exported as shapes only. device/terminal: the port replaces that terminal of a PDK device (to be connected to the device model). direction: as exported, chosen so that every via port has its signal metal (signal_layer) on the same end.",
+  "ports": [
+    {
+      "port": 1,
+      "layer": 201,
+      "layout_port": 1,
+      "layout_layer": 201,
+      "in_simcfg": true,
+      "settings": " Z TopMetal2 -> Metal5, Z0 50 Ohm",
+      "direction": "Z",
+      "net": 0,
+      "ground_net": false,
+      "signal_layer": "TopMetal2"
+    },
+    {
+      "port": 2,
+      "layer": 202,
+      "layout_port": 2,
+      "layout_layer": 202,
+      "in_simcfg": true,
+      "settings": " Z TopMetal2 -> Metal5, Z0 50 Ohm",
+      "direction": "Z",
+      "net": 2,
+      "ground_net": false,
+      "signal_layer": "TopMetal2"
+    },
+    {
+      "port": 3,
+      "layer": 203,
+      "layout_port": 3,
+      "layout_layer": 203,
+      "in_simcfg": true,
+      "settings": " Z Metal1 -> REF_FOR_TRANSISTOR, Z0 50 Ohm",
+      "direction": "Z",
+      "device": "npn13G2@-7230,590",
+      "terminal": "B",
+      "net": 2,
+      "ground_net": false,
+      "signal_layer": "Metal1"
+    },
+    {
+      "port": 4,
+      "layer": 204,
+      "layout_port": 4,
+      "layout_layer": 204,
+      "in_simcfg": true,
+      "settings": " Z Metal1 -> REF_FOR_TRANSISTOR, Z0 50 Ohm",
+      "direction": "Z",
+      "device": "npn13G2@-7230,590",
+      "terminal": "C",
+      "net": 3,
+      "ground_net": false,
+      "signal_layer": "Metal1"
+    },
+    {
+      "port": 5,
+      "layer": 205,
+      "layout_port": 5,
+      "layout_layer": 205,
+      "in_simcfg": true,
+      "settings": " Z Metal2 -> REF_FOR_TRANSISTOR, Z0 50 Ohm",
+      "direction": "Z",
+      "device": "npn13G2@-7230,590",
+      "terminal": "E",
+      "net": 1,
+      "ground_net": true,
+      "signal_layer": "Metal2"
+    },
+    {
+      "port": 6,
+      "layer": 206,
+      "layout_port": 6,
+      "layout_layer": 206,
+      "in_simcfg": true,
+      "settings": " Z Metal1 -> REF_FOR_TRANSISTOR, Z0 50 Ohm",
+      "direction": "Z",
+      "device": "rhigh_CDNS_785835985924@-28550,6940",
+      "terminal": "MINUS",
+      "net": 4,
+      "ground_net": false,
+      "signal_layer": "Metal1"
+    },
+    {
+      "port": 7,
+      "layer": 207,
+      "layout_port": 7,
+      "layout_layer": 207,
+      "in_simcfg": true,
+      "settings": " Z Metal1 -> REF_FOR_TRANSISTOR, Z0 50 Ohm",
+      "direction": "Z",
+      "device": "rhigh_CDNS_785835985924@-28550,6940",
+      "terminal": "PLUS",
+      "net": 5,
+      "ground_net": false,
+      "signal_layer": "Metal1"
+    },
+    {
+      "port": 8,
+      "layer": 208,
+      "layout_port": 8,
+      "layout_layer": 208,
+      "in_simcfg": true,
+      "settings": " Z Metal1 -> REF_FOR_TRANSISTOR, Z0 50 Ohm",
+      "direction": "Z",
+      "device": "rsil_CDNS_785835985925@-26675,6090",
+      "terminal": "MINUS",
+      "net": 6,
+      "ground_net": false,
+      "signal_layer": "Metal1"
+    },
+    {
+      "port": 9,
+      "layer": 209,
+      "layout_port": 9,
+      "layout_layer": 209,
+      "in_simcfg": true,
+      "settings": " Z Metal1 -> REF_FOR_TRANSISTOR, Z0 50 Ohm",
+      "direction": "Z",
+      "device": "rsil_CDNS_785835985925@-26675,6090",
+      "terminal": "PLUS",
+      "net": 5,
+      "ground_net": false,
+      "signal_layer": "Metal1"
+    },
+    {
+      "port": 10,
+      "layer": 210,
+      "layout_port": 10,
+      "layout_layer": 210,
+      "in_simcfg": true,
+      "settings": " Z Metal1 -> REF_FOR_TRANSISTOR, Z0 50 Ohm",
+      "direction": "Z",
+      "device": "npn13G2@-7230,7700",
+      "terminal": "B",
+      "net": 6,
+      "ground_net": false,
+      "signal_layer": "Metal1"
+    },
+    {
+      "port": 11,
+      "layer": 211,
+      "layout_port": 11,
+      "layout_layer": 211,
+      "in_simcfg": true,
+      "settings": " Z Metal1 -> REF_FOR_TRANSISTOR, Z0 50 Ohm",
+      "direction": "Z",
+      "device": "npn13G2@-7230,7700",
+      "terminal": "C",
+      "net": 0,
+      "ground_net": false,
+      "signal_layer": "Metal1"
+    },
+    {
+      "port": 12,
+      "layer": 212,
+      "layout_port": 12,
+      "layout_layer": 212,
+      "in_simcfg": true,
+      "settings": " Z Metal2 -> REF_FOR_TRANSISTOR, Z0 50 Ohm",
+      "direction": "Z",
+      "device": "npn13G2@-7230,7700",
+      "terminal": "E",
+      "net": 3,
+      "ground_net": false,
+      "signal_layer": "Metal2"
+    },
+    {
+      "port": 13,
+      "layer": 213,
+      "layout_port": 13,
+      "layout_layer": 213,
+      "in_simcfg": true,
+      "settings": " Z Metal1 -> REF_FOR_TRANSISTOR, Z0 50 Ohm",
+      "direction": "Z",
+      "device": "rhigh_CDNS_785835985923@-28550,405",
+      "terminal": "MINUS",
+      "net": 5,
+      "ground_net": false,
+      "signal_layer": "Metal1"
+    },
+    {
+      "port": 14,
+      "layer": 214,
+      "layout_port": 14,
+      "layout_layer": 214,
+      "in_simcfg": true,
+      "settings": " Z Metal1 -> REF_FOR_TRANSISTOR, Z0 50 Ohm",
+      "direction": "Z",
+      "device": "rhigh_CDNS_785835985923@-28550,405",
+      "terminal": "PLUS",
+      "net": 1,
+      "ground_net": true,
+      "signal_layer": "Metal1"
+    },
+    {
+      "port": 15,
+      "layer": 215,
+      "layout_port": 15,
+      "layout_layer": 215,
+      "in_simcfg": true,
+      "settings": " Z Metal2 -> Metal5, Z0 50 Ohm",
+      "direction": "-Z",
+      "net": 4,
+      "ground_net": false,
+      "signal_layer": "Metal2"
+    }
+  ],
+  "devices": {
+    "npn13G2@-7230,590": {
+      "pcell": "npn13G2",
+      "params": {
+        "model": "npn13G2",
+        "Nx": "8",
+        "Ny": "1",
+        "le": "0.9u",
+        "we": "0.07u"
+      }
+    },
+    "rhigh_CDNS_785835985924@-28550,6940": {
+      "pcell": "rhigh",
+      "params": {
+        "label": "rhigh r=2.997k"
+      }
+    },
+    "rsil_CDNS_785835985925@-26675,6090": {
+      "pcell": "rsil",
+      "params": {
+        "label": "rsil r=49.98"
+      }
+    },
+    "npn13G2@-7230,7700": {
+      "pcell": "npn13G2",
+      "params": {
+        "model": "npn13G2",
+        "Nx": "8",
+        "Ny": "1",
+        "le": "0.9u",
+        "we": "0.07u"
+      }
+    },
+    "rhigh_CDNS_785835985923@-28550,405": {
+      "pcell": "rhigh",
+      "params": {
+        "label": "rhigh r=13.003k"
+      }
+    }
+  },
+  "technology": "ihp_sg13"
+}

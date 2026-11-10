@@ -25,8 +25,7 @@ gds2palace or gds2openEMS stackup; device recognition needs a [technology module
 | To use | You need |
 | --- | --- |
 | EM export, device replacement, Create Circuit | gds2palace 0.9.3 or newer, setupEM 0.16 or newer (both on PyPI), snp2le |
-| openEMS models | gds2openEMS, with an openEMS stackup; open the export in EMStudio |
-| Open in EMStudio | EMStudio with the `.simcfg` import ([PR #53](https://github.com/IHP-GmbH/EMStudio/pull/53), open) |
+| openEMS models | gds2openEMS, with an openEMS stackup; the model script is written by hand from the export |
 | Thermal (experimental) | gds2palace 0.9.4 or newer, setupEM 0.17 or newer (both on PyPI); gds2palace 0.10.0 for the stackups with heat target layers |
 | Export again into a setupEM that is already open | Unreleased: branch `klayout-handover` of [setupEM](https://github.com/volkermuehlhaus-claude/setupEM/tree/klayout-handover) |
 | Port walls, split regions (pieces) | gds2palace 0.10.0 or newer, setupEM 0.18 or newer (both on PyPI) |
@@ -54,7 +53,7 @@ KLayout now has an **EM** menu, an **EM Port** button and the EM panel.
 
 ## Try it
 
-Open the cascode `tests/data/1_St_Core_v1_forEM.gds` and go through the panel from top to bottom:
+Open the cascode `examples/cascode/cascode.gds` and go through the panel from top to bottom:
 
 1. **Stackup:** choose `SG13G2_FEM_200um.xml` from gds2palace.
 2. **Ports:** click a pad's metal edge with the **EM Port** tool.
@@ -64,8 +63,10 @@ Open the cascode `tests/data/1_St_Core_v1_forEM.gds` and go through the panel fr
 
 ## Documentation
 
-- [User's guide](doc/userguide/klayout_em_export_userguide.md): step by step with screenshots, for designers. PDF:
-  [Windows](doc/userguide/klayout_em_export_userguide.pdf), [Linux](doc/userguide/klayout_em_export_userguide_linux.pdf).
+- [User's guide](doc/userguide/klayout_em_export_userguide.md): step by step with screenshots, for designers
+  ([PDF](doc/userguide/klayout_em_export_userguide.pdf)).
+- [Examples](examples/README.md): the guide's cascode (with its EM result, to try Create Circuit), and two
+  inductors in a region split into pieces, with port walls and reference results.
 - [FAQ](doc/FAQ.md): the questions designers ask, from ground and ports to port walls, split regions and Create
   Circuit.
 - [Reference](doc/REFERENCE.md): every panel step, menu item and rule; the circuit wrapper; the headless JSON interface.

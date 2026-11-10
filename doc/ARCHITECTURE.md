@@ -15,7 +15,7 @@ KLayout layout
    |  EM panel / EM menu / EM Port tool          (this plug-in, inside KLayout)
    v
 <name>.gds + <name>.simcfg + <name>_portmap.json
-   |  setupEM or EMStudio -> gds2palace -> Palace (other repos)
+   |  setupEM -> gds2palace -> Palace (other repos)
    v
 <model>_dc.sNp
    |  Create Circuit -> tools/spice_wrapper.py   (this plug-in, outside KLayout: needs snp2le)
@@ -167,14 +167,19 @@ settings file and opening setupEM / EMStudio, and `cli.py` the request handling.
    and signal layer; each via port gets `Z` or `-Z` so its signal metal is on the same end as for all others.
 7. **Write `<name>.simcfg`** (`simcfg.write_simcfg`) with the complete ports only, and **`<name>_portmap.json`**
    (`ports.port_map`).
-8. Optionally open the `.simcfg` in setupEM (`setupEM -simcfg <file>`) or EMStudio (`EMStudio <file>`), as chosen in
-   the export dialog (`open_with`). EMStudio imports it as a Palace or OpenEMS model (it asks which), or, when
-   `<name>.py` exists next to it,
-   updates only that model's ports, layout file, stackup, cell and purpose (EMStudio's `simcfgimport.cpp`). The
-   `.simcfg` stays the one contract for both programs; the plug-in writes no EMStudio-specific file. The export
+8. Optionally open the `.simcfg` in setupEM (`setupEM -simcfg <file>`), as chosen in the export dialog.
+   **EMStudio is hidden** (`gui.EMSTUDIO = False`, 2026-11-10): its `.simcfg` import (IHP-GmbH/EMStudio PR #53) is
+   not merged. The launch code stays: with `EMSTUDIO = True`
+   the export dialog offers setupEM or EMStudio (`EMStudio <file>`, remembered as `open_with`), the panel button
+   follows that choice, and the EM menu gets Open Last Export > in setupEM, in EMStudio; a remembered EMStudio
+   gives setupEM while it is hidden. That import makes a Palace or OpenEMS model (it asks which), or, when
+   `<name>.py` exists next to it, updates only that model's ports, layout file, stackup, cell and purpose. It knows
+   no `PORTWALL` boundary (it makes PEC of it) and ignores the `pieces` section, so before EMStudio comes back the
+   plug-in should warn about port walls and the docs say that split regions are for setupEM only. The `.simcfg`
+   stays the one contract; the plug-in writes no EMStudio-specific file. openEMS models are written by hand. The export
    does not know the solver: device replacement and the stackup are Palace choices, and an OpenEMS model needs
    an export without replaced devices and with a gds2openEMS stackup. Nothing enforces that (the user's decision,
-   2026-10-31: no layer-name checks in EMStudio).
+   2026-10-31: no layer-name checks).
 
 ### Output files
 
@@ -429,8 +434,9 @@ A hand-edited script keeps its code through setupEM's preserve mode (Edit *.py m
 yet take the new ports from the `.simcfg` there: loading a `.simcfg` ends preserve mode, so the ports are set in
 the Ports tab by hand.
 
-When the export opens EMStudio, the EMStudio model `<name>.py` next to the `.simcfg` is left out of that warning
-(`gui.updated_on_open`): EMStudio's import replaces its ports with the exported ones right away.
+With EMStudio (hidden, see the export steps): when the export opens EMStudio, the EMStudio model `<name>.py` next
+to the `.simcfg` is left out of that warning (`gui.updated_on_open`): EMStudio's import replaces its ports with the
+exported ones right away.
 
 ## 8. Tests
 

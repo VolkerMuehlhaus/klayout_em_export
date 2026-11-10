@@ -5,8 +5,8 @@
 import os
 import sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "python"))
-from klayout_em_export.gui import (TOOLS, launch_command, native_path, open_with, quick_exit_text, updated_on_open,
-                                   writable_output)
+from klayout_em_export.gui import (ALL_TOOLS, EMSTUDIO, TOOLS, launch_command, native_path, open_with,
+                                   quick_exit_text, updated_on_open, writable_output)
 
 failed = []
 
@@ -17,7 +17,9 @@ def check(ok, text):
         failed.append(text)
 
 
-check(TOOLS == ("setupEM", "EMStudio"), f"programs {TOOLS}")
+check(ALL_TOOLS == ("setupEM", "EMStudio"), f"programs {ALL_TOOLS}")
+# EMStudio is hidden until it has the .simcfg import (EMSTUDIO = False): only setupEM is offered
+check(TOOLS == (ALL_TOOLS if EMSTUDIO else ("setupEM",)), f"offered: {TOOLS} (EMSTUDIO = {EMSTUDIO})")
 check(launch_command("setupEM", "/venv/bin/setupEM", "/w/x_em.simcfg") == ["/venv/bin/setupEM", "-simcfg",
                                                                           "/w/x_em.simcfg"],
       "setupEM gets -simcfg <file>")
@@ -26,7 +28,8 @@ check(launch_command("EMStudio", "/opt/EMStudio/EMStudio", "/w/x_em.simcfg") == 
       "EMStudio gets the file itself")
 
 check(open_with({}) == "setupEM", "default: setupEM (as before EMStudio support)")
-check(open_with({"open_with": "EMStudio"}) == "EMStudio", "remembered choice: EMStudio")
+check(open_with({"open_with": "EMStudio"}) == ("EMStudio" if EMSTUDIO else "setupEM"),
+      "remembered choice EMStudio: EMStudio, or setupEM while EMStudio is hidden")
 check(open_with({"open_with": "something else"}) == "setupEM", "unknown value: setupEM")
 
 folder = os.path.join(os.sep, "w")

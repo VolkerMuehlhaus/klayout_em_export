@@ -1,4 +1,4 @@
-# The PDF of a user's guide (main or Linux edition), with this repo's figure sizes: all figures except the workflow,
+# The PDF of the user's guide, with this repo's figure sizes: all figures except the workflow,
 # the layout views and the first main window shot at PDF_SCALE of the width the shared builder would give them (their
 # dpi, at most the text width). The widths go into a temporary copy of the Markdown only; the .md and the images stay
 # as they are. Needs doc/pdf_build/requirements.txt (pandoc, typst, Pillow).
