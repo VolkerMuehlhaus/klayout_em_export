@@ -2,7 +2,7 @@
 
 Volker Mühlhaus, volker@muehlhaus.com
 ---
-Document version: 2026-11-10, plug-in version 0.2.1
+Document version: 2026-11-10, plug-in version 0.3.0
 
 ## Contents
 [What the plug-in does](#what-the-plug-in-does)
@@ -105,31 +105,35 @@ You need:
 | --- | --- | --- |
 | KLayout 0.29 or newer | the layout editor the plug-in runs in | [klayout.de](https://www.klayout.de) |
 | IHP SG13G2 PDK for KLayout | recognizes your transistors and resistors (PDK cells) | [IHP-Open-PDK](https://github.com/IHP-GmbH/IHP-Open-PDK), KLayout setup as described there |
-| the plug-in | this guide | copy the `klayout_em_export` folder into KLayout's `salt` folder (below) |
+| the plug-in | this guide | KLayout's package manager (below) |
 | a Python environment with setupEM | setupEM, gds2palace, snp2le | `pip install setupEM snp2le` (setupEM installs gds2palace) |
 | Palace | the EM simulator, on Linux | see the gds2palace documentation |
 | a circuit simulator | ngspice, VACASK, Xyce or Spectre | ngspice, VACASK and Xyce come with the IHP PDK models, e.g. in the IIC-OSIC-TOOLS image |
 
-**Installing the plug-in:** KLayout loads add-on packages from a folder named `salt` in your home directory, at
-every start. The plug-in is not in KLayout's package manager (Tools > Manage Packages) yet, so you put it into that
-folder yourself:
+**Installing the plug-in:** the plug-in is a KLayout package, installed with KLayout's package manager:
 
-1. Close KLayout.
-2. Copy the `klayout_em_export` folder into the `salt` folder (create it if it is not there):
-   - Windows: `%USERPROFILE%\KLayout\salt\`
-   - Linux: `~/.klayout/salt/`
-3. Start KLayout.
+1. **Tools > Manage Packages**, tab **Install New Packages**.
+2. Select **klayout_em_export** (the search field above the list helps), mark it for installation and press
+   **Apply**.
+3. Restart KLayout.
 
-If you have the plug-in as a git clone, link the clone there instead of copying it (see the README): every update of
-the clone is then the plug-in KLayout loads.
+Updates come the same way, in the tab **Update Packages**. The package also brings the examples of this guide: the
+`examples` folder in the package folder, `%USERPROFILE%\KLayout\salt\klayout_em_export` on Windows,
+`~/.klayout/salt/klayout_em_export` on Linux.
+
+Without internet access, copy the `klayout_em_export` folder into the `salt` folder yourself (create it if it is not
+there) and restart KLayout. For development, link a git clone there instead (see the README); then don't install or
+update the plug-in from the package manager on that machine, as it replaces the folder and can delete the clone
+through the link.
 
 **Check:** the menu bar now has an **EM** menu, the toolbar an **EM Port** button, and the **EM Export** panel
 opens on the right.
 
 ![KLayout with the plug-in: EM menu, EM Port button and the EM panel](images/02_main_window_start.png)
 
-**What can go wrong:** no EM menu means KLayout did not find the plug-in: check that the folder is directly in `salt`
-and contains `grain.xml`. If transistors are not recognized later (chapter 9), the IHP PDK is not loaded in KLayout.
+**What can go wrong:** no EM menu means KLayout did not find the plug-in: in Tools > Manage Packages, tab **Current
+Packages**, klayout_em_export must be listed; a folder copied by hand must be directly in `salt` and contain
+`grain.xml`. If transistors are not recognized later (chapter 9), the IHP PDK is not loaded in KLayout.
 
 ## A first run in 15 minutes
 

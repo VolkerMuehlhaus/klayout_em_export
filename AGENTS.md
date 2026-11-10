@@ -18,7 +18,10 @@ data formats, and the design decisions with their reasons. The user-facing behav
 - `python/klayout_em_export/` runs inside KLayout's Python: `pya` and the standard library only. Do not import
   gdspy, numpy, shapely or anything else that KLayout's Python lacks.
 - `tools/spice_wrapper.py` runs outside KLayout, in a Python with snp2le.
-- For development, link this repo into KLayout's `salt` folder (see the README). An
+- For development, link this repo into KLayout's `salt` folder (see the README). Never install, update or
+  uninstall klayout_em_export through KLayout's package manager or `klayout -y` on a machine with that link:
+  KLayout removes the old package folder through the link and deletes the clone (happened on Windows,
+  2026-11-10). Test a package install only with a fresh, empty home folder on another machine. An
   edit takes effect when KLayout restarts (autorun macro at startup); batch tests import the current files.
 - Keep core modules free of GUI code, so batch tests can drive them. Dialogs and the panel only collect input and
   call the core (see the module map).
