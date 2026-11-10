@@ -48,13 +48,16 @@ a Linux machine. The [user's guide](userguide/klayout_em_export_userguide.md#ins
 
 Salt is KLayout's name for its add-on packages. KLayout loads every package it finds in the `salt` folder in your
 home directory (`~/.klayout/salt/` on Linux, `%USERPROFILE%\KLayout\salt\` on Windows) at every start; a package
-is a folder with a `grain.xml` that describes it. Installing the plug-in means putting its folder there, as a copy or
-as a link to a git clone.
+is a folder with a `grain.xml` that describes it.
 
-KLayout's package manager (**Tools > Manage Packages**) installs packages from a central index, the Salt Mine, with
-one click and offers their updates. The plug-in is not published there yet, so the package manager does not list it.
-Even once it is, the package manager installs only the plug-in: setupEM, gds2palace and snp2le still come with pip,
-and Palace separately.
+Yes: KLayout's package manager (**Tools > Manage Packages**) installs packages from a central index, the Salt Mine,
+and offers their updates. In the tab **Install New Packages**, select **klayout_em_export**, mark it and press
+**Apply**, then restart KLayout. The package manager installs only the plug-in: setupEM, gds2palace and snp2le still
+come with pip, and Palace separately.
+
+For development, a git clone linked into the `salt` folder takes the place of the package. Don't use the package
+manager for the plug-in on such a machine: an install or update replaces the folder and can delete the clone through
+the link.
 
 ### Does it work for other technologies than SG13G2?
 

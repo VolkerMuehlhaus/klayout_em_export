@@ -19,7 +19,7 @@
 
 ## Status
 
-Version 0.2.1, in active development. SG13CMOS5L works like SG13G2. Ports, the export and the checks work with any
+Version 0.3.0, in active development. SG13CMOS5L works like SG13G2. Ports, the export and the checks work with any
 gds2palace or gds2openEMS stackup; device recognition needs a [technology module](doc/ARCHITECTURE.md#technologies).
 
 | To use | You need |
@@ -35,19 +35,25 @@ gds2palace or gds2openEMS stackup; device recognition needs a [technology module
 1. [KLayout](https://www.klayout.de) 0.29 or newer (tested: 0.29.4 on Windows, 0.30.12 on Linux) with the
    [IHP SG13G2 PDK](https://github.com/IHP-GmbH/IHP-Open-PDK).
 2. `pip install setupEM snp2le` in a Python environment. Palace runs on Linux, see gds2palace.
-3. Clone this repo and link it into KLayout's `salt` folder, then restart KLayout. KLayout loads its add-on packages
-   from that folder at every start; the plug-in is not in KLayout's package manager (Salt Mine) yet, so the link is
-   the installation:
+3. The plug-in, from KLayout's package manager: **Tools > Manage Packages**, tab **Install New Packages**, select
+   **klayout_em_export**, mark it for installation and press **Apply**; restart KLayout. Updates come in the tab
+   **Update Packages**.
 
-   ```powershell
-   # Windows, PowerShell
-   New-Item -ItemType Junction -Path "$HOME\KLayout\salt\klayout_em_export" -Target <path to this repo>
-   ```
+For development, clone this repo and link it into KLayout's `salt` folder instead (where KLayout loads its packages
+from at every start), then restart KLayout:
 
-   ```bash
-   # Linux
-   ln -s <path to this repo> ~/.klayout/salt/klayout_em_export
-   ```
+```powershell
+# Windows, PowerShell
+New-Item -ItemType Junction -Path "$HOME\KLayout\salt\klayout_em_export" -Target <path to this repo>
+```
+
+```bash
+# Linux
+ln -s <path to this repo> ~/.klayout/salt/klayout_em_export
+```
+
+Don't install or update the plug-in from the package manager on a machine with that link: the package manager
+replaces the folder `salt/klayout_em_export`, and through the link it can delete your clone (it did on Windows).
 
 KLayout now has an **EM** menu, an **EM Port** button and the EM panel.
 
@@ -69,6 +75,7 @@ Open the cascode `examples/cascode/cascode.gds` and go through the panel from to
   inductors in a region split into pieces, with port walls and reference results.
 - [FAQ](doc/FAQ.md): the questions designers ask, from ground and ports to port walls, split regions and Create
   Circuit.
+- [What's new](doc/CHANGES.md): the changes of each version.
 - [Reference](doc/REFERENCE.md): every panel step, menu item and rule; the circuit wrapper; the headless JSON interface.
 - [Cascode test report](doc/test_cascode_wrapper/README.md): from layout to circuit, with results.
 - [Architecture](doc/ARCHITECTURE.md): modules, data formats and design decisions.
