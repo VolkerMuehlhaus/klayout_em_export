@@ -126,10 +126,6 @@ cascode test (`tests/run_cascode_export.py`, `tests/simulators/`).
   Check the result as rendered pages, not only the Markdown. `build_pdf.py` runs the shared
   `doc/pdf_build/build_userguide_pdf.py` on a copy of the Markdown with explicit figure widths: 70% of the builder's
   size, except the layout views and the first main window shot. Don't call the builder directly.
-- Linux edition (`klayout_em_export_userguide_linux.md`/`.pdf`): generated from the main guide by
-  `doc/userguide/capture/linux_guide.py --pdf`, with the screenshots in `images_linux/` (capture.py and
-  capture_setupem.py run on Linux with `SHOTS`/output folder `images_linux`, paths from the environment, see the
-  header of capture.py). Never edit the Linux .md by hand; rerun the script after editing the main guide.
 - Layout screenshots for docs: `gds_viewer --screenshot` (sibling repo), not ad-hoc matplotlib.
 - Never invent a number or a physical property: trace it to the PDK, a simulation or a citation, or leave it out.
 - No results from commercial EM tools in this repo, its docs or commit messages.

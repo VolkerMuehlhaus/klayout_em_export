@@ -63,8 +63,8 @@ Open the cascode `tests/data/1_St_Core_v1_forEM.gds` and go through the panel fr
 
 ## Documentation
 
-- [User's guide](doc/userguide/klayout_em_export_userguide.md): step by step with screenshots, for designers. PDF:
-  [Windows](doc/userguide/klayout_em_export_userguide.pdf), [Linux](doc/userguide/klayout_em_export_userguide_linux.pdf).
+- [User's guide](doc/userguide/klayout_em_export_userguide.md): step by step with screenshots, for designers
+  ([PDF](doc/userguide/klayout_em_export_userguide.pdf)).
 - [FAQ](doc/FAQ.md): the questions designers ask, from ground and ports to port walls, split regions and Create
   Circuit.
 - [Reference](doc/REFERENCE.md): every panel step, menu item and rule; the circuit wrapper; the headless JSON interface.

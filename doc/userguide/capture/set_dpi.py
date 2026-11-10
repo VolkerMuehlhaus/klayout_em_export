@@ -1,6 +1,6 @@
 # Give the GUI screenshots (panels, dialogs, menus) a resolution entry of at least 200 dpi, and enough to keep them at
 # most 5.5 inches wide, so the PDF shows them at a natural size instead of the full page width. Layout images and full windows keep theirs. GitHub ignores the value.
-# Optional argument: the image folder (default doc/userguide/images; images_linux for the Linux guide).
+# Optional argument: the image folder (default doc/userguide/images).
 import glob
 import os
 import sys
