@@ -9,10 +9,14 @@ similar link. Nothing here is part of the plug-in.
   and takes one JSON object per line: `hello`, `load_module` (the client sends a Python package, cached by hash) and
   `call` (a function by name, on the GUI thread, in one undo step), plus selection and layout events and a generic pick
   tool.
-- **Branch `remote-link`** of this repo: `remote.py`, the plug-in's steps as functions for the link, and a test that
-  runs the guide's steps over the link and compares the port map with the guide's export.
-- **Branch `remove-panel`**: the plug-in without its panel, menu and tool. The batch tests gave the same results.
-- **Branch `klayout-link` of setupEM**: a KLayout tab that showed the panel's steps and started KLayout if none ran.
+- **`remote.py`** in this repo: the plug-in's steps as functions for the link, and a test that runs the guide's steps
+  over the link and compares the port map with the guide's export (branch `remote-link`, last commit `bca72e6`).
+- **The plug-in without its panel, menu and tool.** The batch tests gave the same results (branch `remove-panel`,
+  last commit `384c63c`).
+- **A KLayout tab in setupEM** that showed the panel's steps and started KLayout if none ran (setupEM branch
+  `klayout-link`, last commit `d7058ae`).
+
+The three branches were deleted on 2026-11-10; their code is not kept.
 
 ## Why it was dropped
 
