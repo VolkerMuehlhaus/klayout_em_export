@@ -6,7 +6,7 @@ data formats, and the design decisions with their reasons. The user-facing behav
 
 ## Repository and git
 
-- Original repo `VolkerMuehlhaus/klayout_em_export` (private), remote `upstream` with its push URL set to `DISABLED`.
+- Original repo `VolkerMuehlhaus/klayout_em_export` (public), remote `upstream` with its push URL set to `DISABLED`.
   All work goes to the fork `volkermuehlhaus-claude/klayout_em_export`, remote `origin`; a PR from the fork to the
   original only when the user asks for it.
 - Local git identity: `volkermuehlhaus-claude`, `claude@muehlhaus.com`. Commit or push only when the user asks.
