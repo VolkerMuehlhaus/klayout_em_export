@@ -98,8 +98,7 @@ summary; the arrow shows its details and buttons.
     ground metal reaching that side of the box on any metal, also the cut metal itself (a coplanar line); a via
     port needs ground on another metal at the cut.
   - Ports drawn with KLayout's own tools appear on **Refresh**.
-- **Export for EM...** and **Open in setupEM** or **Open in EMStudio** (the last export of this layout, without
-  exporting again; the program last chosen in the export dialog, the other one is in the EM menu).
+- **Export for EM...** and **Open in setupEM** (the last export of this layout, without exporting again).
 
 The same steps are in the **EM** menu in the menu bar, in workflow order (the tools are in the toolbar too; a
 tool's how-to is its tooltip and, while it is active, the status bar):
@@ -110,7 +109,7 @@ tool's how-to is its tooltip and, while it is active, the status bar):
 - **Region** > Draw Region Tool, Region from Selection, Split Region Tool, Import Pieces from an Export...
 - **Ground** > Ground Tool, Mark Selected as Ground, Use Ports (Forget the Marks)
 - **Ports** > Port Tool, Port Settings..., Port Overview
-- **Export for EM...**; **Open Last Export** > in setupEM, in EMStudio; **Create Circuit from EM Result...**
+- **Export for EM...**; **Open Last Export in setupEM**; **Create Circuit from EM Result...**
 - **Thermal** > Export for Thermal..., Open Last Export in setupThermal
 
 In detail:
@@ -175,18 +174,11 @@ In detail:
      setupEM / setupThermal files for the layout together, else 0 (e.g. 0, 4, 35 for copper pillars on 41/35).
    - The ports with their problems. Ports without complete settings are exported as shapes but left out of the
      `.simcfg`, because setupEM cannot load them. Only the stackup's layers are exported; the others are dropped.
-   - "Open in setupEM / EMStudio". The `.simcfg` is written next to the GDS. If the program ends at once with an
-     error code, the plug-in says so after 2 s ("EMStudio ended at once (exit code 1): this EMStudio cannot open a
-     .simcfg": an EMStudio without the .simcfg import exits on the unknown argument). EMStudio imports it
-     as a Palace or OpenEMS model and asks which (File > Import setupEM Config, needs EMStudio with that import,
-     IHP-GmbH/EMStudio PR #53). For OpenEMS: use an OpenEMS stackup (gds2openEMS, never a gds2palace one), and
-     don't replace devices: device replacement (ports to `REF_FOR_TRANSISTOR`) is for Palace only. Neither the
-     plug-in nor EMStudio checks this;
-     when `<name>.py` exists next to the `.simcfg`, EMStudio updates only that model's ports, layout file, stackup,
-     cell and purpose, and keeps its frequencies, mesh, boundaries and code. The stackup comes from the export, also
-     when another one was chosen in EMStudio: choose the stackup here. The first import fixes the simulator; for the
-     other one, rename or delete `<name>.py` and export again. A model saved elsewhere or under another name is not
-     found: the import then makes a new one.
+   - "Open in setupEM". The `.simcfg` is written next to the GDS. If setupEM ends at once with an error code,
+     the plug-in says so after 2 s. For openEMS there is no program to open: write the gds2openEMS model script
+     yourself from the exported GDS and the `.simcfg`'s `ports`. Use an openEMS stackup (gds2openEMS, never a
+     gds2palace one), and don't replace devices: device replacement (ports to `REF_FOR_TRANSISTOR`) is for Palace
+     only. The plug-in does not check this.
    - Ports are numbered without gaps in the export: the complete ports 1..N in layout order, then the incomplete
      ones. The `.simcfg` and so the `.snp` use these numbers, the exported GDS the port layers 201.. in that order
      (without the stackup's own layers in that range, e.g. SUBGND on 210 or 250); `<name>_portmap.json` maps them
@@ -202,8 +194,7 @@ In detail:
      they are, their S-parameters would not match the new port map. The warning is short (script name, number of
      differing ports, what to do), the port list is under Show Details. Update the script by opening the export in
      setupEM and choosing Continue with the script (setupEM 0.16 or newer):
-     ports and layout come from the export, everything else stays. When the export opens EMStudio, the EMStudio
-     model `<name>.py` next to the `.simcfg` is not reported: EMStudio updates its ports on that import.
+     ports and layout come from the export, everything else stays.
 7. **Create Circuit from EM Result...**: after the Palace run, the EM result with the PDK devices put
    back, for ngspice, VACASK, Xyce or Spectre; see [Circuit wrapper](#circuit-wrapper-ngspice-vacask-xyce-spectre).
 
@@ -214,11 +205,11 @@ layout afterwards writes the EM setup into it; the `.bak` is the file to pass on
 every save (File > Setup > Application > General, number of backup files).
 
 Remembered in `~/.klayout_em_export.json`: the last stackup, the last port settings (a port without settings of
-its own takes their direction, Z0 and excitation, not their layers), the setupEM and EMStudio
-programs, whether and where to open the export (`open_setupem`, `open_with`; `open_setupthermal` for the thermal export), the Create Circuit choices (Python with snp2le, PDK folder, simulator); and per layout file its stackup, last export and ground marks. These are also stored in the layout
+its own takes their direction, Z0 and excitation, not their layers), where setupEM is,
+whether to open the export (`open_setupem`, `open_with`; `open_setupthermal` for the thermal export), the Create Circuit choices (Python with snp2le, PDK folder, simulator); and per layout file its stackup, last export and ground marks. These are also stored in the layout
 itself (saved with it), but storing them does not mark the layout as modified, so the settings file keeps them
-when the layout is closed without saving. If `setupEM` or `EMStudio` is not on the `PATH` that KLayout sees, the plug-in asks once for the program (e.g.
-`<venv>\Scripts\setupEM.exe`, `<venv>/bin/setupEM`, `EMStudio.exe`).
+when the layout is closed without saving. If `setupEM` is not on the `PATH` that KLayout sees, the plug-in asks once for the program (e.g.
+`<venv>\Scripts\setupEM.exe`, `<venv>/bin/setupEM`).
 
 ## Thermal export (setupThermal)
 

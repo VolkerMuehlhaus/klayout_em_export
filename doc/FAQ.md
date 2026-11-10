@@ -30,11 +30,11 @@ gives the reason first and then what to do; the step-by-step instructions with s
 An EM simulator computes metal and dielectric, but not a transistor. A circuit simulator computes the transistor
 with its PDK model, but not the wiring you drew. At mm-wave frequencies you need both. The plug-in prepares the
 part of your layout that matters for the EM simulation: it places the ports, replaces transistors and resistors by
-ports at their pins, checks ground and shorts, and exports a clean flat layout with a settings file for setupEM or
-EMStudio. After the simulation, Create Circuit puts the PDK devices back around the EM result, for your circuit
+ports at their pins, checks ground and shorts, and exports a clean flat layout with a settings file for setupEM. After
+the simulation, Create Circuit puts the PDK devices back around the EM result, for your circuit
 simulator.
 
-It does not run the EM simulation itself (that is Palace or openEMS, set up in setupEM or EMStudio), and it does
+It does not run the EM simulation itself (that is Palace, set up in setupEM, or openEMS), and it does
 not change the stackup or the solver settings.
 
 ### What do I need to install?
@@ -65,8 +65,9 @@ today there is one for the IHP SG13 PDKs. Other layouts get the generic module: 
 
 ### Palace or openEMS?
 
-Both get the same export. For Palace, open it in setupEM (or EMStudio); for openEMS, open it in EMStudio. Two things
-differ:
+Both get the same export. For Palace, open it in setupEM. For openEMS, write the gds2openEMS model script yourself:
+it reads the exported layout, and the `.simcfg` lists each port's layers and direction (user's guide, chapter 11).
+Two things differ:
 
 - **The stackup:** choose one made for the simulator, from gds2palace for Palace, from gds2openEMS for openEMS. They
   model some layers differently, e.g. the MIM dielectric.
