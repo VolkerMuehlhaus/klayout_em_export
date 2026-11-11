@@ -123,7 +123,7 @@ outlined in green:
 
    ![setupEM: the pieces p1 and p2 and the full check model](split_region/images/setupem_pieces.png)
 
-This needs gds2palace 0.10.0 and setupEM 0.18 or newer. Where to cut and where not: "Splitting the region into
+This needs gds2palace 0.10.1 and setupEM 0.18.1 or newer. Where to cut and where not: "Splitting the region into
 pieces" in chapter 8 of the user's guide.
 
 ### Reference results

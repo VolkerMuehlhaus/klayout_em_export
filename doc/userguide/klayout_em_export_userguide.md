@@ -2,7 +2,7 @@
 
 Volker Mühlhaus, volker@muehlhaus.com
 ---
-Document version: 2026-11-10, plug-in version 0.3.0
+Document version: 2026-11-11, plug-in version 0.3.1
 
 ## Contents
 [What the plug-in does](#what-the-plug-in-does)

@@ -19,7 +19,7 @@
 
 ## Status
 
-Version 0.3.0, in active development. SG13CMOS5L works like SG13G2. Ports, the export and the checks work with any
+Version 0.3.1, in active development. SG13CMOS5L works like SG13G2. Ports, the export and the checks work with any
 gds2palace or gds2openEMS stackup; device recognition needs a [technology module](doc/ARCHITECTURE.md#technologies).
 
 | To use | You need |
@@ -28,7 +28,7 @@ gds2palace or gds2openEMS stackup; device recognition needs a [technology module
 | openEMS models | gds2openEMS, with an openEMS stackup; the model script is written by hand from the export |
 | Thermal (experimental) | gds2palace 0.9.4 or newer, setupEM 0.17 or newer (both on PyPI); gds2palace 0.10.0 for the stackups with heat target layers |
 | Export again into a setupEM that is already open | Unreleased: branch `klayout-handover` of [setupEM](https://github.com/volkermuehlhaus-claude/setupEM/tree/klayout-handover) |
-| Port walls, split regions (pieces) | gds2palace 0.10.0 or newer, setupEM 0.18 or newer (both on PyPI) |
+| Port walls, split regions (pieces) | gds2palace 0.10.1 or newer, setupEM 0.18.1 or newer (both on PyPI) |
 
 ## Install
 
