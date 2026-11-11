@@ -1,5 +1,17 @@
 # What's new
 
+## 0.3.1 (11 November 2026)
+
+Split regions with port walls need gds2palace 0.10.1 and setupEM 0.18.1 or newer (both on PyPI): with older
+versions, a side of the region made a port wall in setupEM after the export was a plain PEC wall in every piece
+and in the full model, and a wide cut across many lines got long standards and a low frequency limit.
+
+**Fix:** stackups that write the layer type in another case, e.g. `Type="Conductor"` in a PCB stackup, now work:
+the plug-in read only `conductor`, found no metals, and the panel failed on every refresh with
+"min() iterable argument is empty" (the Devices and Ports lines showed "no layout loaded"). The layer type and
+`ReferenceEdge` are now read in any case, as gds2palace does. A stackup without any conductor lists no devices
+instead of failing.
+
 ## 0.3.0 (10 November 2026)
 
 First version in KLayout's package manager (Tools > Manage Packages).
