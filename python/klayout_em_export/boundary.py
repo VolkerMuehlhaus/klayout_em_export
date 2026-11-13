@@ -1,7 +1,8 @@
 """Ports where conductors cross the EM region box: the export cuts them there.
 
 A crossing is a piece of a metal edge that lies on the box edge after clipping. Crossings of the ground net
-(connectivity.check_ground) get no port, and neither does a plane: a metal that covers the whole side of the box
+(connectivity.check_ground) get no port, unless they are joined to the ground metal at the cut only away from the
+cut (connectivity.connected_near: a balun winding grounded at its far end is a signal), and neither does a plane: a metal that covers the whole side of the box
 (the crossing is as long as that side) is a plane, not a line, whether or not it is marked as ground. A signal crossing gets a via port along the cut, from the signal metal to
 the ground metal found at the cut (the one closest in height if there are several): a zero-width box on the box
 edge, in the source layout, with complete settings (from = lower metal, to = upper metal, direction Z, as the port
@@ -22,6 +23,7 @@ needs both reference planes on the cut. A via port there would not be calibrated
 """
 import pya
 
+from .connectivity import connected_near, near_window
 from .export import port_layer_numbers
 from .locate import create_layers, free_port_layers, next_port_layer
 from .ports import PROP_KEY, PortSettings
@@ -39,6 +41,7 @@ class Crossing:
         self.name = name            # stackup name of the metal
         self.edge = edge            # pya.Edge on the box edge (dbu)
         self.ground = False         # part of the ground net: no port
+        self.grounded_line = False  # on the ground net, but joined to the ground at the cut only far away: a signal
         self.plane = False          # covers the whole side of the box: a plane, no port
         self.ground_layer = None    # (GDS layer, name) of the ground metal at the cut, for a signal crossing
         self.wall_ground = False    # ground metal reaches this side of the box (any metal): enough for a port wall
@@ -78,6 +81,8 @@ class Crossing:
             return f"signal -> port on {self.name} at the port wall ({WALL_OF[self.side]})"
         if self.ground_layer is None:
             return "signal, no ground metal at the cut"
+        if self.grounded_line:
+            return f"signal (grounded only away from the cut) -> port to {self.ground_layer[1]}"
         return f"signal -> port to {self.ground_layer[1]}"
 
 
@@ -143,8 +148,16 @@ def find_crossings(layout, cell, stackup, box, ground, piece=None, cuts=()):
                 crossing.port = next((n for n, b, owner in ports
                                       if owner in owners and (b.width() == 0 or b.height() == 0)
                                       and not line.interacting(pya.Region(b.enlarged(1, 1))).is_empty()), None)
+                candidates = [l for l, r in ground.net.items() if l != layer and not r.interacting(line).is_empty()]
+                if crossing.ground and candidates and not crossing.plane:
+                    # on the ground net, but is it ground here? Only if joined to the ground metal at the cut near
+                    # the cut; else it reaches ground through a line (a winding grounded at its far end): a signal
+                    at_cut = {l: ground.net[l].interacting(line) for l in candidates}
+                    crossing.ground = connected_near(ground.metals, ground.vias, ground.connections,
+                                                     {layer: ground.metals[layer].interacting(line)}, at_cut,
+                                                     near_window(edge.bbox(), layout.dbu))
+                    crossing.grounded_line = not crossing.ground
                 if not crossing.ground:
-                    candidates = [l for l, r in ground.net.items() if l != layer and not r.interacting(line).is_empty()]
                     if candidates and z.get(layer):
                         mid = (z[layer][1] + z[layer][2]) / 2
                         best = min(candidates, key=lambda l: abs((z[l][1] + z[l][2]) / 2 - mid) if z.get(l) else 1e9)
