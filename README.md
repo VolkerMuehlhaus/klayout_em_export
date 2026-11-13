@@ -19,7 +19,7 @@
 
 ## Status
 
-Version 0.3.1, in active development. SG13CMOS5L works like SG13G2. Ports, the export and the checks work with any
+Version 0.3.2, in active development. SG13CMOS5L works like SG13G2. Ports, the export and the checks work with any
 gds2palace or gds2openEMS stackup; device recognition needs a [technology module](doc/ARCHITECTURE.md#technologies).
 
 | To use | You need |

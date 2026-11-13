@@ -198,9 +198,12 @@ in the simulation.
 
 ### "short circuit: both ends of via port(s) ... are on the same net": what does that mean?
 
-The port's two metals are already connected by your layout, through vias. A port across a short measures nothing
-useful. Usually the from or to layer is wrong: the port should end on a metal that is not part of the signal's net,
-e.g. the ground plane below.
+The port's two metals are already connected by your layout, through vias, close to the port (within 10 µm, or the
+port's own length if that is longer). A port across a short measures nothing useful. Usually the from or to layer
+is wrong: the port should end on a metal that is not part of the signal's net, e.g. the ground plane below.
+
+A connection further away is not a short: a balun or inductor winding that is grounded at its other end is a DC
+path to ground, but at RF the winding is an inductance, and the port measures it. Such a port is not reported.
 
 ## Ports
 

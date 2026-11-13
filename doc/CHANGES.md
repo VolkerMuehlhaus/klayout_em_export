@@ -1,5 +1,24 @@
 # What's new
 
+## 0.3.2 (13 November 2026)
+
+**Fix:** a short circuit at a via port, and ground at a cut of the EM region box, are now judged near the port
+(within 10 µm, or the port's own length if that is longer). Before, any connection through the layout counted: a
+balun or inductor winding grounded at its other end was "ground" at the cut and got no proposed port, and a port
+drawn on it was reported as a short circuit. At RF the winding is an inductance; such a cut now gets a proposed port
+("signal (grounded only away from the cut)"), a port on it is not reported, and its signal end (port map, direction)
+is the winding, not the ground plane.
+
+**Fix:** a side of the region that was a port wall in the `.simcfg` but has no in-plane port any more (the ports
+were changed to via ports) stayed a port wall after the export, and gds2palace stopped with "port wall ... has no
+port". The export now takes the port wall off: the side gets the boundary, dielectric margin and air of the other
+sides again, and its port wall extension and reference plane shift are removed.
+
+Related fixes outside the plug-in: port walls with the conformal passivation stackup
+(`SG13G2_FEM_200um_passi3D.xml`) need gds2palace 0.10.5 (the passivation reached past the cut and moved the wall
+away from the ports); a model script opened on another machine (Windows and Linux in turn) keeps the paths
+setupEM shows, from setupEM 0.18.2.
+
 ## 0.3.1 (11 November 2026)
 
 Split regions with port walls need gds2palace 0.10.1 and setupEM 0.18.1 or newer (both on PyPI): with older

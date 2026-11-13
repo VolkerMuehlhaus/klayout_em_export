@@ -93,7 +93,9 @@ summary; the arrow shows its details and buttons.
     port sits exactly on the cut. These ports are tagged (GDS property 201 = "boundary"); if the box is moved,
     they are reported as no longer on the edge. Proposals need the EM region box, since the ports are drawn in
     the layout. A metal that covers a whole side of the box (the cut is as long as the side) is a plane, not a port
-    candidate, marked as ground or not. With **as port walls** ticked, the proposed ports are in-plane ports on the cut metal instead,
+    candidate, marked as ground or not. A cut metal on the ground net counts as ground only if it is joined to the
+    ground metal at the cut near the cut (within 10 µm or the cut's length); joined only further away (a winding
+    grounded at its other end) it is a signal and gets a proposal. The same rule decides a via port's short circuit. With **as port walls** ticked, the proposed ports are in-plane ports on the cut metal instead,
     pointing into the region (direction X, -X, Y or -Y), for a gds2palace port wall on that side. They need
     ground metal reaching that side of the box on any metal, also the cut metal itself (a coplanar line); a via
     port needs ground on another metal at the cut.
@@ -188,7 +190,10 @@ In detail:
      else (frequencies, mesh, ... saved with setupEM's Save Config) is kept. The ports always come from the
      layout, where they are defined.
    - Port walls: every side of the region with an in-plane port on it (made with **as port walls**, or drawn by hand)
-     gets `PORTWALL` in the `.simcfg`'s `boundary`; the other sides keep their value (`ABC` in a new file).
+     gets `PORTWALL` in the `.simcfg`'s `boundary`; the other sides keep their value (`ABC` in a new file). A side
+     with `PORTWALL` but no in-plane port any more loses it: it gets the boundary, `margin` and `air_around` of the
+     other sides (setupEM sets 0 on a port wall), and its `port_wall_extension` / `reference_plane_shift` entries
+     are removed.
    - After the export, model scripts (`*.py` next to the GDS and in setupEM's `sim_path`) that read this GDS but
      have other ports are reported (port number, layer, direction, from/to/target; not excitation or Z0): run as
      they are, their S-parameters would not match the new port map. The warning is short (script name, number of
