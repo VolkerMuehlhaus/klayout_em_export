@@ -10,6 +10,10 @@ PEC reference sheets) are not wiring either. A transistor or resistor is an open
 The ground shape is marked by the user, or found from the via ports: of the nets at both ends of the via ports,
 the one most ports reach is ground (on a tie, the larger one: ground planes are large). Ports of replaced devices
 do not count: their only traced end is the device terminal.
+
+The net is DC connectivity. A short circuit at a port (and ground at a cut, boundary.py) is judged near the port
+only (connected_near): metal that reaches ground only through a line leaving the port's neighbourhood (a balun or
+inductor winding grounded at its far end, a grounded stub) is a DC path, but no RF short.
 """
 import pya
 
@@ -17,6 +21,8 @@ from .ports import device_of
 from .tech import device_level_names
 
 OTHER_NETS_LIMIT = 300              # count the separate other nets only up to this many polygons
+NEAR_UM = 10.0                      # neighbourhood of a port or cut (µm, at least the port's own length): connected
+                                    # within it = a short; connected only through metal leaving it = a line
 
 
 def wiring(stackup):
@@ -104,6 +110,29 @@ def flood(metals, vias, connections, seed, stop=None):
     return net
 
 
+def near_window(box, dbu):
+    """The neighbourhood of a port or cut (box in dbu) that connected_near looks in: box grown by NEAR_UM, or by its
+    own length if that is longer (a wide ground strip: its vias may be further from the cut)."""
+    grow = max(round(NEAR_UM / dbu), box.width(), box.height())
+    return box.enlarged(grow, grow)
+
+
+def connected_near(metals, vias, connections, start, target, window):
+    """Whether start {layer: Region} connects to target {layer: Region} through the metal and vias inside window
+    (Box in dbu) alone. A path that leaves the window (a coil, a long line) does not count: it has its own
+    inductance, a port across it measures that, not a short."""
+    w = pya.Region(window)
+    near = {layer: region & w for layer, region in metals.items() if region.bbox().overlaps(window)}
+    near_vias = {layer: region & w for layer, region in vias.items() if region.bbox().overlaps(window)}
+    goal = {layer: region & w for layer, region in target.items()}
+    seed = {layer: region & w for layer, region in start.items()}
+
+    def reached(net):
+        return any(_touches(net, layer, region) for layer, region in goal.items() if not region.is_empty())
+
+    return reached(flood(near, near_vias, connections, seed, stop=reached))
+
+
 def _area(net):
     return sum(region.area() for region in net.values())
 
@@ -147,9 +176,10 @@ class GroundCheck:
         return "\n".join(lines)
 
 
-def shorted_ports(metals, vias, connections, port_ends):
+def shorted_ports(metals, vias, connections, port_ends, windows):
     """Numbers of the via ports whose two ends (port_ends: [(port number, layer, Region at the port line)]) are
-    connected through the traced metal and vias: such a port measures a short circuit."""
+    connected through the traced metal and vias near the port (windows: {port number: Box from near_window}): such
+    a port measures a short circuit. Ends joined only far away (a winding grounded at its other end) are not."""
     ends = {}                       # port number -> {layer: Region of the metal at that end}
     for number, layer, region in port_ends:
         ends.setdefault(number, {}).setdefault(layer, region)
@@ -158,7 +188,7 @@ def shorted_ports(metals, vias, connections, port_ends):
         if len(by_layer) < 2:
             continue                # one end on a sheet (REF_FOR_TRANSISTOR) or outside the metal: not traced
         (layer_a, a), (layer_b, b) = list(by_layer.items())[:2]
-        if _touches(flood(metals, vias, connections, {layer_a: a}), layer_b, b):
+        if connected_near(metals, vias, connections, {layer_a: a}, {layer_b: b}, windows[number]):
             out.append(number)
     return out
 
@@ -197,11 +227,16 @@ def check_ground(layout, cell, stackup, box=None, seeds=(), ports=None):
     result.names = metal_names
     result.metals, result.vias, result.connections = metals, vias, connections
     port_ends = []                  # (port number, layer, Region of the metal at the port line)
+    windows = {}                    # port number -> Box: the port's neighbourhood for the short check
     for port in (ports or {}).values():
         s = port.settings
         if s is None or not s.is_via:
             continue
         result.via_ports.append(port.number)
+        bbox = pya.Box()
+        for shape, trans, _ in port.items:
+            bbox += shape.bbox().transformed(trans)
+        windows[port.number] = near_window(bbox, layout.dbu)
         for name in (s.from_layer, s.to_layer):
             layer = next((l for l, n in metal_names.items() if n == name), None)
             if layer is None or layer not in metals:
@@ -212,7 +247,7 @@ def check_ground(layout, cell, stackup, box=None, seeds=(), ports=None):
                 if not touched.is_empty():
                     port_ends.append((port.number, layer, touched))
     result.via_ports.sort()
-    result.shorted = shorted_ports(metals, vias, connections, port_ends)
+    result.shorted = shorted_ports(metals, vias, connections, port_ends, windows)
 
     if seeds:
         result.source = f"{len(seeds)} marked shape(s)"
@@ -283,8 +318,9 @@ def check_ground(layout, cell, stackup, box=None, seeds=(), ports=None):
 def port_nets(ports, check):
     """{port layer: (net id, on the ground net, signal layer name or None)} of each port's signal end, from check
     (a GroundCheck of the same region): for a device port its terminal (the other end is the device's REF patch,
-    which is not traced); for a port between two metals the end that is not on the ground net. The signal layer is
-    None where that is ambiguous (both ends on the ground net, or both on other nets). Ports on the same net share
+    which is not traced); for a port between two metals the end that is not on the ground net, or, if both are and
+    they are joined only away from the port (not check.shorted), the smaller metal. The signal layer is None where
+    that is ambiguous (a short, or both ends on other nets). Ports on the same net share
     the net id. A circuit wrapper ties them together for DC: a port measures a voltage difference, so the EM model
     alone does not fix the absolute potential of a device whose ports end on its floating REF patch."""
     nets = []                   # [{layer: Region}]
@@ -312,10 +348,15 @@ def port_nets(ports, check):
                 seed += check.metals[metal].interacting(pya.Region(shape.bbox().transformed(trans).enlarged(1, 1)))
             if not seed.is_empty():
                 ground = _touches(check.net, metal, seed)
-                ends.append((ground, net_id(metal, seed), name))
-        signal = [e for e in ends if not e[0]] or ends
+                ends.append((ground, net_id(metal, seed), name, seed.area()))
+        signal = [e for e in ends if not e[0]]
+        if not signal and len(ends) == 2 and port.number not in check.shorted:
+            # both ends on the ground net, joined only away from the port (a winding grounded at its other end):
+            # the signal end is the smaller metal, the ground end the plane
+            signal = [min(ends, key=lambda e: e[3])]
+        signal = signal or ends
         if signal:
-            ground, net, name = signal[0]
+            ground, net, name, _ = signal[0]
             other_is_sheet = any(by_name.get(n) is None for n in s.layer_names())   # e.g. REF_FOR_TRANSISTOR
             known = len(signal) == 1 and (len(ends) == 2 or other_is_sheet)
             out[layer] = (net, ground, name if known else None)

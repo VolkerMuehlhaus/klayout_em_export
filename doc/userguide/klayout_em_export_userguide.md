@@ -2,7 +2,7 @@
 
 Volker Mühlhaus, volker@muehlhaus.com
 ---
-Document version: 2026-11-11, plug-in version 0.3.1
+Document version: 2026-11-13, plug-in version 0.3.2
 
 ## Contents
 [What the plug-in does](#what-the-plug-in-does)
@@ -367,7 +367,9 @@ The buttons:
 **What can go wrong:**
 
 - "short circuit: both ends of via port(s) ... are on the same net": that port connects two ends that are already
-  connected by the layout. Check its from/to layers.
+  connected by the layout, close to the port (within 10 µm, or the port's length if that is longer). Check its
+  from/to layers. A connection only further away is not a short: a winding grounded at its other end is an
+  inductance at RF, and a port across it is fine.
 - "no ground: mark a ground shape or add via ports": place the pad ports first, or mark ground.
 
 ## Choosing the region to simulate
@@ -409,7 +411,11 @@ near the cut to use as reference. Place that port yourself with the EM Port tool
 not cut there.
 
 A metal that covers a whole side of the box, the cut being as long as the side, is a plane, not a line: it is
-never proposed as a port, whether or not it is marked as ground. If the Ground line says "not found", mark your
+never proposed as a port, whether or not it is marked as ground.
+
+A wire on the ground net is still a signal at the cut if it reaches the ground metal there only far from the cut,
+e.g. a balun winding grounded at its other end: it gets a proposed port ("signal (grounded only away from the cut)").
+Ground metal joined to the ground at the cut through vias close to the cut is ground and gets none. If the Ground line says "not found", mark your
 ground first (chapter 7); otherwise every cut metal counts as signal and the list is long.
 
 ### Port walls: calibrated ports at the cut
@@ -423,7 +429,9 @@ de-embedding at port walls" in the gds2palace user guide).
    (or xmin, xmax, ymax).
 2. Press **Create Proposed Ports**. Each new port is an in-plane port on the cut metal, pointing into the region.
 3. Export. The export makes every side of the region with an in-plane port on it a port wall in the .simcfg; the
-   other sides keep their boundary. The status line names the port walls.
+   other sides keep their boundary. A side that was a port wall but has no in-plane port any more (you changed the
+   ports to via ports) is no port wall after the export: it gets the boundary, margin and air of the other sides.
+   The status line names the port walls.
 
 An in-plane port that you draw yourself on the region's edge also makes that side a port wall. Unticked, the
 plug-in makes via ports as before: they work with any boundary, so they stay the default.
@@ -1012,7 +1020,7 @@ In your circuit simulator, set each instance's temperature rise to its `dT_mean_
 | Stackup: none chosen yet | no stackup for this layout | choose one (chapter 5) |
 | Ground / Devices: needs a stackup | nothing can be checked without a stackup | choose one |
 | no ground: mark a ground shape or add via ports | no via port reaches metal yet | place the pad ports, or mark ground (chapter 7) |
-| short circuit: both ends of via port(s) ... on the same net | the port is shorted by the layout | check the port's from/to layers |
+| short circuit: both ends of via port(s) ... on the same net | the port is shorted by the layout, close to the port | check the port's from/to layers |
 | the marked ground is N separate pieces in the region | the marked ground pieces connect only outside the region | enlarge the region, or check the marks |
 | large region, not checked: Run Checks in the details | checks are skipped for speed | press Run Checks |
 | N cut, no ground marked | the region box cuts metal, but no ground is marked yet, so every cut counts as signal (one row for all) | mark ground (chapter 7); the cuts are then sorted into ground and signal |

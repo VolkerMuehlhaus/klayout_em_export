@@ -92,9 +92,44 @@ def with_port_walls(boundary, sides):
     return values
 
 
+def _most_common(values):
+    return max(values, key=values.count) if values else None
+
+
+def without_port_walls(saved, sides):
+    """Take the port wall off sides (xmin, ...) in saved (setupEM saved_values), in place: a port wall without an
+    in-plane port on it stops gds2palace ("port wall ... has no port"). The side gets the boundary, dielectric
+    margin and air of the other sides (setupEM set 0 on a port wall: an absorbing boundary there would sit on the
+    metal), and its port wall settings (extension, reference plane shift) are dropped."""
+    boundary = saved.get("boundary")
+    if not (isinstance(boundary, (list, tuple)) and len(boundary) == 6):
+        return
+    values = list(boundary)
+    others = [values[i] for i, side in enumerate(SIDES) if values[i] != "PORTWALL"]
+    for side in sides:
+        values[SIDES.index(side)] = _most_common(others) or "ABC"
+    saved["boundary"] = values
+    walls = {side for side, value in zip(SIDES, values) if value == "PORTWALL"}
+    for key, order in (("margin", SIDES[:4]), ("air_around", SIDES)):
+        per_side = saved.get(key)
+        if not (isinstance(per_side, list) and len(per_side) == len(order)):
+            continue            # one value for all sides: setupEM did not change it for the port wall
+        rest = [v for side, v in zip(order, per_side) if side not in walls and side not in sides]
+        default = _most_common(rest)
+        if default is not None:
+            saved[key] = [default if side in sides else v for side, v in zip(order, per_side)]
+    for key in ("port_wall_extension", "reference_plane_shift"):
+        if isinstance(saved.get(key), dict):
+            for side in sides:
+                saved[key].pop(side, None)
+            if not saved[key]:
+                del saved[key]
+
+
 def write_simcfg(path, gds_file, stackup_file, cellname, ports=(), purpose=(0,), port_walls=()):
-    """Write or update path. port_walls: sides (xmin, ...) that get gds2palace's port wall, the other sides keep
-    their boundary. Returns True if an existing setupEM file was updated (its other settings kept)."""
+    """Write or update path. port_walls: sides (xmin, ...) that get gds2palace's port wall; a side that has one in
+    the existing file but is not in port_walls loses it (without_port_walls); the other sides keep their boundary.
+    Returns True if an existing setupEM file was updated (its other settings kept)."""
     data = _existing(path)
     updated = data is not None
     if data is None:
@@ -105,6 +140,10 @@ def write_simcfg(path, gds_file, stackup_file, cellname, ports=(), purpose=(0,),
         "SubstrateFile": os.path.abspath(stackup_file).replace("\\", "/"),
         "cellname": cellname,
     })
+    boundary = data["saved_values"].get("boundary")
+    if isinstance(boundary, (list, tuple)) and len(boundary) == 6:
+        stale = [side for side, value in zip(SIDES, boundary) if value == "PORTWALL" and side not in port_walls]
+        without_port_walls(data["saved_values"], stale)
     if port_walls:
         data["saved_values"]["boundary"] = with_port_walls(data["saved_values"].get("boundary"), port_walls)
     data["ports"] = list(ports)
