@@ -2,7 +2,7 @@
 
 Volker Mühlhaus, volker@muehlhaus.com
 ---
-Document version: 2026-11-13, plug-in version 0.3.2
+Document version: 2026-11-15, plug-in version 0.3.2
 
 ## Contents
 [What the plug-in does](#what-the-plug-in-does)
@@ -669,8 +669,11 @@ The **Ports** tab shows the exported ports:
 1. Set **fstart** to **0**.
 2. Set **fstop** to the highest frequency you need (200 GHz for the cascode), and **fstep** (1 GHz).
 
-With fstart = 0, gds2palace simulates 10 MHz and 20 MHz in addition, and writes a second result file,
-`<model>_dc.sNp`, with a 0 Hz point extrapolated from them. That is the file for chapter 12.
+With fstart = 0, gds2palace simulates two low frequencies in addition, normally 10 MHz and 20 MHz, and writes a
+second result file, `<model>_dc.sNp`, with a 0 Hz point extrapolated from them. That is the file for chapter 12.
+For a mesh finer than 0.5 µm, gds2palace 0.10.7 and newer use higher frequencies, because Palace can't solve
+reliably at 10 MHz on such a fine mesh: the first one is 5 MHz·µm divided by the smallest cell size (25 and 50 MHz
+for 0.2 µm).
 
 ### Mesh and model
 

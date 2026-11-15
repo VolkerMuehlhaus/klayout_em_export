@@ -12,7 +12,8 @@ The EM model goes in either way:
 Default: fit for ngspice and VACASK, snp for Xyce and Spectre.
 
 Use the gds2palace result with its DC point (<model>_dc.sNp, from a sweep started at 0 Hz: gds2palace then simulates
-10 MHz and 20 MHz and extrapolates 0 Hz from them); snp2le pins the equivalent circuit to that point.
+two low frequencies, normally 10 MHz and 20 MHz, and extrapolates 0 Hz from them); snp2le pins the equivalent
+circuit to that point.
 
 The subcircuit's pins are the ports that belong to no device (pads, bias inputs, ...). Each device terminal is wired
 straight to its port's pin of the EM model. In the EM model a device's ports end on the device's own floating

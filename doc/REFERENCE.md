@@ -284,8 +284,9 @@ python tools/spice_wrapper.py <export>_portmap.json <model>_dc.sNp -o <name>.cir
 ngspice cannot use the .sNp file itself (its Touchstone support is a transfer-function element for AC, not an
 N-port), and VACASK cannot yet (Touchstone import is planned).
 
-- Start the Palace sweep at 0 Hz in gds2palace: it then simulates 10 MHz and 20 MHz and writes `<model>_dc.sNp`
-  with a 0 Hz point extrapolated from them. Give the wrapper that file.
+- Start the Palace sweep at 0 Hz in gds2palace: it then simulates two low frequencies, normally 10 MHz and 20 MHz
+  (gds2palace 0.10.7 and newer move them up for a mesh finer than 0.5 µm), and writes `<model>_dc.sNp` with a 0 Hz
+  point extrapolated from them. Give the wrapper that file.
 - The EM model becomes a lumped-element equivalent circuit (snp2le universal mode: vector fitted, passive, pinned
   to the 0 Hz point).
 - Subcircuit `<name>`: its pins are the ports that belong to no device (pads, bias inputs); each replaced device is
