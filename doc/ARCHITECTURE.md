@@ -312,8 +312,9 @@ but depends on substrate ties in the region and adds wire resistance). Reports: 
 
 ### The Palace sweep starts at 0 Hz
 
-With `fstart = 0`, gds2palace simulates 10 MHz and 20 MHz and writes `<model>_dc.sNp` with a 0 Hz point
-extrapolated from them; snp2le pins its fit to that point. A 0 Hz point extrapolated from GHz points instead leaks
+With `fstart = 0`, gds2palace simulates two low frequencies, normally 10 MHz and 20 MHz (higher for a mesh finer
+than 0.5 µm, gds2palace 0.10.7 and newer), and writes `<model>_dc.sNp` with a 0 Hz point extrapolated from them;
+snp2le pins its fit to that point. A 0 Hz point extrapolated from GHz points instead leaks
 kΩ to MΩ between nets, which once looked like a problem of snp2le. Without a 0 Hz point the wrapper adds DC blocks.
 
 ### Port numbers without gaps, port layers around the stackup

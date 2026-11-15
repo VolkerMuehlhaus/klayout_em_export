@@ -17,7 +17,8 @@ models (IHP-Open-PDK `3f66c913`).
 - **The circuit around the EM model is simple:** each device pin is wired straight to its pin of the EM model, and
   1 mH inductors tie the pins of each net together (and the ground net to ground), so that the bias reaches the
   devices. Nothing else is needed, provided the EM model has a good 0 Hz point.
-- **A good 0 Hz point** comes from gds2palace with the sweep started at 0 Hz: it adds 10 MHz and 20 MHz and writes a
+- **A good 0 Hz point** comes from gds2palace with the sweep started at 0 Hz: it adds two low frequencies (10 MHz and
+  20 MHz for this model; gds2palace 0.10.7 and newer use higher ones for a mesh finer than 0.5 µm) and writes a
   `_dc` file with a 0 Hz point extrapolated from them. snp2le keeps that point.
 - **Port polarity matters.** A via port is positive at its upper metal. The export now sets each port's direction so
   that its signal metal is the positive end.
@@ -214,8 +215,9 @@ sign does not matter.
 
 - **snp2le without a 0 Hz point:** pinning to, or weighting, the lowest frequency when it is close to DC would make
   its DC usable without the `_dc` file.
-- **gds2palace `_dc` file:** the comment "DC point added by extrapolation" does not reach the file, and the sweep is
-  resampled onto a new grid (0, 0.99, 1.98, … GHz). A tool reading the file cannot tell which points were simulated.
+- **gds2palace `_dc` file:** the comment "DC point added by extrapolation" does not reach the file, so a tool reading
+  it cannot tell that the 0 Hz point is not simulated. (The resampling of the sweep onto a new grid, 0, 0.99,
+  1.98, … GHz, is fixed in gds2palace 0.10.7: the `_dc` file keeps the simulated points.)
 - **Not modelled:** the wires' DC resistance (the ties are ideal), and the static resistor cells' parasitics and
   temperature behaviour (ideal resistors from their labels).
 

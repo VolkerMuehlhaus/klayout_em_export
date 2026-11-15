@@ -22,7 +22,8 @@ closer.timeout.connect(lambda: isinstance(app.activeModalWidget(), QMessageBox) 
 closer.start(500)
 win.load_configuration_from_file(simcfg)
 win.setPalaceMode()
-# the cascode's sweep: from 0 Hz (gds2palace then simulates 10 and 20 MHz and adds a 0 Hz point), 1 GHz steps
+# the cascode's sweep: from 0 Hz (gds2palace then simulates two low frequencies, 10 and 20 MHz at this mesh, and adds
+# a 0 Hz point), 1 GHz steps
 win.frequencies_tab.start_edit.setText("0")
 win.frequencies_tab.stop_edit.setText("200")
 win.frequencies_tab.step_edit.setText("1")
