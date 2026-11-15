@@ -4,8 +4,8 @@
 
 **Documentation:** gds2palace 0.10.7 changed the frequencies that replace DC in a sweep from 0 Hz: still 10 MHz and
 20 MHz for most models, higher for a mesh finer than 0.5 µm (5 MHz·µm divided by the smallest cell size). The user's
-guide, `REFERENCE.md`, `ARCHITECTURE.md` and the help of `tools/spice_wrapper.py` said 10 MHz and 20 MHz as a fixed
-fact and now say "normally". The cascode test report notes that gds2palace 0.10.7 no longer resamples the `_dc`
+guide, `REFERENCE.md`, `ARCHITECTURE.md` and the description at the top of `tools/spice_wrapper.py` said 10 MHz and
+20 MHz as a fixed fact and now say "normally". The cascode test report notes that gds2palace 0.10.7 no longer resamples the `_dc`
 file.
 
 ## 0.3.2 (13 November 2026)
