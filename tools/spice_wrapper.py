@@ -3,11 +3,14 @@ replaced them, as a subcircuit for ngspice, VACASK, Xyce or Spectre.
 
     python tools/spice_wrapper.py <export>_portmap.json <model>.sNp [-o <file>]
         [--simulator ngspice|vacask|xyce|spectre] [--em fit|snp] [--pdk <PDK folder, e.g. IHP-Open-PDK/ihp-sg13g2>]
+        [--no-thermal-noise]
 
 The EM model goes in either way:
   fit   a lumped-element equivalent circuit made by snp2le (universal mode: vector fitted, passive), written next to
         the output as <name>_le.cir (ngspice, Xyce) or <name>_le.inc (VACASK). Needs a Python with snp2le
-       . ngspice and VACASK can only use this.
+       . ngspice and VACASK can only use this. It carries the EM structure's thermal noise (snp2le --thermal-noise;
+        without it, if snp2le cannot add it, with a note). Xyce gets snp2le's Xyce format (newer than snp2le 0.1.20 on
+        PyPI); with an older snp2le its ngspice format without noisy=0, whose noise results are not valid.
   snp   the .sNp file itself, read by the simulator: Xyce (YLIN element) and Spectre (nport element).
 Default: fit for ngspice and VACASK, snp for Xyce and Spectre.
 
@@ -71,19 +74,49 @@ def touchstone_ports(snp):
     return int(m.group(1)) if m else None
 
 
-def equivalent_circuit(snp, out, fmt):
-    """Run snp2le (universal mode) and return (subcircuit name, pin count) of the equivalent circuit it wrote."""
-    result = subprocess.run([sys.executable, "-m", "snp2le", "-b", "convert", snp, "--mode", "universal",
-                             "--format", fmt, "-o", out], capture_output=True, text=True)
+def snp2le_formats():
+    """The netlist dialects the installed snp2le writes (its convert --format choices), e.g. ['ngspice', 'vacask',
+    'xyce', 'both', 'all']. The Xyce dialect is newer than snp2le 0.1.20 on PyPI, whose main branch has the same
+    version number, so it is asked for, not inferred from the version."""
+    result = subprocess.run([sys.executable, "-m", "snp2le", "-b", "convert", "--help"], capture_output=True, text=True)
+    m = re.search(r"--format \{([^}]*)\}", result.stdout)
+    return m.group(1).split(",") if m else []
+
+
+def _run_snp2le(snp, out, fmt, thermal_noise):
+    command = [sys.executable, "-m", "snp2le", "-b", "convert", snp, "--mode", "universal", "--format", fmt, "-o", out]
+    if thermal_noise:
+        command.append("--thermal-noise")
+    result = subprocess.run(command, capture_output=True, text=True)
     report = [l for l in (result.stdout + result.stderr).splitlines() if "[" in l or "note" in l]
+    return result.returncode == 0 and os.path.isfile(out), report, result
+
+
+def equivalent_circuit(snp, out, fmt, thermal_noise=True):
+    """Run snp2le (universal mode) and return (subcircuit name, pin count, notes) of the equivalent circuit it wrote.
+    thermal_noise: the model carries the EM structure's thermal noise, kT(I - S S^H) at its ports (snp2le
+    --thermal-noise); without it the model is noiseless, since its fit resistors are written noiseless. snp2le adds
+    the noise only to a strictly passive model and refuses otherwise: then the model is made without it, with a note."""
+    notes = []
+    ok, report, result = _run_snp2le(snp, out, fmt, thermal_noise)
+    if not ok and thermal_noise:
+        print("\n".join(report))
+        print("snp2le could not add the thermal noise (see above), the EM model is made without it")
+        why = next((l.split("NOT added:", 1)[1].strip() for l in report if "NOT added:" in l), "see snp2le's output")
+        notes.append(f"the EM model carries no thermal noise, snp2le could not add it ({why}): noise analyses miss "
+                     "the EM structure's own noise")
+        ok, report, result = _run_snp2le(snp, out, fmt, False)
+    elif not thermal_noise:
+        notes.append("the EM model is noiseless (made without thermal noise): noise analyses miss the EM structure's "
+                     "own noise")
     print("\n".join(report))
-    if result.returncode != 0 or not os.path.isfile(out):
+    if not ok:
         sys.exit(f"snp2le failed:\n{result.stdout}\n{result.stderr}")
     for line in open(out):
         words = line.replace("(", " ( ").split()
         if words and words[0].lower() in (".subckt", "subckt"):
             pins = [w for w in words[2:] if w not in "()"]
-            return words[1], len(pins)
+            return words[1], len(pins), notes
     sys.exit(f"no subcircuit in {out}")
 
 
@@ -99,8 +132,10 @@ def vacask_private_models(path):
 
 
 def xyce_compatible(path):
-    """snp2le's ngspice model marks its resistors noisy=0, which Xyce does not know: remove it (Xyce then adds those
-    resistors' thermal noise, so the model is not noiseless in a noise analysis)."""
+    """For an snp2le without its Xyce dialect: its ngspice model marks the fit resistors noisy=0, which Xyce does not
+    know: remove it. Xyce then adds those resistors' thermal noise, which belongs to the fit, not to the structure:
+    noise results through the EM model are not valid then. snp2le's Xyce dialect writes them as noiseless
+    conductances instead."""
     text = open(path).read()
     open(path, "w").write(re.sub(r"\s+noisy=0\b", "", text, flags=re.I))
 
@@ -271,6 +306,8 @@ def main():
     parser.add_argument("--em", choices=("fit", "snp"), help="EM model: snp2le equivalent circuit or the .sNp file")
     parser.add_argument("--pdk", help="PDK folder (IHP: the ihp-sg13g2 or ihp-sg13cmos5l folder of IHP-Open-PDK): "
                                        "active .lib lines (ngspice, Xyce)")
+    parser.add_argument("--no-thermal-noise", dest="thermal_noise", action="store_false",
+                        help="--em fit: a noiseless EM model (default: with the EM structure's thermal noise)")
     args = parser.parse_args()
     sim = args.simulator
     em = args.em or EM_DEFAULT[sim]
@@ -281,15 +318,30 @@ def main():
     portmap = json.load(open(args.portmap))
     dc_blocks = not has_dc_point(args.snp)
     folder = os.path.dirname(os.path.abspath(out))
+    em_notes = []
     if em == "fit":
         fmt = "vacask" if sim == "vacask" else "ngspice"
-        em_file = os.path.join(folder, name + ("_le.inc" if sim == "vacask" else "_le.cir"))
-        em_name, em_pins = equivalent_circuit(args.snp, em_file, fmt)
+        thermal_noise = args.thermal_noise
         if sim == "xyce":
+            if "xyce" in snp2le_formats():
+                fmt = "xyce"
+            else:
+                # the stripped noisy=0 makes the fit resistors noisy: noise is not valid, with or without the generator
+                thermal_noise = False
+                em_notes.append("snp2le has no Xyce dialect yet (newer than snp2le 0.1.20 on PyPI): the EM model is "
+                                "its ngspice model without noisy=0, whose fit resistors add noise that is not the "
+                                "structure's: noise results through it are not valid. Install a newer snp2le")
+                print(em_notes[-1])
+        em_file = os.path.join(folder, name + ("_le.inc" if sim == "vacask" else "_le.cir"))
+        em_name, em_pins, notes = equivalent_circuit(args.snp, em_file, fmt, thermal_noise)
+        if fmt == "ngspice" and sim == "xyce":
             xyce_compatible(em_file)
+        else:
+            em_notes += notes
     else:
         em_file, em_name, em_pins = os.path.abspath(args.snp).replace("\\", "/"), None, touchstone_ports(args.snp)
     c = build(portmap, em_pins, dc_blocks, name)
+    c.notes += em_notes
     if sim == "vacask":
         text = write_vacask(c, em_file, em_name, vacask_private_models(em_file))
     elif sim == "spectre":

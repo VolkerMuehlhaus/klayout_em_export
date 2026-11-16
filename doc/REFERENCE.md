@@ -281,7 +281,7 @@ python tools/spice_wrapper.py <export>_portmap.json <model>_dc.sNp -o <name>.cir
 | --- | --- | --- | --- |
 | ngspice | snp2le equivalent circuit | PDK `libs.tech/ngspice` | yes |
 | VACASK | snp2le equivalent circuit (VACASK format) | PDK `libs.tech/vacask`, found through its `.vacaskrc.toml` | yes, same as ngspice |
-| Xyce | snp2le equivalent circuit | PDK `libs.tech/xyce` | yes; S21 0.5 dB higher at 100 GHz, from Xyce's npn13G2 model |
+| Xyce | snp2le equivalent circuit (snp2le's Xyce format; an older snp2le: its ngspice format without `noisy=0`, noise not valid) | PDK `libs.tech/xyce` | yes; S21 0.5 dB higher at 100 GHz, from Xyce's npn13G2 model |
 | Xyce | the .sNp file (`YLIN`) | PDK `libs.tech/xyce` | harmonic balance only: in AC and DC, Xyce 7.10 treats `YLIN` as open |
 | Spectre | the .sNp file (`nport`) | your PDK's includes (commented placeholders) | no |
 
@@ -292,7 +292,12 @@ N-port), and VACASK cannot yet (Touchstone import is planned).
   (gds2palace 0.10.7 and newer move them up for a mesh finer than 0.5 µm), and writes `<model>_dc.sNp` with a 0 Hz
   point extrapolated from them. Give the wrapper that file.
 - The EM model becomes a lumped-element equivalent circuit (snp2le universal mode: vector fitted, passive, pinned
-  to the 0 Hz point).
+  to the 0 Hz point), with the EM structure's thermal noise (snp2le `--thermal-noise`, kT(I - S S^H) at its ports;
+  the wrapper's `--no-thermal-noise` leaves it out). If snp2le cannot add it (the fit not strictly passive), the
+  model is made without it and the netlist header notes that.
+- Xyce: snp2le's Xyce format (`--format xyce`, newer than snp2le 0.1.20 on PyPI, found through `snp2le convert
+  --help`). An older snp2le gives its ngspice format with `noisy=0` removed: then the fit's resistors add noise that
+  is not the structure's, and the header notes that noise results are not valid.
 - Subcircuit `<name>`: its pins are the ports that belong to no device (pads, bias inputs); each replaced device is
   an instance of its PDK model (npn13G2 with Nx, le, we; MOSFETs with w, l, ng; resistors with w, l), its substrate or
   bulk pin to ground (pmos: to its source). A resistor from a static Cadence cell has no parameters: an ideal resistor

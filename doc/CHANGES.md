@@ -27,6 +27,20 @@ says "exported EM model: N device(s) replaced by M port(s)", and Replace All and
 now read relative to that file, as setupEM reads them. Before, they were relative to KLayout's working directory, so
 the layout's own setup file and its stackup were only found when KLayout was started in that folder.
 
+**Create Circuit: the EM model carries its thermal noise.** The snp2le equivalent circuit was noiseless, so a noise
+figure through it missed the loss of the EM structure (cascode, ngspice: 1.74 dB instead of 1.81 dB at 10 GHz). The
+wrapper now asks snp2le for the structure's thermal noise (`--thermal-noise`); if snp2le cannot add it (the fit not
+strictly passive), the model is made without it and the netlist header says so. `tools/spice_wrapper.py
+--no-thermal-noise` leaves it out on purpose.
+
+**Create Circuit for Xyce: snp2le's Xyce format.** For Xyce the wrapper took snp2le's ngspice model and removed
+`noisy=0`, which Xyce does not know. That made the fit's resistors noisy: a noise analysis in Xyce gave nonsense
+(cascode: a noise figure of 112 dB at 10 GHz). snp2le's new Xyce format writes them as noiseless conductances (cascode:
+1.59 dB, with the thermal noise). The wrapper uses it when the installed snp2le offers it; the format is newer than
+snp2le 0.1.20 on PyPI, so it is checked through `snp2le convert --help`, not by version. With an older snp2le the
+netlist header says that noise results are not valid. Bias and S21 are unchanged in ngspice, Xyce and VACASK
+(`tests/simulators`).
+
 **Documentation:** gds2palace 0.10.7 changed the frequencies that replace DC in a sweep from 0 Hz: still 10 MHz and
 20 MHz for most models, higher for a mesh finer than 0.5 µm (5 MHz·µm divided by the smallest cell size). The user's
 guide, `REFERENCE.md`, `ARCHITECTURE.md` and the description at the top of `tools/spice_wrapper.py` said 10 MHz and
