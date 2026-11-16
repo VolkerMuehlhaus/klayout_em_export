@@ -2,7 +2,7 @@
 
 Volker Mühlhaus, volker@muehlhaus.com
 ---
-Document version: 2026-11-15, plug-in version 0.3.2
+Document version: 2026-11-16, plug-in version 0.3.2
 
 ## Contents
 [What the plug-in does](#what-the-plug-in-does)
@@ -163,6 +163,15 @@ Packages**, klayout_em_export must be listed; a folder copied by hand must be di
 **The EM menu** has all functions, top to bottom in the order you use them. The EM tools (EM Port, EM Ground, Split
 Region, EM Region) are in the toolbar too, while the EM panel is open: close the panel when you work on other things,
 and the toolbar is yours again; **EM > EM Panel** brings both back.
+
+**Closing the panel switches EM off.** With the panel closed, the plug-in checks nothing, so opening and editing even
+a large layout is as fast as without the plug-in. KLayout remembers this: the next time it starts, the panel stays
+closed until **EM > EM Panel** opens it. The EM menu works in both cases.
+
+**A layout opened for other work is not checked.** If a layout has no EM setup yet (no region box, no ports in its
+cell, no ground marks) and its stackup is only the one you used last for another layout, the panel shows "not
+checked" instead of tracing the ground and searching for devices. The checks start when you choose the stackup for
+this layout, mark a region, draw a port, or press **Run Checks**.
 
 ![The EM menu](images/04_em_menu.png)
 
@@ -362,7 +371,8 @@ The buttons:
   it. Shift+click removes the marks of the shapes under the click. The status bar names the metals under the
   pointer.
 - **Use Ports**: forget the marks and use the automatic choice again.
-- **Run Checks**: for large regions the checks do not run on every change; press it to run them.
+- **Run Checks**: for large regions, and for a layout without EM setup, the checks do not run on every change; press
+  it to run them.
 
 **What can go wrong:**
 
@@ -1026,6 +1036,7 @@ In your circuit simulator, set each instance's temperature rise to its `dT_mean_
 | short circuit: both ends of via port(s) ... on the same net | the port is shorted by the layout, close to the port | check the port's from/to layers |
 | the marked ground is N separate pieces in the region | the marked ground pieces connect only outside the region | enlarge the region, or check the marks |
 | large region, not checked: Run Checks in the details | checks are skipped for speed | press Run Checks |
+| not checked: no EM setup in this layout yet | the layout has no region box, ports or ground marks, and its stackup is only the last one used: it may be open for other work | choose the stackup, mark a region or draw a port; or press Run Checks |
 | N cut, no ground marked | the region box cuts metal, but no ground is marked yet, so every cut counts as signal (one row for all) | mark ground (chapter 7); the cuts are then sorted into ground and signal |
 | N cut without ground | the region box cuts signal wires with no ground metal nearby | place those ports by hand |
 | no PDK devices (SG13_dev pcells) in the cell | transistors not recognized | load the IHP PDK in KLayout |

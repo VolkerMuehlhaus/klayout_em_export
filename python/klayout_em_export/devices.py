@@ -87,11 +87,21 @@ def find_devices(layout, cell, stackup, technology=None):
         return [], []
     m1_li = layout.find_layer(m1, 0)
     ctx = tech.context(layout, stackup)
+    # each cell once, not each instance: a filled layout has hundreds of thousands of instances of a few dozen cells
+    found = {}          # cell index: (name, params, problem) of the device cells and the cells with a problem
+    for ci in cell.called_cells():
+        name, params, problem = tech.identify(layout.cell(ci), ctx)
+        if problem is not None or (name is not None and tech.is_device(name)):
+            found[ci] = (name, params, problem)
     devices, unknown = [], {}
+    if not found:
+        return devices, []
     it = cell.begin_instances_rec()
+    it.targets = list(found)    # only the instances of these cells: the iterator skips the branches without them
     while not it.at_end():
         c = it.inst_cell()
-        name, params, problem = tech.identify(c, ctx)
+        name, params, problem = found[c.cell_index()]
+        params = dict(params)   # one dict per device
         if problem is not None:
             unknown[problem] = unknown.get(problem, 0) + 1
         if name is not None and tech.is_device(name):
@@ -125,6 +135,7 @@ def _device_tags(layout, cell):
     for li in layout.layer_indexes():
         info = layout.get_info(li)
         it = cell.begin_shapes_rec(li)
+        it.shape_flags = pya.Shapes.SAllWithProperties     # a tag is a property: skip the (many) shapes without
         while not it.at_end():
             value = it.shape().property(DEVICE_KEY)
             if isinstance(value, str) and value.startswith("device:"):
