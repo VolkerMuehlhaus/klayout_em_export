@@ -749,7 +749,7 @@ Nothing stops you from mixing these up, so check both before the export.
 | --- | --- | --- |
 | ngspice, EM model by snp2le | an equivalent circuit (fitted by snp2le) | DC, AC, transient, noise |
 | VACASK, EM model by snp2le | an equivalent circuit (VACASK format) | as ngspice, plus harmonic balance |
-| Xyce, EM model by snp2le | an equivalent circuit | DC, AC, transient, harmonic balance |
+| Xyce, EM model by snp2le | an equivalent circuit (snp2le's Xyce format) | DC, AC, transient, noise, harmonic balance |
 | Xyce, the .sNp file | the S-parameter file itself (YLIN element) | harmonic balance only: Xyce treats it as open in AC and DC |
 | Spectre, the .sNp file | the S-parameter file itself (nport element) | all analyses; add your PDK's model includes |
 
@@ -759,6 +759,18 @@ The result shows what was written:
 
 For the snp2le choices you get two files: the circuit (`..._ngspice.cir`) and the EM model's equivalent circuit
 (`..._le.cir`), which the circuit includes.
+
+**Noise:** the equivalent circuit carries the thermal noise of the EM structure, the noise its losses really produce
+(snp2le's thermal noise option). Without it, a noise figure misses the loss of the EM structure: in the cascode
+example, 1.74 dB instead of 1.81 dB at 10 GHz in ngspice. snp2le adds this noise only when the fitted model is
+strictly passive. When it cannot, the circuit is written without it, and a note in its header and in the result says
+so.
+
+**Xyce needs a recent snp2le.** Xyce has no noiseless resistor, which the equivalent circuit needs. snp2le's Xyce
+format, newer than snp2le 0.1.20 on PyPI, writes those resistors as noiseless conductances instead. With an older
+snp2le the circuit still works for DC, AC, transient and harmonic balance, but its noise results are wrong (the note
+in its header says so): install snp2le from its [GitHub repository](https://github.com/iic-jku/snp2le) until the
+next release.
 
 ### What is in the circuit
 

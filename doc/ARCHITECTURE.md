@@ -211,7 +211,7 @@ resistor of its label value), 1 mH ties per net, 1 µF DC blocks when the `.sNp`
 | --- | --- | --- |
 | ngspice | snp2le equivalent circuit (default, only choice) | ngspice has no N-port Touchstone element (XSPICE `xfer` is a transfer function for AC). |
 | VACASK | snp2le equivalent circuit in VACASK format | no Touchstone import yet. PDK primitives are loaded from `.osdi` modules; the PDK libraries are found through `.vacaskrc.toml`. |
-| Xyce | `.sNp` via `YLIN` (default) or snp2le | `YLIN` works in harmonic balance only; in AC and DC Xyce 7.10 treats it as open. snp2le's `noisy=0` is stripped for Xyce. |
+| Xyce | `.sNp` via `YLIN` (default) or snp2le | `YLIN` works in harmonic balance only; in AC and DC Xyce 7.10 treats it as open. snp2le: its Xyce format (noiseless fit resistors as VCCS conductances) when `convert --help` offers it, else the ngspice format with `noisy=0` stripped (noise not valid). |
 | Spectre | `.sNp` via `nport` | untested (no license). |
 
 `tests/simulators/` runs the cascode in ngspice, VACASK and Xyce in the IIC-OSIC-TOOLS image.
