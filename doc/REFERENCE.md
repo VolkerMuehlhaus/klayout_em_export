@@ -16,7 +16,11 @@ summary; the arrow shows its details and buttons.
   the EM region box (layer 800/0), else the whole cell. A selection of port shapes only does not count (details:
   Mark Region from Selection, Draw Region, Split Region).
 - **Ground**: the ground net, traced through the vias in the EM region box (or the whole cell). It is checked on
-  every refresh (a very large region: Run Checks in the details).
+  every refresh (a very large region: Run Checks in the details). A layout without EM setup (no region box, no
+  shapes on the port layers in its cell, no ground marks) whose stackup is only the last one used is not checked:
+  Ground and Devices say "not checked: no EM setup in this layout yet" until the stackup is chosen, a region or port
+  is drawn, or Run Checks is pressed. A closed panel (EM switched off, also at the next KLayout start) checks
+  nothing; EM > EM Panel opens it again.
   - The ground is found from the via ports: of the nets at both ends of the via ports, the one most ports reach (on
     a tie, the larger one). Which end is from and which is to does not matter.
   - Details: **Mark Selected** marks the selected metal shapes as ground instead (stored in the layout); **Mark at

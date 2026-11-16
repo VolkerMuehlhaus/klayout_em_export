@@ -174,9 +174,18 @@ def _config_stackup(layout_file, suffix):
     file whose GdsFile is that file, or None."""
     for path, data in own_setup_files(layout_file, (suffix,)):
         xml = (data.get("saved_values") or {}).get("SubstrateFile")
+        if xml and not os.path.isabs(xml):
+            xml = os.path.join(os.path.dirname(path), xml)     # relative: to the settings file, as setupEM reads it
         if xml and os.path.isfile(xml):
             return xml, os.path.basename(path)
     return None
+
+
+def exported_model(layout, layout_file=None):
+    """The file name of the newest setupEM / setupThermal file whose GdsFile is this layout's file, else None. With
+    device ports whose devices are all gone (panel), that makes the layout an exported EM model, not a design."""
+    found = own_setup_files(layout_file or _layout_file(layout))
+    return os.path.basename(found[0][0]) if found else None
 
 
 def stackup_source(layout, kind="em", layout_file=None):
@@ -1673,6 +1682,12 @@ def refresh_panel():
         _panel.refresh()
 
 
+def _panel_open():
+    """The EM panel is open: shown, or a tab behind another dock (Layers). Closed (X), it is EM switched off: no
+    checks until EM > EM Panel opens it again."""
+    return _dock is not None and _dock.toggleViewAction().isChecked()
+
+
 def show_panel():
     """Show the EM panel, docked at the right of the main window (created on first use)."""
     global _panel, _dock
@@ -1686,7 +1701,7 @@ def show_panel():
         _dock._scroll = pya.QScrollArea(_dock)
         _dock._scroll.setWidgetResizable(True)
         _dock._scroll.setFrameShape(pya.QFrame.NoFrame)
-        _panel = EMPanel(_dock._scroll)
+        _panel = EMPanel(_dock._scroll, is_open=_panel_open)
         _dock._scroll.setWidget(_panel)
         _dock.setWidget(_dock._scroll)
         main_window.addDockWidget(pya.Qt.RightDockWidgetArea, _dock)
@@ -1714,7 +1729,11 @@ TOOL_MODES = tuple(name.split(".", 1)[1] for name in TOOL_ENTRIES)
 def _show_tools(shown):
     """The EM tools in the toolbar while the EM panel is open, not when it is closed (working on other things, with
     other plug-ins' icons); they stay in the EM menu. An EM tool still active when the panel closes gives way to
-    Select."""
+    Select. The next KLayout start keeps it that way: a closed panel is not created (install_menu)."""
+    settings = _load_settings()
+    if settings.get("panel_open", True) != bool(shown):
+        settings["panel_open"] = bool(shown)
+        _save_settings(settings)
     main_window = pya.Application.instance().main_window()
     menu = main_window.menu()
     for name in TOOL_ENTRIES:
@@ -1772,9 +1791,18 @@ def _create_circuit():
     create_circuit()
 
 
+def _start_panel():
+    """The EM panel at KLayout start: open if it was open at the last exit. Closed then (EM switched off), it is not
+    created, and nothing of the plug-in runs when a layout is opened; EM > EM Panel switches it on."""
+    if _load_settings().get("panel_open", True):
+        show_panel()
+    else:
+        _show_tools(False)
+
+
 def install_menu():
     if _actions:
-        show_panel()        # installed already (a second autorun, a reloaded macro): the menu stays as it is
+        _start_panel()      # installed already (a second autorun, a reloaded macro): the menu stays as it is
         return
     from .tool import GroundToolFactory, PortToolFactory, RegionToolFactory, SplitToolFactory
     _actions.append(PortToolFactory())     # registers the EM Port tool in the toolbar
@@ -1847,4 +1875,4 @@ def install_menu():
                 _actions.append(action)
                 menu.insert_item(path + ".end", name, action)
     add("em_menu", entries)
-    show_panel()
+    _start_panel()

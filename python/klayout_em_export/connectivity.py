@@ -79,19 +79,32 @@ def flood(metals, vias, connections, seed, stop=None):
     1000 holes: seconds), so each such test is done once, not in every step."""
     net = {layer: metals[layer].interacting(region) for layer, region in seed.items() if layer in metals}
     net = {layer: region for layer, region in net.items() if not region.is_empty()}
-    # copies: they shrink in place below (-=), and metals and vias are the caller's, used by every other flood
-    pool = {layer: region - net[layer] if layer in net else region.dup() for layer, region in metals.items()}
-    left = {via: vias[via].dup() for via, _, _ in connections if via in vias}
+    if not net or (stop is not None and stop(net)):
+        return net              # answered by the seed's own polygons: no copies of all metal (unconnected_terminals)
+    # copies: they shrink in place below (-=), and metals and vias are the caller's, used by every other flood. Made
+    # when the net first reaches a layer: a short net (a device terminal) touches few of them
+    pool, left = {}, {}
+
+    def pool_of(layer):
+        if layer not in pool:
+            pool[layer] = metals[layer] - net[layer] if layer in net else metals[layer].dup()
+        return pool[layer]
+
+    def left_of(via):
+        if via not in left:
+            left[via] = vias[via].dup()
+        return left[via]
+
     new = dict(net)
     while new and (stop is None or not stop(net)):
         probes = {layer: region.dup() for layer, region in new.items()}     # same layer: touching polygons
         for via, below, above in connections:
-            if via not in left:
+            if via not in vias or (below not in new and above not in new):
                 continue
             hit = pya.Region()
             for layer in (below, above):
                 if layer in new:
-                    hit += _touching(left[via], new[layer])
+                    hit += _touching(left_of(via), new[layer])
             if hit.is_empty():
                 continue
             left[via] -= hit
@@ -99,9 +112,9 @@ def flood(metals, vias, connections, seed, stop=None):
                 probes[layer] = probes[layer] + hit if layer in probes else hit
         new = {}
         for layer, probe in probes.items():
-            if layer not in pool:
+            if layer not in metals:
                 continue
-            fresh = pool[layer].interacting(probe)
+            fresh = pool_of(layer).interacting(probe)
             if fresh.is_empty():
                 continue
             pool[layer] -= fresh

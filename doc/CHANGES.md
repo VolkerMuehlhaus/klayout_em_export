@@ -2,6 +2,31 @@
 
 ## Next release
 
+**Faster with large layouts:** after a layout was opened, the EM panel's checks could take much longer than reading
+the file (a 10 MB PA layout with fill: 0.1 s to read, 9 to 13 s of checks), and they ran for every layout opened
+after an EM export, because the last stackup used applies to every layout. Now:
+
+- **Closing the EM panel switches EM off**: no checks at all, and the panel stays closed at the next KLayout start
+  until EM > EM Panel opens it.
+- **A layout opened for other work is not checked**: no region box, no ports in its cell, no ground marks, and its
+  stackup only the last one used. Ground and Devices say "not checked: no EM setup in this layout yet"; choosing the
+  stackup, drawing a region or port, or Run Checks start the checks.
+- **The checks themselves are faster**, with the same results: each cell is identified as a device once, not each
+  of its instances (681,000 instances of 74 cells in the PA layout); the scan for the tags of replaced devices reads
+  only shapes with properties; tracing a device terminal copies the metal of a layer only when it gets there. The
+  PA layout: 3.5 s instead of 12.9 s, a 14 MB layout with fill 2.2 s instead of 5.0 s, a 65 MB RF front end
+  15 s instead of 20 s (most of it the ground tracing of the large region).
+
+**Fix: an exported EM model opened in KLayout.** The export removes the replaced devices and keeps their ports, with
+the tags that name the device. Opened in KLayout, such a file showed "ports of N device(s) no longer there" and
+advised Undo Replace, which would have deleted the device ports from the model. A layout that is the GDS file of its
+own `.simcfg` and has device ports but none of their devices is now recognised as an exported model: the Devices step
+says "exported EM model: N device(s) replaced by M port(s)", and Replace All and Undo Replace are off.
+
+**Fix:** relative paths in a `.simcfg` or `.tsimcfg` (GdsFile, SubstrateFile; the export writes them relative) are
+now read relative to that file, as setupEM reads them. Before, they were relative to KLayout's working directory, so
+the layout's own setup file and its stackup were only found when KLayout was started in that folder.
+
 **Documentation:** gds2palace 0.10.7 changed the frequencies that replace DC in a sweep from 0 Hz: still 10 MHz and
 20 MHz for most models, higher for a mesh finer than 0.5 µm (5 MHz·µm divided by the smallest cell size). The user's
 guide, `REFERENCE.md`, `ARCHITECTURE.md` and the description at the top of `tools/spice_wrapper.py` said 10 MHz and
