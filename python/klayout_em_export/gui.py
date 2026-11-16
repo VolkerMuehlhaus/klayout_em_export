@@ -174,9 +174,18 @@ def _config_stackup(layout_file, suffix):
     file whose GdsFile is that file, or None."""
     for path, data in own_setup_files(layout_file, (suffix,)):
         xml = (data.get("saved_values") or {}).get("SubstrateFile")
+        if xml and not os.path.isabs(xml):
+            xml = os.path.join(os.path.dirname(path), xml)     # relative: to the settings file, as setupEM reads it
         if xml and os.path.isfile(xml):
             return xml, os.path.basename(path)
     return None
+
+
+def exported_model(layout, layout_file=None):
+    """The file name of the newest setupEM / setupThermal file whose GdsFile is this layout's file, else None. With
+    device ports whose devices are all gone (panel), that makes the layout an exported EM model, not a design."""
+    found = own_setup_files(layout_file or _layout_file(layout))
+    return os.path.basename(found[0][0]) if found else None
 
 
 def stackup_source(layout, kind="em", layout_file=None):

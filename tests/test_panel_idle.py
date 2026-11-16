@@ -81,4 +81,33 @@ panel.is_open = lambda: True
 panel.refresh()
 check(panel.result is not None, "panel opened again: checked")
 
+# an exported EM model (1_St_Core_v1_em.gds, the GDS file of 1_St_Core_v1_em.simcfg, relative paths): the export
+# removed the replaced devices and kept their tagged ports. Not "no longer there", and no Undo Replace, which would
+# delete the device ports. Found from another working directory too (relative to the .simcfg, as setupEM reads it).
+import tempfile
+os.chdir(tempfile.gettempdir())
+files = {}
+gui._layout_file = lambda layout: files.get(id(layout), "")
+cv = open_layout("1_St_Core_v1_em.gds")
+files[id(cv.layout())] = layout_file("1_St_Core_v1_em.gds")
+check(gui.exported_model(cv.layout()) == "1_St_Core_v1_em.simcfg", "the export's .simcfg found from another folder")
+panel.refresh()
+check(panel.exported == "1_St_Core_v1_em.simcfg" and text(panel.devices_step).startswith("exported EM model: 5 device"),
+      f"exported model: {text(panel.devices_step)!r}")
+check("no longer there" not in panel.devices_detail.text, "exported model: no 'no longer there'")
+check(not panel.replace_button.isEnabled() and not panel.unreplace_button.isEnabled(),
+      "exported model: Replace All and Undo Replace off")
+tagged = sum(1 for li in cv.layout().layer_indexes() for s in cv.cell.shapes(li).each() if s.property(202))
+panel._unreplace_devices()
+after = sum(1 for li in cv.layout().layer_indexes() for s in cv.cell.shapes(li).each() if s.property(202))
+check(tagged > 0 and after == tagged, f"exported model: Undo Replace does nothing ({tagged} tagged shapes kept)")
+
+# a design with devices whose replaced ports partly lost their device: still reported, buttons on
+cv = open_layout("1_St_Core_v1_forEM.gds", "Cascode")
+files[id(cv.layout())] = layout_file("1_St_Core_v1_forEM.gds")
+cv.layout().add_meta_info(pya.LayoutMetaInfo(META_STACKUP, STACKUP, "", True))
+panel.refresh()
+check(panel.exported is None and "no longer there" in text(panel.devices_step) and panel.unreplace_button.isEnabled(),
+      f"design with moved devices: {text(panel.devices_step)!r}")
+
 print("FAIL: " + "; ".join(failures) if failures else "all passed")

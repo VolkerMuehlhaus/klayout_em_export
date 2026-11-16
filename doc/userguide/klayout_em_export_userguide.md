@@ -1036,6 +1036,7 @@ In your circuit simulator, set each instance's temperature rise to its `dT_mean_
 | short circuit: both ends of via port(s) ... on the same net | the port is shorted by the layout, close to the port | check the port's from/to layers |
 | the marked ground is N separate pieces in the region | the marked ground pieces connect only outside the region | enlarge the region, or check the marks |
 | large region, not checked: Run Checks in the details | checks are skipped for speed | press Run Checks |
+| exported EM model: N device(s) replaced by M port(s) | the open layout is an export (the GDS file of its own `.simcfg`): the export removed the replaced devices and kept their ports | nothing; Replace All and Undo Replace are off here. To change devices, edit the original layout and export again |
 | not checked: no EM setup in this layout yet | the layout has no region box, ports or ground marks, and its stackup is only the last one used: it may be open for other work | choose the stackup, mark a region or draw a port; or press Run Checks |
 | N cut, no ground marked | the region box cuts metal, but no ground is marked yet, so every cut counts as signal (one row for all) | mark ground (chapter 7); the cuts are then sorted into ground and signal |
 | N cut without ground | the region box cuts signal wires with no ground metal nearby | place those ports by hand |

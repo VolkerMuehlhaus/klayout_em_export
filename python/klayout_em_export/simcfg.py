@@ -39,7 +39,8 @@ def own_setup_files(layout_file, suffixes=(".simcfg", ".tsimcfg"), exclude=()):
             gds = data["saved_values"]["GdsFile"]
         except (OSError, ValueError, KeyError, TypeError):
             continue
-        if gds and os.path.normcase(os.path.abspath(gds)) == key:
+        # a relative path is relative to the settings file, as setupEM reads it (the export writes relative paths)
+        if gds and os.path.normcase(os.path.abspath(os.path.join(folder, gds))) == key:
             found.append((os.path.getmtime(path), path, data))
     return [(path, data) for _, path, data in sorted(found, key=lambda f: f[0], reverse=True)]
 

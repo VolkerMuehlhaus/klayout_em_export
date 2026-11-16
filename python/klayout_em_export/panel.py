@@ -32,6 +32,10 @@ AUTO_CHECK_LIMIT = 50000            # metal shapes in the region; above, the che
 MAX_MARKERS = 2000                  # ground outline: at most this many polygons
 # a layout without EM setup (no region box, ports or ground marks; its stackup only the last one used): not checked
 IDLE_TEXT = "not checked: no EM setup in this layout yet (Run Checks in the details)"
+EXPORTED_DETAIL = ("This layout is the GDS file of {file}, an EM model written by Export for EM: the devices were "
+                   "replaced by ports and their shapes removed. Replace All and Undo Replace are off here (Undo "
+                   "Replace would delete the device ports). To change devices, edit the original layout and export "
+                   "again.")
 IDLE_DETAIL = ("checks start with the first step: choose the stackup, mark a region or draw ports, or press "
                "Run Checks. A layout opened for other work is not checked, that keeps large layouts fast to open")
 
@@ -226,13 +230,15 @@ class EMPanel(pya.QWidget):
         self.include_resistors.setToolTip("also replace rsil, rppd, rhigh by two via ports each (recommended); "
                                           "unreplaced, the stackup models them as sheet resistors of the drawn size, "
                                           "without the PDK's width offset and contact end resistance: R too low")
+        self.replace_button = _button("Replace All", self._replace_devices,
+                                      "replace each PDK transistor (and, if ticked, each resistor) by ports at its "
+                                      "pins: a REF_FOR_TRANSISTOR patch and one via port per terminal; the export "
+                                      "removes the device's shapes below its pins")
+        self.unreplace_button = _button("Undo Replace", self._unreplace_devices,
+                                        "remove the patches and ports made by Replace All")
+        self.exported = None        # the .simcfg / .tsimcfg file name if the layout is an exported EM model
         self.devices_step = Step("Devices", _details(self.devices_table, self.devices_detail, [
-            _button("Replace All", self._replace_devices,
-                    "replace each PDK transistor (and, if ticked, each resistor) by ports at its pins: a "
-                    "REF_FOR_TRANSISTOR patch and one via port per terminal; the export removes the device's "
-                    "shapes below its pins"),
-            self.include_resistors,
-            _button("Undo Replace", self._unreplace_devices, "remove the patches and ports made by Replace All")]))
+            self.replace_button, self.include_resistors, self.unreplace_button]))
         self.ports_step = Step("Ports")
         self.sources_step = Step("Sources")
         self.names_detail = _label()
@@ -468,6 +474,7 @@ class EMPanel(pya.QWidget):
 
     def _show_devices_step(self, stackup, layout, cell, clip=None):
         self._fill_devices([], layout)
+        self._set_exported(None)
         if stackup is None:
             self.devices_step.set(ERROR, "needs a stackup")
             self.devices_detail.setText("")
@@ -494,6 +501,15 @@ class EMPanel(pya.QWidget):
         touching = touching_patches(layout, cell, stackup)
         loose = unconnected_terminals(layout, devices, self.result) if self.result is not None else []
         orphans = orphaned_tags(layout, cell, devices)
+        # an exported EM model (the GDS file of its own setupEM file): the export removed the replaced devices' shapes
+        # and kept the tagged ports, so every one looks "no longer there". Undo Replace would delete the device ports.
+        if orphans and not devices and gui.exported_model(layout):
+            self._set_exported(gui.exported_model(layout))
+            ports = sum(len(p) for p in orphans.values())
+            self.devices_step.set(OK, f"exported EM model: {len(orphans)} device(s) replaced by {ports} port(s)")
+            self.devices_detail.setText(EXPORTED_DETAIL.format(file=self.exported))
+            self.devices_detail.setVisible(True)
+            return
         lines += [f"{t} of {d.pcell} {d.id.split('@')[0]} is not connected to any wiring (floats in the EM model)"
                   for d, t in loose]
         lines += [f"REF patches of {a.split('@')[0]} and {b.split('@')[0]} touch: one shared reference"
@@ -528,6 +544,13 @@ class EMPanel(pya.QWidget):
         if clip is not None and parts and (transistors or resistors):
             parts[0] = "in the region: " + parts[0]
         self.devices_step.set(state, ", ".join(parts))
+
+    def _set_exported(self, name):
+        """name: the setupEM / setupThermal file of an exported EM model, else None. Replace All and Undo Replace are
+        off for an exported model."""
+        self.exported = name
+        self.replace_button.setEnabled(name is None)
+        self.unreplace_button.setEnabled(name is None)
 
     def _fill_devices(self, devices, layout, technology=None):
         """One row per device, ordered by device id. # is the device's number k in Create Circuit (X<k>, or R<k> for
@@ -582,14 +605,14 @@ class EMPanel(pya.QWidget):
 
     def _replace_devices(self):
         view, cv = self._view()
-        if view is not None:
+        if view is not None and not self.exported:
             done = gui.replace_devices(view, cv, self.include_resistors.isChecked())
             self.refresh()
             gui._status(f"{len(done)} device(s) replaced by ports", 10)
 
     def _unreplace_devices(self):
         view, cv = self._view()
-        if view is not None:
+        if view is not None and not self.exported:     # an exported model: it would delete the device ports
             removed = gui.unreplace_devices(view, cv)
             self.refresh()
             gui._status(f"device replacement undone ({removed} shape(s) removed)", 10)

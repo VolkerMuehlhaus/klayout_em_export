@@ -17,6 +17,16 @@ after an EM export, because the last stackup used applies to every layout. Now:
   PA layout: 3.5 s instead of 12.9 s, a 14 MB layout with fill 2.2 s instead of 5.0 s, a 65 MB RF front end
   15 s instead of 20 s (most of it the ground tracing of the large region).
 
+**Fix: an exported EM model opened in KLayout.** The export removes the replaced devices and keeps their ports, with
+the tags that name the device. Opened in KLayout, such a file showed "ports of N device(s) no longer there" and
+advised Undo Replace, which would have deleted the device ports from the model. A layout that is the GDS file of its
+own `.simcfg` and has device ports but none of their devices is now recognised as an exported model: the Devices step
+says "exported EM model: N device(s) replaced by M port(s)", and Replace All and Undo Replace are off.
+
+**Fix:** relative paths in a `.simcfg` or `.tsimcfg` (GdsFile, SubstrateFile; the export writes them relative) are
+now read relative to that file, as setupEM reads them. Before, they were relative to KLayout's working directory, so
+the layout's own setup file and its stackup were only found when KLayout was started in that folder.
+
 **Documentation:** gds2palace 0.10.7 changed the frequencies that replace DC in a sweep from 0 Hz: still 10 MHz and
 20 MHz for most models, higher for a mesh finer than 0.5 µm (5 MHz·µm divided by the smallest cell size). The user's
 guide, `REFERENCE.md`, `ARCHITECTURE.md` and the description at the top of `tools/spice_wrapper.py` said 10 MHz and

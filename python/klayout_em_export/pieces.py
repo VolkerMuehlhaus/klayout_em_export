@@ -381,7 +381,11 @@ def read_set(simcfg_path):
                 "ground": section.get("ground", []), "stackup": section.get("stackup"), "cell": section.get("cell"),
                 "links": section.get("links", [])}
     values = data.get("saved_values", {})
-    gds = values.get("GdsFile")
+    # relative paths are relative to the settings file, as setupEM reads them
+    here = os.path.dirname(os.path.abspath(simcfg_path))
+    gds, stackup = values.get("GdsFile"), values.get("SubstrateFile")
+    gds = os.path.join(here, gds) if gds and not os.path.isabs(gds) else gds
+    stackup = os.path.join(here, stackup) if stackup and not os.path.isabs(stackup) else stackup
     box = None
     if gds and os.path.isfile(gds):
         ly = pya.Layout()
@@ -393,7 +397,7 @@ def read_set(simcfg_path):
     if box is None:
         raise ValueError(f"{os.path.basename(simcfg_path)} has no pieces and its GDS file is not there to take the "
                          "region from")
-    return {"pieces": [(1, box)], "ground": data.get("ground", []), "stackup": values.get("SubstrateFile"),
+    return {"pieces": [(1, box)], "ground": data.get("ground", []), "stackup": stackup,
             "cell": values.get("cellname"), "links": []}
 
 
