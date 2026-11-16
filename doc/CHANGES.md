@@ -1,6 +1,9 @@
 # What's new
 
-## Next release
+## 0.4.0 (16 November 2026)
+
+Works with setupEM 0.18.4 or newer for one more thing: after Open in setupEM, Ctrl+S in setupEM saves into the
+export's `.simcfg` (before, Ctrl+S did nothing there, and changes were lost unless saved with Save Config).
 
 **Faster with large layouts:** after a layout was opened, the EM panel's checks could take much longer than reading
 the file (a 10 MB PA layout with fill: 0.1 s to read, 9 to 13 s of checks), and they ran for every layout opened
